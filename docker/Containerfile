@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+# =============================================================================
+#  Jew_Pawn-Lending-Suite — custom Frappe/ERPNext image
+# -----------------------------------------------------------------------------
+#  Builds on the official frappe/erpnext image (Frappe + ERPNext preinstalled)
+#  and adds the three suite apps from this bundle.
+#
+#  Build from the BUNDLE ROOT (the context must contain ./apps):
+#     docker build -t shyberdev/jew-pawn-lending:latest -f docker/Containerfile .
+#
+#  Then run it with the frappe_docker compose stack (see docker/README.md).
+#
+#  NOTE: the official image only publishes a `develop` tag for Frappe v17, so
+#  this image tracks upstream `develop`. For exact parity with the pinned
+#  commits use the native ./install.sh instead.
+# =============================================================================
+ARG FRAPPE_BRANCH=develop
+FROM frappe/erpnext:${FRAPPE_BRANCH}
+
+USER frappe
+WORKDIR /home/frappe/frappe-bench
+
+# ---- vendored suite apps ---------------------------------------------------
+COPY --chown=frappe:frappe apps/jewellery_management ./apps/jewellery_management
+COPY --chown=frappe:frappe apps/lending              ./apps/lending
+COPY --chown=frappe:frappe apps/pawn_shop            ./apps/pawn_shop
+
+# ---- register + install python deps + build assets -------------------------
+RUN for a in jewellery_management lending pawn_shop; do \
+      grep -qxF "$a" sites/apps.txt || echo "$a" >> sites/apps.txt; \
+    done \
+ && bench setup requirements --python \
+ && bench build
+
+USER frappe

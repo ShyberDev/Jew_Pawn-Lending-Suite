@@ -44,13 +44,32 @@ hand the system to a non-technical user.
 All three share one database, one login and a **Combined Business Profit and
 Loss** report.
 
+## Windows & Docker
+
+- **Windows:** Frappe needs Linux. Run `windows/install-windows.ps1` once
+  (Admin PowerShell) to set up WSL2 + Ubuntu, then run `./install.sh` inside
+  Ubuntu. See `windows/README.md`.
+- **Docker (any OS):** `./docker/build.sh` builds a Frappe/ERPNext image with all
+  three apps; `docker/README.md` runs it via the `frappe_docker` stack.
+
+## Keeping the bundle in sync
+
+After changing the apps in your working bench:
+
+```bash
+./update-bundle.sh --commit --push
+```
+
 ## Layout
 
 ```
-install.sh          one-command installer
+install.sh          one-command installer (Linux / WSL2)
+update-bundle.sh    sync bench apps -> this bundle
 versions.env        pinned frappe/erpnext commits
 README_FIRST.md     full onboarding guide
 apps/               vendored apps (jewellery_management, lending, pawn_shop)
+docker/             Containerfile + build script + Docker guide
+windows/            WSL2 setup script + Windows guide
 docs/AI_HANDOFF.md  engineering log
 ```
 

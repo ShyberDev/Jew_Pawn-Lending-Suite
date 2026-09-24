@@ -1,5 +1,13 @@
 # README FIRST — Frappe Jewellery, Pawn & Lending Suite
 
+> **⚠️ Looking to install? Use the one-repo bundle instead.**
+> The whole suite (Frappe + ERPNext + jewellery + pawn + lending) now ships as a
+> single repository with a one-command installer:
+> **https://github.com/ShyberDev/Jew_Pawn-Lending-Suite** (`develop` branch) —
+> `git clone … && ./install.sh`.
+> The guide below is kept as the detailed reference for the jewellery app and the
+> suite's internals; its install section describes the older, separate-app route.
+
 > **Read this file first.** It is the single onboarding document for the
 > **Frappe Jewellery, Pawn & Lending Suite** — a complete, open-source business
 > suite built on top of the [Frappe Framework](https://frappeframework.com) and

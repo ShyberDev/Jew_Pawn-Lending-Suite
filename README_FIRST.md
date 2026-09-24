@@ -109,7 +109,10 @@ Built, installed and end-to-end tested on:
 - ✅ Single machine (web + DB + redis on one host) — **verified**.
 - ⚠️ Production (nginx + supervisor, HTTPS, workers) — supported by Frappe, not
   yet exercised here (§5.5).
-- ❌ Windows/macOS are not the tested path (Frappe targets Linux).
+- ✅ **Windows** — via **WSL2 + Ubuntu** (one script:
+  `windows/install-windows.ps1`) or **Docker Desktop**; see §5.6.
+- ✅ **macOS / any OS** — via **Docker**; see `docker/README.md`.
+- ❌ Native Windows Python is not supported (Frappe targets Linux).
 
 ---
 
@@ -279,6 +282,44 @@ bench restart
 ```
 
 Installs nginx + supervisor and runs Frappe as a service instead of `bench start`.
+
+### 5.6 Windows and Docker
+
+**Windows (WSL2 + Ubuntu) — recommended.** Frappe does not run on native
+Windows. Run the helper once in an **Administrator PowerShell**:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\install-windows.ps1
+```
+
+It enables WSL2 + VirtualMachinePlatform and installs Ubuntu. After a reboot,
+open Ubuntu and run the normal `git clone … && ./install.sh`. You then browse to
+**http://localhost:8000/desk** from Windows (WSL2 forwards localhost). Full guide:
+`windows/README.md`.
+
+**Docker (Windows / macOS / Linux).** Build the suite image and run it with the
+maintained `frappe_docker` stack:
+
+```bash
+cd Jew_Pawn-Lending-Suite
+./docker/build.sh                 # builds shyberdev/jew-pawn-lending:latest
+# then follow docker/README.md (compose up + create site + install-app)
+```
+
+The Docker image tracks the upstream `develop` (v17) tag; for byte-exact parity
+with the pinned commits use the native `./install.sh`. Docker was **not executed**
+in the build environment (Docker unavailable) — see `docker/README.md`.
+
+### 5.7 Keeping the bundle in sync (`update-bundle.sh`)
+
+Your working bench and this bundle are separate copies. After you change the apps
+in `~/frappe-bench/apps/*`, refresh the bundle:
+
+```bash
+./update-bundle.sh                 # copy bench apps -> bundle, show diff
+./update-bundle.sh --commit --push # copy + commit + push
+./update-bundle.sh --dry-run       # preview only
+```
 
 ---
 
@@ -472,9 +513,11 @@ totals: shop income ₹22,13,087 / purchases ₹33,66,397; pawn principal
     go-live** (`versions.env` already pins the tested commits).
 
 **Suite / ops**
-15. No prebuilt **Docker/VM image** yet — the bundle's `install.sh` is the easy
-    path; a VM snapshot is still the simplest handover for a non-technical user
-    (§12).
+15. **Docker files exist** (`docker/`) but were **not executed** in the build
+    environment (Docker unavailable) — validate the image build before relying on
+    it. No **prebuilt VM image** yet; a VM snapshot is still the simplest handover
+    for a fully non-technical user (§12). Windows is supported via WSL2/Docker
+    (§5.6).
 16. Both repos are currently **private** — make public or grant access before
     others can clone.
 17. The Lending sidebar patch lives in the vendored `apps/lending`; a future
@@ -482,6 +525,11 @@ totals: shop income ₹22,13,087 / purchases ₹33,66,397; pawn principal
     already ships the patched copy).
 18. Production mode (nginx/supervisor/HTTPS) not yet exercised.
 19. No automated test suite in CI; verification so far is scripted and manual.
+20. **Mobile ↔ laptop sync is not built yet** (owner requested; planned). The
+    current design is a single server (laptop or server) that phones/tablets
+    reach over the LAN or internet; a true offline-capable two-way sync between a
+    mobile app and the laptop is future work. For now, use the browser on the
+    same network (`http://<laptop-ip>:8000/desk`).
 
 ---
 
@@ -524,15 +572,21 @@ cd apps/jewellery_management && git add -A && git commit -m "..."
 
 ## 12. Shipping a complete environment (best for beginners)
 
-`install.sh` removes the framework-install burden, but it still assumes a Linux
-machine. For a truly non-technical user the simplest handover is:
+`install.sh` removes the framework-install burden on Linux. For Windows and for
+truly non-technical users:
 
-1. **VM snapshot / disk image** of a working machine — they boot it and run
-   `sudo systemctl start mariadb && cd ~/frappe-bench && bench start`.
-2. **Docker image** — a `Dockerfile`/`docker-compose.yml` bundling MariaDB +
-   Redis + bench + a pre-created site (see the [frappe_docker](https://github.com/frappe/frappe_docker)
-   project for the standard approach). *Recommended next work.*
-3. **Restore bundle** — a `bench backup --with-files` tarball + the app folders.
+1. **Docker** — `docker/Containerfile` + `docker/build.sh` build a
+   Frappe/ERPNext image with all three apps; `docker/README.md` runs it with the
+   maintained [frappe_docker](https://github.com/frappe/frappe_docker) stack.
+   Works on **Windows** (Docker Desktop), **macOS** and Linux. *(Not executed in
+   the build environment — validate before shipping.)*
+2. **Windows (WSL2)** — `windows/install-windows.ps1` + `windows/README.md`.
+   Frappe cannot run on native Windows; WSL2 gives a real Ubuntu where
+   `./install.sh` works unchanged.
+3. **VM snapshot / disk image** — boot a pre-installed machine and run
+   `sudo systemctl start mariadb && cd ~/frappe-bench && bench start`. Best
+   handover for a non-technical user; distribute outside git.
+4. **Restore bundle** — a `bench backup --with-files` tarball + the app folders.
    A technician restores it in minutes (§11).
 
 ---
