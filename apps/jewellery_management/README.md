@@ -36,16 +36,30 @@ bench start
 # open http://library.local:8000/desk
 ```
 
-## Install (existing Frappe/ERPNext bench)
+## ⚠️ Install the whole suite from ONE repo (recommended)
+
+**Do not install these apps separately** — they interact and must share one
+Frappe/ERPNext bench and site. The one-repo bundle contains **all three apps +
+Frappe + ERPNext + a one-command installer**:
+
+```bash
+git clone https://github.com/ShyberDev/Jew_Pawn-Lending-Suite.git
+cd Jew_Pawn-Lending-Suite
+./install.sh
+```
+
+Repo: **https://github.com/ShyberDev/Jew_Pawn-Lending-Suite** (branch `develop`).
+The full guide is that repo's `README_FIRST.md`.
+
+This `jewellery_management` repository is the **jewellery app's own source
+repo** (its history/home). It is not the recommended install path on its own.
+
+### Advanced: add the app to an existing bench
 
 ```bash
 cd ~/frappe-bench
-bench get-app https://github.com/ShyberDev/jewellery_management --branch "Frappe Jewellery, Pawn & Lending Suite"
-bench get-app https://github.com/frappe/lending
-# pawn_shop: copy apps/pawn_shop into your bench (no public remote yet)
+bench get-app https://github.com/ShyberDev/jewellery_management --branch "Frappe-Jewellery-Pawn-Lending-Suite"
 bench --site library.local install-app jewellery_management
-bench --site library.local install-app lending
-bench --site library.local install-app pawn_shop
 bench build
 ```
 

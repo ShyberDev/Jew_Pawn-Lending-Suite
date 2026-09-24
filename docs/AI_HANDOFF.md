@@ -771,3 +771,36 @@ was created as **`ShyberDev/Jew_Pawn-Lending-Suite`** (private, default branch
 
 Both repos are private. To let others `bench get-app` them, either make them
 public or grant collaborator access.
+
+### 18.8 ONE-BUNDLE SUITE — `Jew_Pawn-Lending-Suite` becomes the single download
+Owner decision: the whole suite must ship as **one repo, one command** so a new
+user never installs Frappe, ERPNext and the apps separately (which caused
+breakage). The `ShyberDev/Jew_Pawn-Lending-Suite` repo was therefore converted
+from "pawn app only" into the **bundle**:
+
+- Root layout: `install.sh`, `versions.env`, `README_FIRST.md`, `README.md`,
+  `LICENSE`, `.gitignore`, `docs/AI_HANDOFF.md`, and `apps/` containing the three
+  vendored apps (`jewellery_management`, `lending`, `pawn_shop`).
+- The pawn app was moved from the repo root to `apps/pawn_shop` (git history
+  preserved via `git mv`). `jewellery_management` and the **patched** `lending`
+  (with the §18.6 sidebar fix) were vendored in.
+- **`install.sh`** is the one command: it apt-installs system deps, installs the
+  `bench` CLI, `bench init`s Frappe at the pinned `FRAPPE_COMMIT`, gets ERPNext at
+  the pinned `ERPNEXT_COMMIT`, copies the vendored apps, creates the site and
+  installs **erpnext → jewellery_management → lending → pawn_shop**, then
+  `bench build`. It is idempotent and supports `--site`, `--bench-dir`,
+  `--admin-password`, `--db-root-password`, `--non-interactive`,
+  `--skip-system-deps`.
+- **`versions.env`** pins the tested commits:
+  Frappe `8a43de00d7f1e304598c910f0aa35aa384d474d7` (develop),
+  ERPNext `8c24c5bd68aa6fd6db155c46fb6f05e201cc6d69` (develop). Frappe/ERPNext are
+  ~500 MB each and change daily, so they are **fetched at install time** rather
+  than vendored; the three custom/patched apps **are** vendored, so the bundle is
+  self-contained for everything that is ours.
+- Bundle `develop` HEAD after the conversion: **`f892615`** (push
+  `4a09d40..f892615`). The `jewellery_management` README/README_FIRST were updated
+  to point at the bundle as the recommended install path.
+
+**Remaining / future:** a prebuilt Docker/VM image is still the easiest handover
+for a fully non-technical user (§12 of `README_FIRST.md`); the bundle's
+`install.sh` is the current easy path. Both repos remain private.
