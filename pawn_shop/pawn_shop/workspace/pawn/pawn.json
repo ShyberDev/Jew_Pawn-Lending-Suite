@@ -8,7 +8,7 @@
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "assets",
+ "icon": "hand-coins",
  "idx": 0,
  "indicator_color": "",
  "is_hidden": 0,
@@ -622,6 +622,7 @@
    "url": null
   }
  ],
+ "standard": 1,
  "title": "Pawn",
  "type": "Workspace"
 }
