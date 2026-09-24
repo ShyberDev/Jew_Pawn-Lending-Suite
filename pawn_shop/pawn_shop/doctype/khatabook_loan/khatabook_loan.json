@@ -1,0 +1,269 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_customer",
+  "naming_series",
+  "customer",
+  "customer_name",
+  "phone",
+  "col_1",
+  "village",
+  "business",
+  "status",
+  "sec_loan",
+  "loan_date",
+  "principal_amount",
+  "interest_amount",
+  "col_2",
+  "total_payable",
+  "installment_count",
+  "installment_amount",
+  "sec_schedule",
+  "collection_frequency",
+  "start_date",
+  "end_date",
+  "col_3",
+  "customer_rating",
+  "refinanced_from",
+  "sec_installments",
+  "installments",
+  "sec_progress",
+  "total_collected",
+  "paid_installments",
+  "col_4",
+  "outstanding",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Customer",
+   "fieldname": "sec_customer"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "KL-.YYYY.-.#####",
+   "default": "KL-.YYYY.-.#####",
+   "hidden": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Pawn Customer",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "fetch_from": "customer.phone",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "village",
+   "fieldtype": "Link",
+   "label": "Village",
+   "options": "Village",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "business",
+   "fieldtype": "Link",
+   "label": "Business",
+   "options": "Business"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "default": "Active",
+   "options": "Active\nClosed\nDefaulted",
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Loan",
+   "fieldname": "sec_loan"
+  },
+  {
+   "fieldname": "loan_date",
+   "fieldtype": "Date",
+   "label": "Loan Date",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "principal_amount",
+   "fieldtype": "Currency",
+   "label": "Principal",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "interest_amount",
+   "fieldtype": "Currency",
+   "label": "Total Interest"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "total_payable",
+   "fieldtype": "Currency",
+   "label": "Total Payable",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "installment_count",
+   "fieldtype": "Int",
+   "label": "No. of Installments",
+   "default": "12"
+  },
+  {
+   "fieldname": "installment_amount",
+   "fieldtype": "Currency",
+   "label": "Installment Amount",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Schedule",
+   "fieldname": "sec_schedule"
+  },
+  {
+   "fieldname": "collection_frequency",
+   "fieldtype": "Select",
+   "label": "Collection Frequency",
+   "default": "Weekly",
+   "options": "Weekly\nBiweekly\nMonthly"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "First Due Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Last Due Date",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_3"
+  },
+  {
+   "fieldname": "customer_rating",
+   "fieldtype": "Select",
+   "label": "Customer Rating",
+   "read_only": 1,
+   "options": "New\nGood\nBad"
+  },
+  {
+   "fieldname": "refinanced_from",
+   "fieldtype": "Link",
+   "label": "Refinanced From",
+   "options": "Khatabook Loan",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Installments",
+   "fieldname": "sec_installments"
+  },
+  {
+   "fieldname": "installments",
+   "fieldtype": "Table",
+   "label": "Installments",
+   "options": "Khatabook Installment"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Progress",
+   "fieldname": "sec_progress"
+  },
+  {
+   "fieldname": "total_collected",
+   "fieldtype": "Currency",
+   "label": "Total Collected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "paid_installments",
+   "fieldtype": "Int",
+   "label": "Paid Installments",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_4"
+  },
+  {
+   "fieldname": "outstanding",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Khatabook Loan",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "track_changes": 1,
+ "title_field": "customer_name",
+ "search_fields": "customer_name,phone,village"
+}

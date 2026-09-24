@@ -1,0 +1,159 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_default_interest_(per_month_pct)",
+  "default_gold_interest_rate",
+  "default_silver_interest_rate",
+  "col_1",
+  "grace_period_days",
+  "sec_valuation_rates_(per_gram)",
+  "gold_valuation_rate",
+  "silver_valuation_rate",
+  "col_2",
+  "max_ltv_gold",
+  "max_ltv_silver",
+  "sec_businesses",
+  "pawn_business",
+  "khatabook_business",
+  "col_3",
+  "default_company",
+  "sec_accounting_(optional_gl_posting)",
+  "enable_gl_posting",
+  "interest_income_account",
+  "col_4",
+  "loan_account"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Default Interest (per month %)",
+   "fieldname": "sec_default_interest_(per_month_pct)"
+  },
+  {
+   "fieldname": "default_gold_interest_rate",
+   "fieldtype": "Float",
+   "label": "Default Gold Interest % / month",
+   "default": "3",
+   "precision": "2"
+  },
+  {
+   "fieldname": "default_silver_interest_rate",
+   "fieldtype": "Float",
+   "label": "Default Silver Interest % / month",
+   "default": "4",
+   "precision": "2"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "grace_period_days",
+   "fieldtype": "Int",
+   "label": "Grace Period (days)",
+   "default": "7"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Valuation Rates (per gram)",
+   "fieldname": "sec_valuation_rates_(per_gram)"
+  },
+  {
+   "fieldname": "gold_valuation_rate",
+   "fieldtype": "Currency",
+   "label": "Gold Valuation Rate / g"
+  },
+  {
+   "fieldname": "silver_valuation_rate",
+   "fieldtype": "Currency",
+   "label": "Silver Valuation Rate / g"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "max_ltv_gold",
+   "fieldtype": "Percent",
+   "label": "Max LTV Gold",
+   "default": "75"
+  },
+  {
+   "fieldname": "max_ltv_silver",
+   "fieldtype": "Percent",
+   "label": "Max LTV Silver",
+   "default": "60"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Businesses",
+   "fieldname": "sec_businesses"
+  },
+  {
+   "fieldname": "pawn_business",
+   "fieldtype": "Link",
+   "label": "Pawn Business",
+   "options": "Business"
+  },
+  {
+   "fieldname": "khatabook_business",
+   "fieldtype": "Link",
+   "label": "Khatabook Business",
+   "options": "Business"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_3"
+  },
+  {
+   "fieldname": "default_company",
+   "fieldtype": "Link",
+   "label": "Default Company",
+   "options": "Company"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Accounting (optional GL posting)",
+   "fieldname": "sec_accounting_(optional_gl_posting)"
+  },
+  {
+   "fieldname": "enable_gl_posting",
+   "fieldtype": "Check",
+   "label": "Enable GL Posting",
+   "default": "0"
+  },
+  {
+   "fieldname": "interest_income_account",
+   "fieldtype": "Link",
+   "label": "Interest Income Account",
+   "options": "Account"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_4"
+  },
+  {
+   "fieldname": "loan_account",
+   "fieldtype": "Link",
+   "label": "Loan / Advance Account",
+   "options": "Account"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Pawn Settings",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1
+}

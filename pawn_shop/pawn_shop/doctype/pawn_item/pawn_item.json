@@ -1,0 +1,111 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_description",
+  "metal_type",
+  "purity",
+  "quantity",
+  "gross_weight",
+  "net_weight",
+  "col_1",
+  "hallmarked",
+  "valuation_rate",
+  "market_value",
+  "approved_amount",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_description",
+   "fieldtype": "Data",
+   "label": "Item Description",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "metal_type",
+   "fieldtype": "Select",
+   "label": "Metal",
+   "default": "Gold",
+   "options": "Gold\nSilver\nOther",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "purity",
+   "fieldtype": "Data",
+   "label": "Purity",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Int",
+   "label": "Qty",
+   "default": "1"
+  },
+  {
+   "fieldname": "gross_weight",
+   "fieldtype": "Float",
+   "label": "Gross Wt (g)",
+   "precision": "3",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "net_weight",
+   "fieldtype": "Float",
+   "label": "Net Wt (g)",
+   "precision": "3",
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "hallmarked",
+   "fieldtype": "Check",
+   "label": "Hallmarked",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "valuation_rate",
+   "fieldtype": "Currency",
+   "label": "Rate / g",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "market_value",
+   "fieldtype": "Currency",
+   "label": "Market Value",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "approved_amount",
+   "fieldtype": "Currency",
+   "label": "Approved Amount",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Data",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Pawn Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1
+}

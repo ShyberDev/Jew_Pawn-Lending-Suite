@@ -1,0 +1,151 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_refinance",
+  "naming_series",
+  "khatabook_loan",
+  "customer",
+  "col_1",
+  "refinance_date",
+  "old_outstanding",
+  "sec_new_terms",
+  "new_principal",
+  "new_interest_amount",
+  "col_2",
+  "new_installment_count",
+  "new_interest_note",
+  "new_loan",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Refinance",
+   "fieldname": "sec_refinance"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "KR-.YYYY.-.#####",
+   "default": "KR-.YYYY.-.#####",
+   "hidden": 1
+  },
+  {
+   "fieldname": "khatabook_loan",
+   "fieldtype": "Link",
+   "label": "Khatabook Loan",
+   "options": "Khatabook Loan",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "label": "Customer",
+   "fetch_from": "khatabook_loan.customer_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "refinance_date",
+   "fieldtype": "Date",
+   "label": "Refinance Date",
+   "default": "Today",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "old_outstanding",
+   "fieldtype": "Currency",
+   "label": "Old Outstanding",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "New Terms",
+   "fieldname": "sec_new_terms"
+  },
+  {
+   "fieldname": "new_principal",
+   "fieldtype": "Currency",
+   "label": "New Principal",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "new_interest_amount",
+   "fieldtype": "Currency",
+   "label": "New Total Interest",
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "new_installment_count",
+   "fieldtype": "Int",
+   "label": "New Installments",
+   "default": "12"
+  },
+  {
+   "fieldname": "new_interest_note",
+   "fieldtype": "Data",
+   "label": "New Interest Note (e.g. 200 per 1000)"
+  },
+  {
+   "fieldname": "new_loan",
+   "fieldtype": "Link",
+   "label": "New Loan",
+   "options": "Khatabook Loan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Khatabook Refinance",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "is_submittable": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "khatabook_loan",
+ "search_fields": "khatabook_loan,customer"
+}

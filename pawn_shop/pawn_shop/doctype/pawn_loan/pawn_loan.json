@@ -1,0 +1,290 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_customer",
+  "naming_series",
+  "customer",
+  "customer_name",
+  "phone",
+  "col_1",
+  "village",
+  "business",
+  "status",
+  "sec_loan",
+  "loan_date",
+  "interest_basis",
+  "loan_amount",
+  "col_2",
+  "interest_rate",
+  "due_date",
+  "sec_pledged_items",
+  "items",
+  "sec_valuation",
+  "total_gross_weight",
+  "total_net_weight",
+  "hallmarked_weight",
+  "col_3",
+  "non_hallmarked_weight",
+  "total_market_value",
+  "ltv",
+  "sec_accounting",
+  "interest_accrued",
+  "total_payable",
+  "amount_paid",
+  "col_4",
+  "balance",
+  "last_interest_date",
+  "release_date",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Customer",
+   "fieldname": "sec_customer"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "PL-.YYYY.-.#####",
+   "default": "PL-.YYYY.-.#####",
+   "hidden": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Pawn Customer",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "fetch_from": "customer.phone",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "village",
+   "fieldtype": "Link",
+   "label": "Village",
+   "options": "Village",
+   "fetch_from": "customer.village",
+   "read_only": 1
+  },
+  {
+   "fieldname": "business",
+   "fieldtype": "Link",
+   "label": "Business",
+   "options": "Business"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "default": "Active",
+   "options": "Active\nReleased\nOverdue\nForfeited",
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Loan",
+   "fieldname": "sec_loan"
+  },
+  {
+   "fieldname": "loan_date",
+   "fieldtype": "Date",
+   "label": "Loan Date",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "interest_basis",
+   "fieldtype": "Select",
+   "label": "Interest Basis",
+   "default": "Gold",
+   "options": "Gold\nSilver"
+  },
+  {
+   "fieldname": "loan_amount",
+   "fieldtype": "Currency",
+   "label": "Loan Amount",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "interest_rate",
+   "fieldtype": "Float",
+   "label": "Interest % / month",
+   "precision": "2",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Pledged Items",
+   "fieldname": "sec_pledged_items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Pawn Item"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Valuation",
+   "fieldname": "sec_valuation"
+  },
+  {
+   "fieldname": "total_gross_weight",
+   "fieldtype": "Float",
+   "label": "Total Gross Wt (g)",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_net_weight",
+   "fieldtype": "Float",
+   "label": "Total Net Wt (g)",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hallmarked_weight",
+   "fieldtype": "Float",
+   "label": "Hallmarked Net Wt (g)",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_3"
+  },
+  {
+   "fieldname": "non_hallmarked_weight",
+   "fieldtype": "Float",
+   "label": "Non-Hallmarked Net Wt (g)",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_market_value",
+   "fieldtype": "Currency",
+   "label": "Total Market Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ltv",
+   "fieldtype": "Percent",
+   "label": "LTV %",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Accounting",
+   "fieldname": "sec_accounting"
+  },
+  {
+   "fieldname": "interest_accrued",
+   "fieldtype": "Currency",
+   "label": "Interest Accrued",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_payable",
+   "fieldtype": "Currency",
+   "label": "Total Payable",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_paid",
+   "fieldtype": "Currency",
+   "label": "Amount Paid",
+   "read_only": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_4"
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "label": "Balance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_interest_date",
+   "fieldtype": "Date",
+   "label": "Last Interest Date"
+  },
+  {
+   "fieldname": "release_date",
+   "fieldtype": "Date",
+   "label": "Release Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Pawn Loan",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "track_changes": 1,
+ "title_field": "customer_name",
+ "search_fields": "customer_name,phone"
+}

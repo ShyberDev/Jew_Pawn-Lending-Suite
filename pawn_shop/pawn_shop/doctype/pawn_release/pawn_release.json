@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_release",
+  "naming_series",
+  "pawn_loan",
+  "customer",
+  "col_1",
+  "release_date",
+  "payment_mode",
+  "sec_payment",
+  "principal_paid",
+  "interest_paid",
+  "col_2",
+  "other_charges",
+  "total_paid",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Release",
+   "fieldname": "sec_release"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "PR-.YYYY.-.#####",
+   "default": "PR-.YYYY.-.#####",
+   "hidden": 1
+  },
+  {
+   "fieldname": "pawn_loan",
+   "fieldtype": "Link",
+   "label": "Pawn Loan",
+   "options": "Pawn Loan",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "label": "Customer",
+   "fetch_from": "pawn_loan.customer_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "release_date",
+   "fieldtype": "Date",
+   "label": "Release Date",
+   "default": "Today",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "payment_mode",
+   "fieldtype": "Select",
+   "label": "Payment Mode",
+   "default": "Cash",
+   "options": "Cash\nUPI\nCard\nBank Transfer\nCheque"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Payment",
+   "fieldname": "sec_payment"
+  },
+  {
+   "fieldname": "principal_paid",
+   "fieldtype": "Currency",
+   "label": "Principal Paid"
+  },
+  {
+   "fieldname": "interest_paid",
+   "fieldtype": "Currency",
+   "label": "Interest Paid"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "other_charges",
+   "fieldtype": "Currency",
+   "label": "Other Charges"
+  },
+  {
+   "fieldname": "total_paid",
+   "fieldtype": "Currency",
+   "label": "Total Paid",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Pawn Release",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "is_submittable": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "pawn_loan",
+ "search_fields": "pawn_loan,customer"
+}

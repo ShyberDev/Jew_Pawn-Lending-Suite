@@ -265,7 +265,25 @@ use_json_request_body = True
 export_python_type_annotations = True
 
 # Require all whitelisted methods to have type annotations
-require_type_annotated_api_methods = True
+require_type_annotated_api_methods = False
+
+# Apps screen entry
+add_to_apps_screen = [
+	{
+		"name": "pawn_shop",
+		"logo": "/assets/pawn_shop/images/pawn.svg",
+		"title": "Pawn Shop",
+		"route": "/app/pawn",
+		"has_permission": "pawn_shop.api.permission.has_app_permission",
+	}
+]
+
+# Scheduled tasks
+scheduler_events = {
+	"daily": [
+		"pawn_shop.tasks.mark_overdue_loans",
+	]
+}
 
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs

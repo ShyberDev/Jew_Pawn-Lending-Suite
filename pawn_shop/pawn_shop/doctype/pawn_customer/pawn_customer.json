@@ -1,0 +1,181 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_customer",
+  "naming_series",
+  "customer_name",
+  "phone",
+  "customer_type",
+  "col_1",
+  "village",
+  "address",
+  "status",
+  "sec_kyc",
+  "id_proof_type",
+  "id_proof_number",
+  "col_2",
+  "rating",
+  "sec_interest_overrides_(per_month_pct)",
+  "gold_interest_rate",
+  "silver_interest_rate",
+  "col_3",
+  "khatabook_interest_rate",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldtype": "Section Break",
+   "label": "Customer",
+   "fieldname": "sec_customer"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "PC-.YYYY.-.#####",
+   "default": "PC-.YYYY.-.#####",
+   "hidden": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "reqd": 1,
+   "in_list_view": 1,
+   "options": "Phone"
+  },
+  {
+   "fieldname": "customer_type",
+   "fieldtype": "Select",
+   "label": "Customer Type",
+   "in_list_view": 1,
+   "default": "General",
+   "options": "Gold Pawn\nSilver Pawn\nKhatabook\nGeneral"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_1"
+  },
+  {
+   "fieldname": "village",
+   "fieldtype": "Link",
+   "label": "Village",
+   "options": "Village",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "default": "Active",
+   "options": "Active\nInactive"
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "KYC",
+   "fieldname": "sec_kyc"
+  },
+  {
+   "fieldname": "id_proof_type",
+   "fieldtype": "Select",
+   "label": "ID Proof Type",
+   "options": "Aadhaar\nVoter ID\nPAN\nDriving License\nOther"
+  },
+  {
+   "fieldname": "id_proof_number",
+   "fieldtype": "Data",
+   "label": "ID Proof Number"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_2"
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Select",
+   "label": "Rating",
+   "default": "New",
+   "options": "New\nGood\nBad",
+   "in_list_view": 1
+  },
+  {
+   "fieldtype": "Section Break",
+   "label": "Interest Overrides (per month %)",
+   "fieldname": "sec_interest_overrides_(per_month_pct)"
+  },
+  {
+   "fieldname": "gold_interest_rate",
+   "fieldtype": "Float",
+   "label": "Gold Interest % / month",
+   "default": "3",
+   "precision": "2"
+  },
+  {
+   "fieldname": "silver_interest_rate",
+   "fieldtype": "Float",
+   "label": "Silver Interest % / month",
+   "default": "4",
+   "precision": "2"
+  },
+  {
+   "fieldtype": "Column Break",
+   "fieldname": "col_3"
+  },
+  {
+   "fieldname": "khatabook_interest_rate",
+   "fieldtype": "Float",
+   "label": "Khatabook Interest % / month",
+   "precision": "2"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Pawn Shop",
+ "name": "Pawn Customer",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "customer_name",
+ "search_fields": "phone,village"
+}
