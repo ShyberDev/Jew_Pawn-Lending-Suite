@@ -90,13 +90,27 @@ mkdir -p ~/development/jdk-17 && tar xf /tmp/jdk17.tar.gz -C ~/development/jdk-1
 export JAVA_HOME=~/development/jdk-17
 
 # 4. SDK packages + point Flutter at them
+#    (platforms 34/35 and cmake are pulled in transitively by the plugins, so
+#     install them up front to keep the first build offline-friendly)
 yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-    "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+    "platform-tools" \
+    "platforms;android-34" "platforms;android-35" "platforms;android-36" \
+    "build-tools;36.0.0" "cmake;3.22.1"
 flutter config --android-sdk "$ANDROID_HOME"
 flutter config --jdk-dir "$JAVA_HOME"
 flutter doctor
 ```
+
+> **Low-RAM machines:** Flutter's template sets
+> `org.gradle.jvmargs=-Xmx8G`, which can be OOM-killed on an 8 GB laptop.
+> It is already lowered to `-Xmx2G` in
+> `mobile/jewellery_suite/android/gradle.properties`; raise it if you have
+> more RAM. Gradle 9.3.1 is fetched on first build — if the wrapper downloader
+> times out, download
+> `gradle-9.3.1-all.zip` with `curl` into
+> `~/.gradle/wrapper/dists/gradle-9.3.1-all/<hash>/` and create the `.ok`
+> marker next to it.
 
 ---
 
