@@ -71,7 +71,7 @@ Requires a working **Frappe/ERPNext bench**.
 
 ```bash
 cd ~/frappe-bench
-bench get-app https://github.com/ShyberDev/pawn_shop --branch develop
+bench get-app https://github.com/ShyberDev/Jew_Pawn-Lending-Suite --branch develop
 bench --site <your-site> install-app pawn_shop
 bench build --app pawn_shop
 bench --site <your-site> migrate
