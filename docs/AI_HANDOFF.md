@@ -804,3 +804,45 @@ from "pawn app only" into the **bundle**:
 **Remaining / future:** a prebuilt Docker/VM image is still the easiest handover
 for a fully non-technical user (§12 of `README_FIRST.md`); the bundle's
 `install.sh` is the current easy path. Both repos remain private.
+
+### 18.9 Mobile sync (Phase 1) + Google Drive backup + workspace orphan-cleanup fix
+
+**A. CRITICAL FIX — `bench migrate` deleted the Jewellery workspace.**
+Root cause found by reading `frappe/model/sync.py`:
+`remove_orphan_entities()` runs on every migrate and deletes any **public
+Workspace with an `app` set that has no matching `*.json` under that app's
+`workspace/` folder** (`create_entity_file_map` globs `{app_path}/**/workspace/**/*.json`).
+The Jewellery workspace shipped **only as a fixture**
+(`jewellery_management/fixtures/workspace.json`), so migrate wiped it → desk
+sidebar broke again. Lending and Pawn survived because they are real app files.
+Fix: added the workspace as an app file at
+`jewellery_management/jewellery_management/jewellery_management/workspace/jewellery/jewellery.json`
+(same content as the fixture). Re-imported, then ran migrate **twice** — it now
+survives. Verified `/app/jewellery`, `/app/lending`, `/app/pawn`, `/desk` all
+HTTP 200, and boot `workspace_sidebar_item` present (jewellery 27, lending 20,
+pawn 20). **Rule for the future: never ship a workspace only as a fixture.**
+
+**B. Mobile sync Phase 1 (server) — DONE.** Owner chose a **native Android
+(Flutter)** app (not a PWA, not the third-party ERPExperts app, which only
+"auto-reconnects" and has no real offline two-way sync). The server half now
+ships in `apps/pawn_shop/pawn_shop/api/sync.py`:
+- DocTypes `Sync Device`, `Sync ID Map` (client_uuid → server name, unique),
+  `Sync Log`.
+- `register_device` / `status` / `pull` (delta, full docs incl. child tables) /
+  `push` (idempotent by `client_uuid`, permission-checked, per-mutation
+  savepoints).
+- Registry of sync-enabled DocTypes (pawn + khatabook + jewellery).
+- Test `pawn_shop.tests.test_sync_api.run` — verified: register, create,
+  idempotent re-push (same name, count 1), transaction create, delta pull, update
+  by client_uuid, non-registry DocType rejected.
+Design doc: `docs/MOBILE_SYNC_DESIGN.md` (§11 = endpoint reference).
+
+**C. Google Drive backup (disaster recovery).** New `backup-to-gdrive.sh` (bench
+backup --with-files → rclone → Drive, retention, optional crypt) and
+`docs/BACKUP_AND_RECOVERY.md` (rclone setup, encryption, cron, restore runbook).
+Rationale recorded: **Drive = backup/DR, not live two-way sync** (no
+transactions/conflict resolution). Not yet scheduled — owner runs it once + adds
+cron.
+
+Commits: jewellery `534de5c`, pawn `cd9d6e2`, bundle (this commit). Both repos
+remain **public**.

@@ -1,8 +1,9 @@
 # Mobile ↔ Laptop Sync — Design
 
-> **Status: DESIGN (not built yet).** This document analyses the requirement and
-> proposes an architecture. It needs the owner's answers to the *Open Questions*
-> (§10) before implementation.
+> **Status: Phase 1 DONE (server sync API shipped & tested); the Android app is
+> next.** The server half now lives in `pawn_shop/api/sync.py` with DocTypes
+> `Sync Device`, `Sync ID Map`, `Sync Log`. The client will be a **native
+> Android (Flutter)** app (owner's decision), not a PWA. See §8 for what remains.
 
 ---
 
@@ -148,17 +149,18 @@ DocTypes too):
 
 ## 8. Phased roadmap
 
-| Phase | Deliverable | Value |
-|-------|-------------|-------|
-| **0** | This design + owner answers | Align on scope |
-| **1** | Sync API (`pull`/`push`/`register_device`) + `client_uuid` fields + tests | Server ready, testable with curl |
-| **2** | Mobile PWA (online first) with the 6 screens | Usable on phone over Wi-Fi |
-| **3** | Offline queue + service worker + HTTPS | True offline + auto-sync |
-| **4** | Background Sync (Android), conflict UI, photos | Polished |
-| **5** (optional) | Native app reusing the same API | iOS background sync, camera |
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **0** | Design + owner answers | ✅ done |
+| **1** | Sync API (`pull`/`push`/`register_device`) + `client_uuid` idempotency + test | ✅ **DONE** |
+| **2** | Native Android (Flutter) app: SQLite store, the screens, online sync | ⏳ next |
+| **3** | Offline queue + background sync + conflict UI + camera/photos | ⏳ |
+| **4** | Lending + jewellery-sales screens; per-device roles | ⏳ |
 
-**Phase 1 can be built and verified now** (no phone or HTTPS needed — it's pure
-server code testable with the existing bench).
+**Phase 1 is shipped** — see §11 for the endpoints and DocTypes. Because the
+client is a **native Flutter app** (owner's decision), the HTTPS/service-worker
+constraint does **not** apply: native apps may use plain HTTP on the LAN and have
+real background sync.
 
 ---
 
@@ -172,13 +174,58 @@ server code testable with the existing bench).
 
 ---
 
-## 10. Open questions (need owner input)
+## 10. Owner decisions (recorded)
 
-1. **Platform**: Android only, or iPhone too? (Decides PWA vs native.)
-2. **Offline depth**: must it work with **no Wi-Fi at all**, or is **same-Wi-Fi**
-   access enough? (Decides whether we must set up HTTPS + service workers.)
-3. **What is captured on the phone?** (new pawn loans? collections? releases?
-   jewellery sales? read-only?) — pick the MVP set.
-4. **How many phones?** One, or several staff devices?
-5. **Photos?** Do you need to attach item/customer photos from the phone?
-6. **Connectivity**: same Wi-Fi only, or also over mobile data / internet?
+| Question | Decision |
+|----------|----------|
+| Platform | **Android only** — native **Flutter** app (owner's choice, not a PWA) |
+| Offline depth | **Fully offline**; sync when reconnected |
+| Data captured | **All**: new pawn loans, pawn releases, khatabook collections, jewellery sales, read-only dashboards |
+| Devices | **2–5** staff phones (per-device tracking via `Sync Device`) |
+| Photos | To be decided when the app is built |
+| Connectivity | Same Wi-Fi (LAN); internet later if needed |
+
+---
+
+## 11. Phase 1 — what actually shipped (reference)
+
+**Code:** `apps/pawn_shop/pawn_shop/api/sync.py`
+**Test:** `apps/pawn_shop/pawn_shop/tests/test_sync_api.py`
+(`bench --site library.local execute pawn_shop.tests.test_sync_api.run`)
+
+**New DocTypes**
+
+| DocType | Purpose |
+|---------|---------|
+| `Sync Device` | One row per phone (`device_name`, `user`, `platform`, `last_sync`, `enabled`). `register_device` returns its name; pass it as `device` on `push`. |
+| `Sync ID Map` | The idempotency ledger: `client_uuid` → (`reference_doctype`, `reference_name`). Unique on `client_uuid`. |
+| `Sync Log` | Audit of every push/pull (device, direction, count, status, error). |
+
+**Whitelisted endpoints** (all permission-checked with `frappe.has_permission`)
+
+| Method | Args | Returns |
+|--------|------|---------|
+| `pawn_shop.api.sync.register_device` | `device_name`, `platform` | `{ device, server_time }` |
+| `pawn_shop.api.sync.status` | `device` (opt) | `{ server_time, user, doctypes, registry }` |
+| `pawn_shop.api.sync.pull` | `since`, `doctypes`, `limit` | `{ server_time, docs }` — full docs incl. child tables, `modified > since` |
+| `pawn_shop.api.sync.push` | `mutations`, `device` | `{ server_time, results }` |
+
+**Mutation shape**
+
+```json
+{ "op": "create", "doctype": "Pawn Loan", "client_uuid": "<uuid>",
+  "submit": false, "data": { "...": "..." } }
+```
+
+**Idempotency rule:** if a `client_uuid` already exists in `Sync ID Map`, `create`
+returns the existing server name and does **not** insert a duplicate — so a phone
+may safely retry a push any number of times.
+
+**Sync-enabled DocTypes (registry in `sync.py`):** Village, Business, Pawn
+Customer, Pawn Loan, Pawn Release, Khatabook Loan, Khatabook Collection,
+Khatabook Refinance, Jewellery Order, Jewellery Sales Invoice, Jewellery Purchase
+Invoice.
+
+**Verified on `library.local`:** register → create (idempotent re-push returns the
+same name, count stays 1) → transaction create → delta pull → update by
+`client_uuid` → non-registry DocType rejected with an error.

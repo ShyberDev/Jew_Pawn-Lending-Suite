@@ -224,10 +224,10 @@ bench get-app https://github.com/frappe/lending
 bench get-app https://github.com/ShyberDev/Jew_Pawn-Lending-Suite --branch develop
 ```
 
-> **Note:** `pawn_shop` lives in the repo
-> `https://github.com/ShyberDev/Jew_Pawn-Lending-Suite` (branch `develop`), whose
-> app folder is `pawn_shop`. The repo is currently **private**; make it public (or
-> grant access) before others can `bench get-app` it.
+> **Note:** the whole suite (Frappe + ERPNext + jewellery + pawn + lending) ships
+> as the **one-repo bundle**
+> `https://github.com/ShyberDev/Jew_Pawn-Lending-Suite` (branch `develop`) — use
+> its `install.sh` rather than getting the apps separately. The repo is **public**.
 
 ### 5.3 Create a site and install the apps
 
@@ -532,13 +532,24 @@ These are honest, known limitations. None block daily use; they are the roadmap.
 **Suite / ops**
 15. **No prebuilt Docker/VM image yet** — new users must install Frappe
     themselves (see §3 Option C, §12).
-16. The `pawn_shop` repo (`ShyberDev/Jew_Pawn-Lending-Suite`) is **private** —
-    make it public or grant access before others can `bench get-app` it.
+16. The repos (`ShyberDev/jewellery_management` and
+    `ShyberDev/Jew_Pawn-Lending-Suite`) are **public** now.
 17. The Lending workspace patch lives in the third-party `apps/lending` checkout;
     a future `bench get-app`/update of lending would drop it. A normal
     `bench migrate` keeps it (sync skips by timestamp).
 18. Production mode (nginx/supervisor/HTTPS) not yet exercised.
 19. No automated test suite in CI; verification so far is scripted and manual.
+20. **Mobile sync — Phase 1 (server API) is DONE.** `pawn_shop.api.sync`
+    (`register_device` / `pull` / `push`, idempotent by `client_uuid`; DocTypes
+    `Sync Device`, `Sync ID Map`, `Sync Log`). The native Android (Flutter) app is
+    next. Design: `docs/MOBILE_SYNC_DESIGN.md`.
+21. **Off-site backup is documented, not yet scheduled.** `backup-to-gdrive.sh` +
+    `docs/BACKUP_AND_RECOVERY.md` push nightly snapshots to Google Drive (rclone).
+22. **Workspace orphan-cleanup trap (fixed):** `bench migrate` deletes any public
+    Workspace that has an `app` set but no file under the app's `workspace/`
+    folder. The Jewellery workspace now ships as an app file
+    (`jewellery_management/.../workspace/jewellery/jewellery.json`). **Never ship
+    a workspace only as a fixture.**
 
 ---
 
@@ -559,6 +570,15 @@ cd ~/frappe-bench
 bench --site library.local backup --with-files
 # files land in sites/library.local/private/backups/
 ```
+
+### Off-site backup → Google Drive (recommended)
+Disaster recovery (laptop lost → restore everything), separate from mobile sync:
+```bash
+cd ~/Jew_Pawn-Lending-Suite && ./backup-to-gdrive.sh   # backup + upload + prune
+# nightly — add to `crontab -e`:
+#   15 2 * * *  /home/shyam/Jew_Pawn-Lending-Suite/backup-to-gdrive.sh >> ~/backup.log 2>&1
+```
+Full walkthrough (rclone setup, encryption, restore): `docs/BACKUP_AND_RECOVERY.md`.
 
 ### Restore onto a fresh bench
 ```bash
@@ -609,7 +629,7 @@ Until one of these ships, the honest answer to "can I just install one file?" is
 | `ShyberDev/Jew_Pawn-Lending-Suite` | `develop` | Pawn Shop + Khatabook app |
 | `frappe/lending` *(upstream)* | `develop` | Money Lending app (install from upstream) |
 
-All three repos are currently **private**.
+The ShyberDev repos are **public**; `frappe/lending` is the upstream project.
 
 > Branch names with spaces/commas are allowed by git but awkward in URLs. The
 > machine-friendly slug is `Frappe-Jewellery-Pawn-Lending-Suite`; use whichever
