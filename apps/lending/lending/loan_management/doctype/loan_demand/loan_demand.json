@@ -1,0 +1,373 @@
+{
+ "actions": [],
+ "autoname": "LM-LD-.#####",
+ "creation": "2023-11-22 17:03:33.314004",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "applicant_details_section",
+  "applicant_type",
+  "applicant",
+  "loan_repayment",
+  "column_break_ymok",
+  "company",
+  "demand_date",
+  "posting_date",
+  "references_section",
+  "loan",
+  "loan_repayment_schedule",
+  "loan_disbursement",
+  "disbursement_date",
+  "column_break_ssmc",
+  "repayment_schedule_detail",
+  "sales_invoice",
+  "loan_product",
+  "is_term_loan",
+  "is_partial_pre_paid_interest",
+  "loan_demand_details_section",
+  "demand_type",
+  "demand_subtype",
+  "invoice_date",
+  "column_break_qrjm",
+  "demand_amount",
+  "paid_amount",
+  "waived_amount",
+  "outstanding_amount",
+  "accounting_dimensions_section",
+  "cost_center",
+  "is_imported",
+  "is_gl_cancelled",
+  "column_break_hmrs",
+  "amended_from",
+  "process_loan_demand",
+  "co_lending_tab",
+  "loan_partner_share_details_section",
+  "loan_partner",
+  "column_break_swqr",
+  "partner_share_allocated",
+  "partner_share",
+  "process_loan_accounting_voucher"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan_demand_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Demand Details"
+  },
+  {
+   "fieldname": "demand_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Demand Date",
+   "search_index": 1
+  },
+  {
+   "fieldname": "demand_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Demand Type",
+   "options": "EMI\nPenalty\nNormal\nCharges\nBPI\nAdditional Interest"
+  },
+  {
+   "fieldname": "demand_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Demand Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan Demand",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Loan",
+   "options": "Loan",
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_qrjm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Paid Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "waived_amount",
+   "fieldtype": "Currency",
+   "label": "Waived Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fetch_from": "loan.loan_product",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "label": "Loan Product",
+   "options": "Loan Product"
+  },
+  {
+   "fetch_from": "loan.applicant_type",
+   "fieldname": "applicant_type",
+   "fieldtype": "Link",
+   "label": "Applicant Type",
+   "options": "DocType",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan.applicant",
+   "fieldname": "applicant",
+   "fieldtype": "Dynamic Link",
+   "label": "Applicant",
+   "options": "applicant_type"
+  },
+  {
+   "fieldname": "repayment_schedule_detail",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Repayment Schedule Detail",
+   "search_index": 1
+  },
+  {
+   "fieldname": "demand_subtype",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Demand Subtype"
+  },
+  {
+   "fetch_from": "loan.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan.cost_center",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "process_loan_demand",
+   "fieldtype": "Link",
+   "label": "Process Loan Demand",
+   "options": "Process Loan Demand"
+  },
+  {
+   "fieldname": "loan_repayment_schedule",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Loan Repayment Schedule",
+   "options": "Loan Repayment Schedule",
+   "search_index": 1
+  },
+  {
+   "fetch_from": ".",
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan_repayment_schedule.posting_date",
+   "fieldname": "disbursement_date",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Disbursement Date"
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan.is_term_loan",
+   "fieldname": "is_term_loan",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is Term Loan",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.loan_partner",
+   "fieldname": "loan_partner",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Loan Partner",
+   "options": "Loan Partner"
+  },
+  {
+   "fetch_from": "sales_invoice.posting_date",
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "label": "Posting Date"
+  },
+  {
+   "fieldname": "partner_share",
+   "fieldtype": "Currency",
+   "label": "Partner Share",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "partner_share_allocated",
+   "fieldtype": "Currency",
+   "label": "Partner Share Allocated",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "applicant_details_section",
+   "fieldtype": "Section Break",
+   "label": "Applicant Details"
+  },
+  {
+   "fieldname": "column_break_ymok",
+   "fieldtype": "Column Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "column_break_hmrs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "co_lending_tab",
+   "fieldtype": "Tab Break",
+   "label": "Co Lending"
+  },
+  {
+   "fieldname": "loan_partner_share_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Partner Share Details"
+  },
+  {
+   "fieldname": "column_break_swqr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "label": "References"
+  },
+  {
+   "fieldname": "column_break_ssmc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "loan_repayment",
+   "fieldtype": "Link",
+   "label": "Loan Repayment",
+   "options": "Loan Repayment"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_imported",
+   "fieldtype": "Check",
+   "label": "Is Imported",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_gl_cancelled",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is GL Cancelled",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_partial_pre_paid_interest",
+   "fieldtype": "Check",
+   "label": "Is Partial Pre-Paid Interest"
+  },
+  {
+   "fieldname": "process_loan_accounting_voucher",
+   "fieldtype": "Link",
+   "label": "Process Loan Accounting Voucher",
+   "options": "Process Loan Accounting",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-07 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Demand",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

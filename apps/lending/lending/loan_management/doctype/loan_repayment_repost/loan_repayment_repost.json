@@ -1,0 +1,181 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format: Repost on {timestamp} for {loan}",
+ "creation": "2024-10-28 13:03:00.901376",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_kcrv",
+  "loan",
+  "loan_disbursement",
+  "clear_demand_allocation_before_repost",
+  "delete_gl_entries",
+  "column_break_bmnx",
+  "repost_date",
+  "status",
+  "cancel_future_accruals_and_demands",
+  "ignore_on_cancel_amount_update",
+  "cancel_future_emi_demands",
+  "loan_repayment_entries_section",
+  "repayment_entries",
+  "entries_to_cancel",
+  "section_break_kbry",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_kcrv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nQueued\nIn Process\nCompleted\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan Repayment Repost",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Loan",
+   "options": "Loan",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_bmnx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "All entries on and after this date will be reposted",
+   "fieldname": "repost_date",
+   "fieldtype": "Date",
+   "in_standard_filter": 1,
+   "label": "Repost Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_repayment_entries_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Repayment Entries"
+  },
+  {
+   "fieldname": "section_break_kbry",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "repayment_entries",
+   "fieldtype": "Table",
+   "label": "Entries To Repost",
+   "options": "Loan Repayment Repost Detail"
+  },
+  {
+   "default": "0",
+   "fieldname": "ignore_on_cancel_amount_update",
+   "fieldtype": "Check",
+   "label": "Ignore On Cancel Amount Update"
+  },
+  {
+   "fieldname": "entries_to_cancel",
+   "fieldtype": "Table",
+   "label": "Entries To Cancel",
+   "options": "Loan Repayment Repost Cancel Detail"
+  },
+  {
+   "default": "0",
+   "fieldname": "clear_demand_allocation_before_repost",
+   "fieldtype": "Check",
+   "label": "Clear demand allocation before repost"
+  },
+  {
+   "default": "0",
+   "fieldname": "cancel_future_emi_demands",
+   "fieldtype": "Check",
+   "label": "Cancel future EMI Demands"
+  },
+  {
+   "default": "0",
+   "fieldname": "delete_gl_entries",
+   "fieldtype": "Check",
+   "label": "Delete GL Entries"
+  },
+  {
+   "default": "0",
+   "fieldname": "cancel_future_accruals_and_demands",
+   "fieldtype": "Check",
+   "label": "Cancel Future Accruals and Demands "
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-01 12:48:17.881670",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Repayment Repost",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Red",
+   "title": "Draft"
+  },
+  {
+   "color": "Yellow",
+   "title": "Queued"
+  },
+  {
+   "color": "Orange",
+   "title": "In Process"
+  },
+  {
+   "color": "Green",
+   "title": "Completed"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  }
+ ]
+}

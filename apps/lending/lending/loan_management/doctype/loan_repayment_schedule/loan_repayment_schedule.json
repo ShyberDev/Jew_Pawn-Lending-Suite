@@ -1,0 +1,444 @@
+{
+ "actions": [],
+ "autoname": "LN-RS-.YYYY.-.#####",
+ "creation": "2023-05-05 15:02:57.573458",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "loan",
+  "loan_disbursement",
+  "loan_amount",
+  "current_principal_amount",
+  "rate_of_interest",
+  "column_break_n6iy",
+  "company",
+  "posting_date",
+  "repayment_frequency",
+  "repayment_start_date",
+  "maturity_date",
+  "repayment_schedule_section",
+  "repayment_schedule",
+  "term_details_section",
+  "total_installments_paid",
+  "total_installments_raised",
+  "total_installments_overdue",
+  "loan_product",
+  "column_break_xkbd",
+  "repayment_method",
+  "repayment_periods",
+  "repayment_schedule_type",
+  "repayment_date_on",
+  "other_details_section",
+  "disbursed_amount",
+  "monthly_repayment_amount",
+  "partner_monthly_repayment_amount",
+  "loan_restructure",
+  "restructure_type",
+  "broken_period_interest",
+  "status",
+  "amended_from",
+  "column_break_cplx",
+  "moratorium_type",
+  "moratorium_tenure",
+  "treatment_of_interest",
+  "moratorium_end_date",
+  "adjusted_interest",
+  "broken_period_interest_days",
+  "disbursement_charges",
+  "co_lending_tab",
+  "loan_partner_details_section",
+  "loan_partner",
+  "loan_partner_rate_of_interest",
+  "partner_base_interest_rate",
+  "column_break_ilwz",
+  "partner_loan_share_percentage",
+  "partner_repayment_schedule_type",
+  "co_lender_schedule_section",
+  "colender_schedule",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Loan",
+   "options": "Loan",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan.loan_product",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Loan Product",
+   "options": "Loan Product"
+  },
+  {
+   "fetch_from": "loan_product.repayment_schedule_type",
+   "fieldname": "repayment_schedule_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Repayment Schedule Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan Repayment Schedule",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.loan_amount",
+   "fieldname": "loan_amount",
+   "fieldtype": "Currency",
+   "label": "Loan Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fetch_from": "loan.repayment_method",
+   "fetch_if_empty": 1,
+   "fieldname": "repayment_method",
+   "fieldtype": "Select",
+   "label": "Repayment Method",
+   "options": "\nRepay Fixed Amount per Period\nRepay Over Number of Periods"
+  },
+  {
+   "fetch_from": "loan.monthly_repayment_amount",
+   "fetch_if_empty": 1,
+   "fieldname": "monthly_repayment_amount",
+   "fieldtype": "Currency",
+   "label": "Monthly Repayment Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Initiated\nRejected\nActive\nRestructured\nRescheduled\nOutdated\nDraft\nCancelled\nClosed"
+  },
+  {
+   "fieldname": "repayment_start_date",
+   "fieldtype": "Date",
+   "label": "Repayment Start Date"
+  },
+  {
+   "fetch_from": "loan.repayment_schedule_type",
+   "fieldname": "repayment_schedule",
+   "fieldtype": "Table",
+   "label": "Repayment Schedule",
+   "options": "Repayment Schedule",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_n6iy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "loan.repayment_periods",
+   "fetch_if_empty": 1,
+   "fieldname": "repayment_periods",
+   "fieldtype": "Int",
+   "label": "Repayment Period In Months"
+  },
+  {
+   "fetch_from": "loan.rate_of_interest",
+   "fetch_if_empty": 1,
+   "fieldname": "rate_of_interest",
+   "fieldtype": "Float",
+   "label": "Rate Of Interest"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "label": "Posting Date",
+   "search_index": 1
+  },
+  {
+   "fieldname": "loan_restructure",
+   "fieldtype": "Link",
+   "label": "Loan Restructure",
+   "options": "Loan Restructure",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "adjusted_interest",
+   "fieldtype": "Currency",
+   "label": "Adjusted Interest",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "repayment_frequency",
+   "fieldtype": "Select",
+   "label": "Repayment Frequency",
+   "options": "Monthly\nDaily\nWeekly\nBi-Weekly\nQuarterly\nOne Time"
+  },
+  {
+   "depends_on": "eval:doc.moratorium_tenure > 0",
+   "fetch_from": "loan.treatment_of_interest",
+   "fieldname": "treatment_of_interest",
+   "fieldtype": "Select",
+   "label": "Treatment Of Interest",
+   "options": "Capitalize\nAdd to first repayment"
+  },
+  {
+   "depends_on": "eval:doc.repayment_schedule_type==\"Pro-rated calendar months\"",
+   "fetch_from": "loan_product.repayment_date_on",
+   "fieldname": "repayment_date_on",
+   "fieldtype": "Select",
+   "label": "Repayment Date On",
+   "options": "Start of the next month\nEnd of the current month"
+  },
+  {
+   "fetch_from": "loan.moratorium_tenure",
+   "fieldname": "moratorium_tenure",
+   "fieldtype": "Int",
+   "label": "Moratorium Tenure",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "disbursed_amount",
+   "fieldtype": "Currency",
+   "label": "Disbursed Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "broken_period_interest",
+   "fieldtype": "Currency",
+   "label": "Broken Period Interest",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.moratorium_tenure > 0",
+   "fieldname": "moratorium_end_date",
+   "fieldtype": "Date",
+   "label": "Moratorium End Date"
+  },
+  {
+   "fieldname": "current_principal_amount",
+   "fieldtype": "Currency",
+   "label": "Current Principal Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "broken_period_interest_days",
+   "fieldtype": "Int",
+   "label": "Broken Period Interest Days",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "other_details_section",
+   "fieldtype": "Section Break",
+   "label": "Other Details"
+  },
+  {
+   "fieldname": "column_break_cplx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "term_details_section",
+   "fieldtype": "Section Break",
+   "label": "Term Details"
+  },
+  {
+   "fieldname": "total_installments_paid",
+   "fieldtype": "Int",
+   "label": "Total Installments Paid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_xkbd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_installments_overdue",
+   "fieldtype": "Int",
+   "label": "Total Installments Overdue ",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_installments_raised",
+   "fieldtype": "Int",
+   "label": "Total Installments Raised",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repayment_schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Repayment Schedule"
+  },
+  {
+   "fetch_from": "loan.moratorium_type",
+   "fieldname": "moratorium_type",
+   "fieldtype": "Data",
+   "label": "Moratorium Type"
+  },
+  {
+   "fieldname": "restructure_type",
+   "fieldtype": "Select",
+   "label": "Restructure Type",
+   "options": "\nNormal Restructure\nAdvance Payment\nPre Payment"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "co_lender_schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Co Lender Schedule"
+  },
+  {
+   "fieldname": "colender_schedule",
+   "fieldtype": "Table",
+   "options": "Co-Lender Schedule",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.loan_partner",
+   "fieldname": "loan_partner",
+   "fieldtype": "Link",
+   "label": "Loan Partner",
+   "options": "Loan Partner"
+  },
+  {
+   "fetch_from": "loan_partner.partner_base_interest_rate",
+   "fieldname": "loan_partner_rate_of_interest",
+   "fieldtype": "Float",
+   "label": "Loan Partner Rate Of Interest"
+  },
+  {
+   "fieldname": "partner_monthly_repayment_amount",
+   "fieldtype": "Currency",
+   "label": "Partner Monthly Repayment Amount",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "loan_partner_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Partner Details"
+  },
+  {
+   "fetch_from": "loan_partner.partner_loan_share_percentage",
+   "fieldname": "partner_loan_share_percentage",
+   "fieldtype": "Percent",
+   "label": "Partner Loan Share Percentage"
+  },
+  {
+   "fetch_from": "loan_partner.partner_base_interest_rate",
+   "fieldname": "partner_base_interest_rate",
+   "fieldtype": "Percent",
+   "label": "Partner Base Interest Rate"
+  },
+  {
+   "fieldname": "column_break_ilwz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "loan_partner.repayment_schedule_type",
+   "fieldname": "partner_repayment_schedule_type",
+   "fieldtype": "Data",
+   "label": "Partner Repayment Schedule Type"
+  },
+  {
+   "fieldname": "maturity_date",
+   "fieldtype": "Date",
+   "label": "Maturity Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "co_lending_tab",
+   "fieldtype": "Tab Break",
+   "label": "Co Lending"
+  },
+  {
+   "fieldname": "disbursement_charges",
+   "fieldtype": "Currency",
+   "label": "Disbursement Charges"
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-06-16 08:42:20.244122",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Repayment Schedule",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

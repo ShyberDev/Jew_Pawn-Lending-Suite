@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "creation": "2023-04-26 17:07:40.828226",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "loan",
+  "loan_disbursement",
+  "posting_date",
+  "days_past_due",
+  "process_loan_classification"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Loan",
+   "options": "Loan",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Posting Date",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "days_past_due",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Days Past Due",
+   "read_only": 1
+  },
+  {
+   "fieldname": "process_loan_classification",
+   "fieldtype": "Link",
+   "label": "Process Loan Classification",
+   "options": "Process Loan Classification",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2025-03-19 11:46:45.297130",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Days Past Due Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "loan"
+}

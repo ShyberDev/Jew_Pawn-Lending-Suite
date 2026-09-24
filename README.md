@@ -1,94 +1,65 @@
-# Pawn Shop + Khatabook
+# Jew_Pawn-Lending-Suite
 
-A Frappe Framework app for **pawn-broking** and **Khatabook-style village
-lending**, with **combined 3-business accounting** (Shop / Money Lending / Pawn /
-Khatabook).
+**One bundle. One command. A complete open-source jewellery + pawn + lending ERP.**
 
-Part of the **[Frappe Jewellery, Pawn & Lending Suite](https://github.com/ShyberDev/jewellery_management)**
-— read the suite's **`README_FIRST.md`** for full onboarding, the tested system
-configuration, and the sidebar/app-context fix.
+This repository bundles everything you need in a single download:
 
-- **App name:** `pawn_shop`
-- **Module:** `Pawn Shop`
-- **Route:** `/app/pawn`
-- **License:** MIT
+- **Frappe Framework** + **ERPNext** *(fetched automatically at pinned commits)*
+- **Jewellery ERP** (`jewellery_management`)
+- **Pawn Shop + Khatabook** (`pawn_shop`)
+- **Money Lending** (`lending`, patched with the desk sidebar fix)
 
----
-
-## Features
-
-### Pawn
-- **Pawn Customer** — name, address, phone (shared with Khatabook).
-- **Pawn Loan** with multiple **Pawn Items** (metal, hallmarked yes/no, gross/net
-  weight, valuation). Market valuation from the `Metal Rate` master (Settings
-  fallback), LTV, and `balance = principal + accrued interest − payments`.
-- **Interest:** simple `loan_amount × rate%/month × (days/30)`, rounded **up**
-  (ceil). Default from the customer override, else **Pawn Settings**
-  (default **gold 3%/month, silver 4%/month**).
-- **Pawn Release** (submittable): pays principal + interest → loan `Released`,
-  balance 0 (withdrawal/release of the pledged item).
-- Gold/silver/weight valuations and hallmarked vs non-hallmarked split.
-
-### Khatabook (village lending)
-- **Village** master; 12-weekly schedules
-  (e.g. ₹5000 principal + ₹1000 interest = **12 × ₹500**), with
-  `installment_amount = ceil(total_payable / count)`.
-- **Khatabook Collection** (submittable): allocates oldest-first and flags
-  `is_irregular` (late or partial) — irregular-payment tracking.
-- **Khatabook Refinance** (submittable): closes the old loan and creates a new
-  one with principal = old outstanding and flexible interest.
-- Customer good/bad **rating**.
-
-### Reports (module `Pawn Shop`, code-defined)
-- **Pawn Monthly Profit and Loss** (chart)
-- **Pawn Valuation**
-- **Pawn Outstanding**
-- **Khatabook Collection Sheet**
-- **Khatabook Outstanding**
-- **Combined Business Profit and Loss** (chart)
-
-### Accounting & automation
-- **`Business`** master types: Shop / Money Lending / Pawn / Khatabook.
-- Combined P&L aggregates shop (JSI/JPI), lending (`Loan`/`Loan Repayment`),
-  pawn and khatabook with a TOTAL row.
-- Scheduler: `pawn_shop.tasks.mark_overdue_loans` (daily).
-
----
-
-## DocTypes (11)
-
-`Business`, `Village`, `Pawn Customer` (`PC-.YYYY.-.#####`), `Pawn Settings`
-(Single), `Pawn Item` (child), `Pawn Loan` (`PL-`), `Pawn Release` (`PR-`,
-submittable), `Khatabook Installment` (child), `Khatabook Loan` (`KL-`),
-`Khatabook Collection` (`KC-`, submittable), `Khatabook Refinance` (`KR-`,
-submittable).
-
----
-
-## Installation
-
-Requires a working **Frappe/ERPNext bench**.
+## Install in one command
 
 ```bash
-cd ~/frappe-bench
-bench get-app https://github.com/ShyberDev/Jew_Pawn-Lending-Suite --branch develop
-bench --site <your-site> install-app pawn_shop
-bench build --app pawn_shop
-bench --site <your-site> migrate
+git clone https://github.com/ShyberDev/Jew_Pawn-Lending-Suite.git
+cd Jew_Pawn-Lending-Suite
+./install.sh
 ```
 
-Then open `/app/pawn`. If the workspace icon/header looks gray, see
-**§7 of the suite `README_FIRST.md`** (set the workspace `standard = 1` and use a
-valid lucide icon such as `hand-coins`).
+Then:
 
----
+```bash
+sudo systemctl start mariadb
+cd ~/frappe-bench
+bench start
+# open http://library.local:8000/desk
+```
 
-## Rounding contract
+## 📖 Read this first
 
-Mirrors the jewellery app: `pawn_shop/utils.py` provides `money` (ceil),
-`round3` / `round2` / `round_pct` (half-up, using `Decimal`, never Python
-`round`).
+**[`README_FIRST.md`](README_FIRST.md)** is the full onboarding guide: what the
+suite is, the exact tested configuration, the one-command install, the desk
+sidebar/grey-page fix, every feature, known issues, backup/restore and how to
+hand the system to a non-technical user.
+
+## What's inside
+
+| App | Route | Purpose |
+|-----|-------|---------|
+| Sri Sai Krishna Jewellery | `/app/jewellery` | Orders, workers, weight-based stock, GST, HUID, repairs, reports |
+| Pawn Shop | `/app/pawn` | Gold/silver pledges, interest, release, Khatabook village lending, refinance |
+| Lending | `/app/lending` | Loan application → disbursement → repayment |
+
+All three share one database, one login and a **Combined Business Profit and
+Loss** report.
+
+## Layout
+
+```
+install.sh          one-command installer
+versions.env        pinned frappe/erpnext commits
+README_FIRST.md     full onboarding guide
+apps/               vendored apps (jewellery_management, lending, pawn_shop)
+docs/AI_HANDOFF.md  engineering log
+```
 
 ## License
 
-MIT
+MIT (the bundle's own code). Frappe and ERPNext are licensed by their respective
+upstream projects.
+
+---
+
+*Tested on Kali GNU/Linux Rolling · Python 3.14 · MariaDB 11.8 · Node 24 ·
+Bench 5.31 · Frappe/ERPNext 17.0.0-dev.*

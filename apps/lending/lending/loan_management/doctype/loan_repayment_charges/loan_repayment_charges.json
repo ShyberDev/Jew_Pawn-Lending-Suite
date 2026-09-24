@@ -1,0 +1,40 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-07-04 10:06:14.108425",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "charge_code",
+  "amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "charge_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Charge Code",
+   "options": "Item"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_standard_filter": 1,
+   "label": "Amount"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-09-15 17:46:29.966332",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Repayment Charges",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

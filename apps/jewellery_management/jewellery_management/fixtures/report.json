@@ -1,0 +1,234 @@
+[
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "default_letter_head": null,
+  "default_print_format": null,
+  "disable_prepared_report_automation": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "doctype_to_sync": [],
+  "documentation_url": null,
+  "filters": [],
+  "generate_csv": 0,
+  "is_standard": "No",
+  "javascript": "\nfrappe.query_reports[\"Retail Stock Balance\"] = {\n    filters: [\n        {\n            fieldname: \"view\",\n            label: \"View\",\n            fieldtype: \"Select\",\n            options: \"Short View\\nFull View\",\n            default: \"Short View\",\n            reqd: 1\n        }\n    ],\n\n    formatter: function(value, row, column, data, default_formatter) {\n        value = default_formatter(value, row, column, data);\n\n        if (!data) {\n            return value;\n        }\n\n        const stock_item_name = data.stock_item_name || \"\";\n        const metal = data.metal || \"\";\n\n        const is_header =\n            stock_item_name === \"CURRENT RETAIL STOCK SUMMARY\" ||\n            stock_item_name === \"RETAIL STOCK DETAILS\";\n\n        const is_summary =\n            !data.retail_stock_item &&\n            (metal === \"GOLD\" || metal === \"SILVER\");\n\n        if (is_header || is_summary) {\n            return \"<strong>\" + value + \"</strong>\";\n        }\n\n        return value;\n    }\n};\n",
+  "json": null,
+  "modified": "2026-09-20 19:21:59.377066",
+  "module": "Jewellery",
+  "name": "Retail Stock Balance",
+  "prepared_report": 0,
+  "query": "\nSELECT\n    q.retail_stock_item AS \"Retail Stock Item:Link/Retail Stock Item:220\",\n    q.stock_item_name AS \"Stock Item Name:Data:220\",\n    q.metal AS \"Metal:Data:90\",\n\n    q.total_in AS \"Total In:Float:120\",\n    q.total_out AS \"Total Out:Float:120\",\n    q.current_stock AS \"Current Stock:Float:140\",\n\n    q.article_category AS \"Article Category:Link/Jewellery Item Type:160\",\n    q.purity AS \"Purity:Link/Metal Purity:130\",\n    q.gold_size AS \"Gold Size:Data:100\",\n    q.silver_size AS \"Silver Size:Data:100\",\n    q.brand AS \"Brand:Data:100\",\n    q.variant_design AS \"Variant / Design:Data:160\"\n\nFROM (\n\n    /* ========================================================\n       SECTION HEADER\n       ======================================================== */\n    SELECT\n        0 AS section_order,\n        0 AS metal_order,\n        'SUMMARY_HEADER' AS row_type,\n\n        NULL AS retail_stock_item,\n        'CURRENT RETAIL STOCK SUMMARY' AS stock_item_name,\n        NULL AS metal,\n\n        NULL AS total_in,\n        NULL AS total_out,\n        NULL AS current_stock,\n\n        NULL AS article_category,\n        NULL AS purity,\n        NULL AS gold_size,\n        NULL AS silver_size,\n        NULL AS brand,\n        NULL AS variant_design\n\n\n    UNION ALL\n\n\n    /* ========================================================\n       GOLD SUMMARY\n       ======================================================== */\n    SELECT\n        1 AS section_order,\n        1 AS metal_order,\n        'SUMMARY' AS row_type,\n\n        NULL AS retail_stock_item,\n        NULL AS stock_item_name,\n        'GOLD' AS metal,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'In'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS total_in,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'Out'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS total_out,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'In'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            )\n            -\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'Out'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS current_stock,\n\n        NULL AS article_category,\n        NULL AS purity,\n        NULL AS gold_size,\n        NULL AS silver_size,\n        NULL AS brand,\n        NULL AS variant_design\n\n    FROM `tabJewellery Stock Transaction` rst\n\n    LEFT JOIN `tabRetail Stock Item` rsi\n        ON rsi.name = rst.retail_stock_item\n\n    WHERE\n        rst.retail_stock_item IS NOT NULL\n        AND rsi.metal = 'Gold'\n\n\n    UNION ALL\n\n\n    /* ========================================================\n       SILVER SUMMARY\n       ======================================================== */\n    SELECT\n        1 AS section_order,\n        2 AS metal_order,\n        'SUMMARY' AS row_type,\n\n        NULL AS retail_stock_item,\n        NULL AS stock_item_name,\n        'SILVER' AS metal,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'In'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS total_in,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'Out'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS total_out,\n\n        ROUND(\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'In'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            )\n            -\n            COALESCE(\n                SUM(\n                    CASE\n                        WHEN rst.movement = 'Out'\n                        THEN rst.weight\n                        ELSE 0\n                    END\n                ),\n                0\n            ),\n            3\n        ) AS current_stock,\n\n        NULL AS article_category,\n        NULL AS purity,\n        NULL AS gold_size,\n        NULL AS silver_size,\n        NULL AS brand,\n        NULL AS variant_design\n\n    FROM `tabJewellery Stock Transaction` rst\n\n    LEFT JOIN `tabRetail Stock Item` rsi\n        ON rsi.name = rst.retail_stock_item\n\n    WHERE\n        rst.retail_stock_item IS NOT NULL\n        AND rsi.metal = 'Silver'\n\n\n    UNION ALL\n\n\n    /* ========================================================\n       DETAILS HEADER\n       ======================================================== */\n    SELECT\n        2 AS section_order,\n        0 AS metal_order,\n        'DETAIL_HEADER' AS row_type,\n\n        NULL AS retail_stock_item,\n        'RETAIL STOCK DETAILS' AS stock_item_name,\n        NULL AS metal,\n\n        NULL AS total_in,\n        NULL AS total_out,\n        NULL AS current_stock,\n\n        NULL AS article_category,\n        NULL AS purity,\n        NULL AS gold_size,\n        NULL AS silver_size,\n        NULL AS brand,\n        NULL AS variant_design\n\n\n    UNION ALL\n\n\n    /* ========================================================\n       INDIVIDUAL RETAIL STOCK ITEMS\n       ======================================================== */\n    SELECT\n        3 AS section_order,\n\n        CASE\n            WHEN rsi.metal = 'Gold' THEN 1\n            WHEN rsi.metal = 'Silver' THEN 2\n            ELSE 3\n        END AS metal_order,\n\n        'DETAIL' AS row_type,\n\n        rst.retail_stock_item,\n        rsi.stock_item_name,\n        rsi.metal,\n\n        ROUND(\n            SUM(\n                CASE\n                    WHEN rst.movement = 'In'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            ),\n            3\n        ) AS total_in,\n\n        ROUND(\n            SUM(\n                CASE\n                    WHEN rst.movement = 'Out'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            ),\n            3\n        ) AS total_out,\n\n        ROUND(\n            SUM(\n                CASE\n                    WHEN rst.movement = 'In'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            )\n            -\n            SUM(\n                CASE\n                    WHEN rst.movement = 'Out'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            ),\n            3\n        ) AS current_stock,\n\n        rst.item AS article_category,\n        rst.purity,\n        rsi.gold_size,\n        rsi.silver_size,\n        rsi.brand,\n        rsi.variant_design\n\n    FROM `tabJewellery Stock Transaction` rst\n\n    LEFT JOIN `tabRetail Stock Item` rsi\n        ON rsi.name = rst.retail_stock_item\n\n    WHERE\n        rst.retail_stock_item IS NOT NULL\n\n    GROUP BY\n        rst.retail_stock_item,\n        rsi.stock_item_name,\n        rsi.metal,\n        rst.item,\n        rst.purity,\n        rsi.gold_size,\n        rsi.silver_size,\n        rsi.brand,\n        rsi.variant_design\n\n    HAVING\n        %(view)s = 'Full View'\n        OR\n        ROUND(\n            SUM(\n                CASE\n                    WHEN rst.movement = 'In'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            )\n            -\n            SUM(\n                CASE\n                    WHEN rst.movement = 'Out'\n                    THEN rst.weight\n                    ELSE 0\n                END\n            ),\n            3\n        ) > 0\n) q\n\nORDER BY\n    q.section_order,\n    q.metal_order,\n    q.stock_item_name,\n    q.retail_stock_item;\n",
+  "ref_doctype": "Jewellery Stock Transaction",
+  "reference_report": null,
+  "report_name": "Retail Stock Balance",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "role": "System Manager"
+   }
+  ],
+  "snapshot_report": 0,
+  "timeout": 0
+ },
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "default_letter_head": null,
+  "default_print_format": null,
+  "disable_prepared_report_automation": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "doctype_to_sync": [],
+  "documentation_url": null,
+  "filters": [
+   {
+    "default": null,
+    "fieldname": "from_date",
+    "fieldtype": "Date",
+    "label": "From Date",
+    "mandatory": 1,
+    "options": null,
+    "wildcard_filter": 0
+   },
+   {
+    "default": null,
+    "fieldname": "to_date",
+    "fieldtype": "Date",
+    "label": "To Date",
+    "mandatory": 1,
+    "options": null,
+    "wildcard_filter": 0
+   }
+  ],
+  "generate_csv": 0,
+  "is_standard": "No",
+  "javascript": null,
+  "json": null,
+  "modified": "2026-09-24 00:42:15.588637",
+  "module": "Jewellery",
+  "name": "GST Summary",
+  "prepared_report": 0,
+  "query": "SELECT\n    si.name AS \"Invoice:Data:140\",\n    si.sales_date AS \"Date:Date:100\",\n    'Sale' AS \"Type:Data:80\",\n    si.customer_name AS \"Party:Data:160\",\n    si.customer_gstin AS \"GSTIN:Data:130\",\n    si.subtotal AS \"Taxable:Currency:120\",\n    si.gst_rate AS \"GST Rate:Percent:90\",\n    si.gst_amount AS \"GST:Currency:120\",\n    si.grand_total AS \"Total:Currency:130\"\nFROM `tabJewellery Sales Invoice` si\nWHERE si.docstatus = 1\n  AND si.sales_date BETWEEN %(from_date)s AND %(to_date)s\nUNION ALL\nSELECT\n    pi.name AS \"Invoice:Data:140\",\n    pi.purchase_date AS \"Date:Date:100\",\n    'Purchase' AS \"Type:Data:80\",\n    pi.supplier_name AS \"Party:Data:160\",\n    pi.supplier_gstin AS \"GSTIN:Data:130\",\n    pi.subtotal AS \"Taxable:Currency:120\",\n    pi.gst_rate AS \"GST Rate:Percent:90\",\n    pi.gst AS \"GST:Currency:120\",\n    pi.grand_total AS \"Total:Currency:130\"\nFROM `tabJewellery Purchase Invoice` pi\nWHERE pi.docstatus = 1\n  AND pi.purchase_date BETWEEN %(from_date)s AND %(to_date)s\nORDER BY 2 ASC\n",
+  "ref_doctype": "Jewellery Sales Invoice",
+  "reference_report": null,
+  "report_name": "GST Summary",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "role": "System Manager"
+   }
+  ],
+  "snapshot_report": 0,
+  "timeout": 0
+ },
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "default_letter_head": null,
+  "default_print_format": null,
+  "disable_prepared_report_automation": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "doctype_to_sync": [],
+  "documentation_url": null,
+  "filters": [
+   {
+    "default": null,
+    "fieldname": "metal",
+    "fieldtype": "Select",
+    "label": "Metal",
+    "mandatory": 0,
+    "options": "\nGold\nSilver",
+    "wildcard_filter": 0
+   },
+   {
+    "default": null,
+    "fieldname": "hallmark_status",
+    "fieldtype": "Select",
+    "label": "Hallmark Status",
+    "mandatory": 0,
+    "options": "\nNot Hallmarked\nSent for Hallmark\nHallmarked",
+    "wildcard_filter": 0
+   },
+   {
+    "default": "Short View",
+    "fieldname": "view",
+    "fieldtype": "Select",
+    "label": "View",
+    "mandatory": 0,
+    "options": "Short View\nFull View",
+    "wildcard_filter": 0
+   }
+  ],
+  "generate_csv": 0,
+  "is_standard": "No",
+  "javascript": null,
+  "json": null,
+  "modified": "2026-09-24 00:45:57.151568",
+  "module": "Jewellery",
+  "name": "HUID Register",
+  "prepared_report": 0,
+  "query": "SELECT * FROM (\n    SELECT\n        rsi.name AS \"Stock ID:Link/Retail Stock Item:110\",\n        rsi.stock_item_name AS \"Item Name:Data:180\",\n        rsi.metal AS \"Metal:Data:70\",\n        rsi.purity AS \"Purity:Link/Metal Purity:110\",\n        rsi.hallmark_status AS \"Hallmark:Data:120\",\n        rsi.huid AS \"HUID:Data:130\",\n        ROUND(COALESCE(SUM(CASE WHEN rst.movement = 'In' THEN rst.weight ELSE 0 END), 0), 3) AS total_in,\n        ROUND(COALESCE(SUM(CASE WHEN rst.movement = 'Out' THEN rst.weight ELSE 0 END), 0), 3) AS total_out,\n        ROUND(COALESCE(SUM(CASE WHEN rst.movement = 'In' THEN rst.weight ELSE -rst.weight END), 0), 3) AS current_stock\n    FROM `tabRetail Stock Item` rsi\n    LEFT JOIN `tabJewellery Stock Transaction` rst\n      ON rst.retail_stock_item = rsi.name AND rst.docstatus = 1\n    WHERE (%(metal)s = '' OR rsi.metal = %(metal)s)\n      AND (%(hallmark_status)s = '' OR rsi.hallmark_status = %(hallmark_status)s)\n    GROUP BY rsi.name\n) t\nWHERE (%(view)s = 'Full View' OR t.current_stock > 0)\nORDER BY 3, 2\n",
+  "ref_doctype": "Retail Stock Item",
+  "reference_report": null,
+  "report_name": "HUID Register",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "role": "System Manager"
+   }
+  ],
+  "snapshot_report": 0,
+  "timeout": 0
+ },
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "default_letter_head": null,
+  "default_print_format": null,
+  "disable_prepared_report_automation": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "doctype_to_sync": [],
+  "documentation_url": null,
+  "filters": [],
+  "generate_csv": 0,
+  "is_standard": "No",
+  "javascript": null,
+  "json": null,
+  "modified": "2026-09-24 00:46:18.883322",
+  "module": "Jewellery",
+  "name": "Worker Balances",
+  "prepared_report": 0,
+  "query": "SELECT\n    w.name AS \"Worker:Link/Worker:140\",\n    w.mobile_number AS \"Mobile:Data:120\",\n    (SELECT COUNT(*) FROM `tabJewellery Order` o WHERE o.worker = w.name AND o.docstatus < 2) AS \"Orders:Int:80\",\n    ROUND(COALESCE((SELECT SUM(pure_gold_delta) FROM `tabWorker Settlement` s WHERE s.worker = w.name AND s.docstatus = 1), 0), 3) AS \"Gold Bal (g):Float:110\",\n    COALESCE((SELECT SUM(cash_delta) FROM `tabWorker Settlement` s WHERE s.worker = w.name AND s.docstatus = 1), 0) AS \"Cash Bal:Currency:130\"\nFROM `tabWorker` w\nORDER BY 1",
+  "ref_doctype": "Worker Settlement",
+  "reference_report": null,
+  "report_name": "Worker Balances",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "role": "System Manager"
+   }
+  ],
+  "snapshot_report": 0,
+  "timeout": 0
+ },
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "default_letter_head": null,
+  "default_print_format": null,
+  "disable_prepared_report_automation": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "doctype_to_sync": [],
+  "documentation_url": null,
+  "filters": [
+   {
+    "default": "Outstanding Only",
+    "fieldname": "show_settled",
+    "fieldtype": "Select",
+    "label": "Show Settled",
+    "mandatory": 0,
+    "options": "Outstanding Only\nAll",
+    "wildcard_filter": 0
+   }
+  ],
+  "generate_csv": 0,
+  "is_standard": "No",
+  "javascript": null,
+  "json": null,
+  "modified": "2026-09-24 00:46:18.922106",
+  "module": "Jewellery",
+  "name": "Customer Outstanding",
+  "prepared_report": 0,
+  "query": "SELECT * FROM (\nSELECT\n    si.customer_name AS \"Customer:Data:200\",\n    COUNT(*) AS \"Bills:Int:70\",\n    SUM(si.grand_total) AS \"Billed:Currency:130\",\n    SUM(si.total_paid) AS \"Paid:Currency:130\",\n    SUM(si.grand_total - si.total_paid) AS \"Outstanding:Currency:130\"\nFROM `tabJewellery Sales Invoice` si\nWHERE si.docstatus = 1\nGROUP BY si.customer_name\n) t\nWHERE (%(show_settled)s = 'All' OR t.`Outstanding:Currency:130` > 0)\nORDER BY 5 DESC",
+  "ref_doctype": "Jewellery Sales Invoice",
+  "reference_report": null,
+  "report_name": "Customer Outstanding",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "role": "System Manager"
+   }
+  ],
+  "snapshot_report": 0,
+  "timeout": 0
+ }
+]

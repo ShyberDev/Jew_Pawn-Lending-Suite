@@ -1,0 +1,370 @@
+{
+ "actions": [],
+ "autoname": "LM-LIA-.#####",
+ "creation": "2019-09-09 22:34:36.346812",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "accrual_details_section",
+  "loan",
+  "rate_of_interest",
+  "applicant_type",
+  "applicant",
+  "loan_product",
+  "column_break_4",
+  "company",
+  "start_date",
+  "posting_date",
+  "interest_type",
+  "is_term_loan",
+  "is_npa",
+  "unmark_npa",
+  "references_section",
+  "loan_disbursement",
+  "accrual_type",
+  "column_break_idqd",
+  "loan_repayment_schedule",
+  "accrual_date",
+  "section_break_7",
+  "base_amount",
+  "additional_interest_amount",
+  "last_accrual_date",
+  "column_break_14",
+  "interest_amount",
+  "loan_demand",
+  "loan_repayment_schedule_detail",
+  "accounting_dimensions_section",
+  "cost_center",
+  "column_break_wrcw",
+  "section_break_15",
+  "process_loan_interest_accrual",
+  "amended_from",
+  "is_imported",
+  "is_gl_cancelled",
+  "column_break_svgc",
+  "normal_interest_journal_entry",
+  "additional_interest_suspense_entry",
+  "process_loan_accounting_voucher"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Loan",
+   "options": "Loan",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Posting Date (End Date)",
+   "search_index": 1
+  },
+  {
+   "fieldname": "interest_amount",
+   "fieldtype": "Currency",
+   "label": "Interest Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan Interest Accrual",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.applicant_type",
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "label": "Applicant Type",
+   "options": "Employee\nMember\nCustomer",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan.applicant",
+   "fieldname": "applicant",
+   "fieldtype": "Dynamic Link",
+   "in_standard_filter": 1,
+   "label": "Applicant",
+   "options": "applicant_type"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fetch_from": "loan.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan.is_term_loan",
+   "fieldname": "is_term_loan",
+   "fieldtype": "Check",
+   "label": "Is Term Loan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_15",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "process_loan_interest_accrual",
+   "fieldtype": "Link",
+   "label": "Process Loan Interest Accrual",
+   "options": "Process Loan Interest Accrual"
+  },
+  {
+   "fieldname": "column_break_14",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "accrual_type",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Accrual Type",
+   "options": "Regular\nRepayment\nDisbursement\nCredit Adjustment\nDebit Adjustment\nRefund"
+  },
+  {
+   "fieldname": "last_accrual_date",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Last Accrual Date",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan.loan_product",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan.is_npa",
+   "fieldname": "is_npa",
+   "fieldtype": "Check",
+   "label": "Is NPA"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Datetime",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "interest_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Interest Type",
+   "options": "Normal Interest\nPenal Interest",
+   "search_index": 1
+  },
+  {
+   "fetch_from": ".rate_of_interest",
+   "fieldname": "rate_of_interest",
+   "fieldtype": "Float",
+   "label": "Rate Of Interest"
+  },
+  {
+   "fieldname": "additional_interest_amount",
+   "fieldtype": "Currency",
+   "label": "Additional Interest Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "description": "Amount on which interest is calculated",
+   "fieldname": "base_amount",
+   "fieldtype": "Currency",
+   "label": "Base Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "loan_demand",
+   "fieldtype": "Link",
+   "label": "Loan Demand",
+   "options": "Loan Demand",
+   "search_index": 1
+  },
+  {
+   "fieldname": "loan_repayment_schedule",
+   "fieldtype": "Link",
+   "label": "Loan Repayment Schedule",
+   "options": "Loan Repayment Schedule",
+   "search_index": 1
+  },
+  {
+   "fieldname": "accrual_date",
+   "fieldtype": "Date",
+   "label": "Accrual Date",
+   "search_index": 1
+  },
+  {
+   "fieldname": "loan_repayment_schedule_detail",
+   "fieldtype": "Data",
+   "label": "Loan Repayment Schedule Detail",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "loan_repayment_schedule.loan_disbursement",
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "search_index": 1
+  },
+  {
+   "fieldname": "accrual_details_section",
+   "fieldtype": "Section Break",
+   "label": "Accrual Details"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimension"
+  },
+  {
+   "fetch_from": "loan.cost_center",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_wrcw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "label": "References"
+  },
+  {
+   "fieldname": "column_break_idqd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_svgc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "normal_interest_journal_entry",
+   "fieldtype": "Link",
+   "label": "Normal Interest Journal Entry",
+   "options": "Journal Entry"
+  },
+  {
+   "fieldname": "additional_interest_suspense_entry",
+   "fieldtype": "Link",
+   "label": "Additional Interest Suspense Entry",
+   "options": "Journal Entry"
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan.unmark_npa",
+   "fieldname": "unmark_npa",
+   "fieldtype": "Check",
+   "label": "Unmark NPA"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_imported",
+   "fieldtype": "Check",
+   "label": "Is Imported",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_gl_cancelled",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is GL Cancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "process_loan_accounting_voucher",
+   "fieldtype": "Link",
+   "label": "Process Loan Accounting Voucher",
+   "options": "Process Loan Accounting",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-07 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Interest Accrual",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
