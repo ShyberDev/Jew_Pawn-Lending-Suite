@@ -846,3 +846,102 @@ cron.
 
 Commits: jewellery `534de5c`, pawn `cd9d6e2`, bundle (this commit). Both repos
 remain **public**.
+
+### 18.10 Mobile app (Phase 2) — native Android / Flutter, offline-first
+
+**Owner decisions:** native Android (Flutter), **fully offline**, **photos in v1**,
+and Flutter is to stay installed on this machine.
+
+**Toolchain installed without sudo, under `~/development/`:** Flutter 3.47.5
+(Dart 3.13.4), Android cmdline-tools + `platforms;android-36` +
+`build-tools;36.0.0` + platform-tools, and Temurin **JDK 17** (the system has
+Java 25, which Android's Gradle plugin rejects). `flutter doctor` is green for
+Flutter + the Android toolchain. Setup scripts kept for reuse:
+`~/development/setup_downloads.sh`, `~/development/setup_android_sdk.sh`.
+
+**Project:** `mobile/jewellery_suite/` (Flutter, org `com.shyberdev`,
+Android-only) plus `mobile/build-apk.sh` and `mobile/README.md`. `mobile/` is not
+touched by `update-bundle.sh` (that only syncs `apps/*`).
+
+**Architecture**
+- `lib/data/local_db.dart` — SQLite tables mirroring server field names:
+  customers, villages, pawn_loans, pawn_items, pawn_releases, khatabook_loans,
+  khatabook_collections, khatabook_refinances, `outbox` (pending mutations),
+  `photo_queue`.
+- `lib/data/api_client.dart` — Frappe `sid`-cookie login, JSON `syncCall` for
+  `pawn_shop.api.sync.*`, multipart `upload_file`.
+- `lib/data/sync_service.dart` — register device → push (batch, idempotent) →
+  upload queued photos → pull delta and upsert by `server_name` (child `items`
+  replaced). `server doctype → table` map.
+- `lib/state/app_state.dart` — session, save helpers (`saveEntity`,
+  `savePawnLoan`, `savePhoto`), dashboard aggregates, sync orchestration.
+- `lib/util/format.dart` — rounding contract mirrored from the server (money
+  ceil 2dp, weights round3 half-up, simple interest).
+- `lib/ui/` — Login, Home, Customers, Pawn (intake + release), Khatabook (loan +
+  collect + refinance), Sync.
+
+**Server:** no changes — reuses the Phase 1 `pawn_shop.api.sync` endpoints.
+Confirmed `use_json_request_body = True` is compatible: `frappe/app.py::make_form_dict`
+parses JSON bodies natively (`request.is_json`).
+
+**Verification:** `flutter analyze` = **0 errors, 0 warnings** (16 info:
+deprecated `DropdownButtonFormField.value` + context-across-async). Unit test
+`test/widget_test.dart`. Release APK built with `flutter build apk --release`.
+
+**Not built yet:** jewellery-sales + lending screens, background/periodic sync, a
+conflict-resolution UI, per-device role restrictions.
+
+### 18.11 Mobile flow ownership + Pawn Release settlement fix
+
+**Who updates the loan?** The server controllers already mutate the parent loan
+on submit, so the app must **not** push a second, competing loan update:
+
+- `PawnRelease.on_submit` → adds `total_paid` to `amount_paid`, closes if settled.
+- `KhatabookCollection.on_submit` → allocates the payment oldest-first, saves the loan.
+- `KhatabookRefinance.on_submit` → **creates the new Khatabook Loan itself** and
+  closes the old one.
+
+Client changes (`lib/ui/pawn_screen.dart`, `lib/ui/khatabook_screen.dart`): create
+only the transaction document; reflect the parent loan's new state locally with
+`dirty = 0` so it is never queued. For refinance the client no longer creates a
+new local loan or sends `new_loan` — it just marks the old loan Closed locally and
+lets the next pull materialise the server-created replacement.
+
+**Link resolution before push** (`lib/data/sync_service.dart`): a release /
+collection / refinance may reference a loan that was created offline and has no
+`server_name` yet. `_toMutation` is now `async` and resolves link fields from the
+local `server_name` for:
+
+| DocType | link field(s) |
+|---|---|
+| Pawn Release | `pawn_loan` |
+| Khatabook Collection | `khatabook_loan` |
+| Khatabook Refinance | `khatabook_loan` |
+
+**Retry path:** `LocalDb.retryFailed()` resets outbox rows `status='error'` →
+`'pending'`; exposed via `AppState.retryFailed()` and a **"Retry failed changes"**
+button on the Sync screen. This covers the case where a link target had not synced
+yet on an earlier attempt.
+
+**Pawn Release settlement (server bug fix):** interest accrues by the day
+(`days/30`), so a loan's stored `balance` is stale if it was last saved on an
+earlier day. The old `PawnRelease.validate` compared `total_paid` against that
+stale value, so a full settlement on a later day could be rejected or leave a
+residual. `pawn_release.py` now recomputes the loan against `release_date`
+(status `Released`) in both `validate` and `on_submit` before comparing/closing,
+and `on_cancel` re-opens the loan. Verified by
+`pawn_shop.tests.test_pawn_release.run`:
+
+```
+bench --site library.local execute pawn_shop.tests.test_pawn_release.run
+{"settlement_total": 10450.0, "overpay_rejected": true,
+ "after_status": "Released", "after_balance": 0.0, "passed": true}
+```
+
+**Toolchain note (build):** Gradle's own wrapper downloader timed out following the
+GitHub redirect, so Gradle 9.3.1 was pre-seeded into the wrapper cache with `curl`.
+The daemon then OOM-killed on this 7.6 GiB machine because Flutter's template sets
+`org.gradle.jvmargs=-Xmx8G`; lowered to `-Xmx2G` (metaspace 1G, workers 2, no
+parallel) in `mobile/jewellery_suite/android/gradle.properties`. The release APK
+then built successfully: `app-release.apk` (54.3 MB), copied by `build-apk.sh` to
+`mobile/jewellery_suite-release.apk` (git-ignored).

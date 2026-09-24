@@ -153,9 +153,9 @@ DocTypes too):
 |-------|-------------|--------|
 | **0** | Design + owner answers | ✅ done |
 | **1** | Sync API (`pull`/`push`/`register_device`) + `client_uuid` idempotency + test | ✅ **DONE** |
-| **2** | Native Android (Flutter) app: SQLite store, the screens, online sync | ⏳ next |
-| **3** | Offline queue + background sync + conflict UI + camera/photos | ⏳ |
-| **4** | Lending + jewellery-sales screens; per-device roles | ⏳ |
+| **2** | Native Android (Flutter) app: SQLite store, the screens, online sync | ✅ **DONE** |
+| **3** | Offline queue + camera/photos (done) · background sync + conflict UI (next) | 🟡 mostly done |
+| **4** | Lending + jewellery-sales screens; per-device roles | ⏳ next |
 
 **Phase 1 is shipped** — see §11 for the endpoints and DocTypes. Because the
 client is a **native Flutter app** (owner's decision), the HTTPS/service-worker
@@ -182,7 +182,7 @@ real background sync.
 | Offline depth | **Fully offline**; sync when reconnected |
 | Data captured | **All**: new pawn loans, pawn releases, khatabook collections, jewellery sales, read-only dashboards |
 | Devices | **2–5** staff phones (per-device tracking via `Sync Device`) |
-| Photos | To be decided when the app is built |
+| Photos | **Yes** — item and customer photos in v1 (stored on the phone, uploaded to the server after the record syncs) |
 | Connectivity | Same Wi-Fi (LAN); internet later if needed |
 
 ---
@@ -229,3 +229,62 @@ Invoice.
 **Verified on `library.local`:** register → create (idempotent re-push returns the
 same name, count stays 1) → transaction create → delta pull → update by
 `client_uuid` → non-registry DocType rejected with an error.
+
+---
+
+## 12. Phase 2 — the Android app (shipped)
+
+**Code:** `mobile/jewellery_suite/` (Flutter 3.47.5 / Dart 3.13, Android SDK 36,
+JDK 17). Build: `mobile/build-apk.sh`. Docs: `mobile/README.md`.
+
+**Local store** (`lib/data/local_db.dart`): SQLite tables mirroring the server
+field names — `customers`, `villages`, `pawn_loans`, `pawn_items`,
+`pawn_releases`, `khatabook_loans`, `khatabook_collections`,
+`khatabook_refinances`, plus `outbox` (pending mutations) and `photo_queue`.
+
+**Sync engine** (`lib/data/sync_service.dart`):
+
+1. Register the device once (`device_name` stored locally).
+2. **Push** every pending outbox mutation in one batch; on success store the
+   returned `server_name` and mark the row clean; failures are kept with their
+   error for the Sync screen.
+3. **Upload** queued photos for documents that now exist on the server
+   (`/api/method/upload_file`, private, attached to the doc).
+4. **Pull** the delta since `last_pull` and upsert by `server_name` (child
+   `items` replaced for pawn loans).
+
+Repeated offline edits collapse to one pending mutation per record
+(last-write-wins). Transactions are pushed with `submit: true` where the server
+DocType is submittable.
+
+**Loan ownership rule.** The server controllers mutate the parent loan on submit,
+so the app never pushes a second loan update:
+
+| App action | Client creates | Client does locally |
+|---|---|---|
+| Pawn release | Pawn Release only | loan → Released, `dirty=0` |
+| Khatabook collect | Khatabook Collection only | loan totals bumped, `dirty=0` |
+| Khatabook refinance | Khatabook Refinance only | old loan → Closed, `dirty=0` |
+
+The server creates the replacement loan for a refinance, so the client does not
+send `new_loan`. Before pushing, `_toMutation` (now async) resolves each
+transaction's link field from the linked row's local `server_name`
+(`Pawn Release.pawn_loan`, `Khatabook Collection.khatabook_loan`,
+`Khatabook Refinance.khatabook_loan`).
+
+**Retry.** Outbox rows that failed (e.g. a link target had not synced yet) are
+kept with `status='error'` and shown on the Sync screen; **"Retry failed
+changes"** calls `LocalDb.retryFailed()` to reset them to `pending`.
+
+**Screens** (`lib/ui/`): Login, Home dashboard, Customers (+photo), Pawn
+(intake with item photos + release), Khatabook (loan + collect + refinance),
+Sync.
+
+**Rounding** (`lib/util/format.dart`) mirrors the server exactly: money ceiling
+to 2 dp, weights round half-up to 3 dp, interest
+`principal × rate%/month × days/30` with money ceiling.
+
+**Not yet built:** jewellery-sales and lending screens, background/periodic
+sync, a conflict-resolution UI (not needed while transactions are append-only),
+and per-device role restrictions.
+

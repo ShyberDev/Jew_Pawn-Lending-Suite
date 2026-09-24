@@ -58,8 +58,10 @@ That's it. `install.sh` will:
 | 1 | `jewellery_management` | **Sri Sai Krishna Jewellery** | Jewellery ERP: orders → workers → settlement, purchases/sales with GST, weight-based stock ledger, old-gold melt, HUID registry, repairs, rates, dashboard, reports. | `/app/jewellery` · `/app/jewellery-dashboard` |
 | 2 | `pawn_shop` | **Pawn Shop** | Pawn Shop + Khatabook village lending: pledge gold/silver, interest, release/withdrawal, weekly khatabook collections, refinance, combined accounting. | `/app/pawn` |
 | 3 | `lending` | **Lending** | Official open-source [frappe/lending](https://github.com/frappe/lending): Loan Application → Loan → Disbursement → Repayment, loan products, security types, reports. | `/app/lending` |
+| 4 | *(Android app)* | **Jewellery Suite** (phone) | Native Flutter app: offline pawn intake/release, khatabook collections, customers with photos; syncs to the server over Wi-Fi. | `mobile/` |
 
-All three appear on the Apps screen and in the left workspace rail (dock).
+All three desk apps appear on the Apps screen and in the left workspace rail (dock).
+The Android app lives in [`mobile/`](mobile/README.md) and talks to `pawn_shop.api.sync`.
 
 ### 1.1 Bundle layout
 
@@ -73,6 +75,10 @@ Jew_Pawn-Lending-Suite/
 │   ├── jewellery_management/  # vendored (full source, ready to install)
 │   ├── lending/               # vendored (includes the desk sidebar fix)
 │   └── pawn_shop/             # vendored
+├── mobile/                    # native Android (Flutter) offline app
+│   ├── jewellery_suite/       # the Flutter project
+│   ├── build-apk.sh           # one command to build the APK
+│   └── README.md              # install toolchain + build + use
 └── docs/
     └── AI_HANDOFF.md          # full engineering log
 ```
@@ -473,6 +479,31 @@ loans/releases) and khatabook (loans/collections) into one report with a TOTAL
 row, while each business stays isolated in its own workspace. Verified sample
 totals: shop income ₹22,13,087 / purchases ₹33,66,397; pawn principal
 ₹1,50,000; khatabook ₹9,700.
+
+### 8.5 Android app — offline phone ↔ laptop sync (`mobile/`)
+
+A **native Flutter app** for 2–5 staff phones. Everything is stored **locally on
+the phone (SQLite)** and works with **no network**; when the phone is on the same
+Wi-Fi as the server it **pushes** its changes and **pulls** everyone else's.
+
+- **Pawn** — intake with multiple items (metal, gross/net weight, hallmark,
+  rate, **item photo**) and one-tap **Release** (principal + interest).
+- **Khatabook** — new loan (principal + interest, N installments,
+  weekly/biweekly/monthly), **Collect** payments (irregular flag), **Refinance**
+  the balance.
+- **Customers** — name, phone, village, ID proof, rating, per-customer interest
+  overrides and a **photo**.
+- **Home** — today's collections, active pawn loans, outstanding, sync status.
+
+**Why it is safe:** every record carries a `client_uuid`; the server keys on it,
+so a flaky connection never double-posts. Transactions are append-only (never
+edited once they reach the server); masters are last-write-wins. Photos upload
+after their parent document exists. Rounding matches the server exactly (money
+ceil, weights round3 half-up).
+
+Endpoints: `pawn_shop.api.sync.{register_device,pull,push,status}` (see
+[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)). Build/install
+instructions: [`mobile/README.md`](mobile/README.md).
 
 ---
 
