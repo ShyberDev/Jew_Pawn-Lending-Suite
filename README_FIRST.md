@@ -525,11 +525,11 @@ totals: shop income ₹22,13,087 / purchases ₹33,66,397; pawn principal
     already ships the patched copy).
 18. Production mode (nginx/supervisor/HTTPS) not yet exercised.
 19. No automated test suite in CI; verification so far is scripted and manual.
-20. **Mobile ↔ laptop sync is not built yet** (owner requested; planned). The
-    current design is a single server (laptop or server) that phones/tablets
-    reach over the LAN or internet; a true offline-capable two-way sync between a
-    mobile app and the laptop is future work. For now, use the browser on the
-    same network (`http://<laptop-ip>:8000/desk`).
+20. **Mobile ↔ laptop sync is not built yet** (owner requested; planned). A full
+    design is in **[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)**:
+    an offline-first PWA + a Frappe `pull`/`push` sync API with `client_uuid`
+    idempotency. For now, use the browser on the same network
+    (`http://<laptop-ip>:8000/desk`).
 
 ---
 
