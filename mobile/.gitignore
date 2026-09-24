@@ -1,0 +1,5 @@
+# Build output / signing material (not for version control)
+*.apk
+*.aab
+*.keystore
+*.jks
