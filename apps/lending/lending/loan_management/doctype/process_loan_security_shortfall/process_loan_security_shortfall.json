@@ -1,0 +1,95 @@
+{
+ "actions": [],
+ "autoname": "LM-PLS-.#####",
+ "creation": "2019-09-19 06:43:26.742336",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "update_time",
+  "amended_from",
+  "applicant_borrower",
+  "loan"
+ ],
+ "fields": [
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Process Loan Security Shortfall",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "update_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Update Time",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "applicant_borrower",
+   "fieldtype": "Link",
+   "label": "Applicant (Borrower)",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "loan",
+   "fieldtype": "Link",
+   "label": "Loan",
+   "options": "Loan"
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-03-23 12:48:29.194873",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Process Loan Security Shortfall",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

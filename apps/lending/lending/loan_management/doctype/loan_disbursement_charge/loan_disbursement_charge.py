@@ -1,0 +1,26 @@
+# Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and contributors
+# For license information, please see license.txt
+
+# import frappe
+from frappe.model.document import Document
+
+
+class LoanDisbursementCharge(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		account: DF.Link | None
+		amount: DF.Currency
+		charge: DF.Link | None
+		parent: DF.Data
+		parentfield: DF.Data
+		parenttype: DF.Data
+		treatment_of_charge: DF.Literal["Billed Separately", "Add to first repayment"]
+	# end: auto-generated types
+
+	pass

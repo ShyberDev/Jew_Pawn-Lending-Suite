@@ -1,0 +1,809 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "ACC-LOAN-.YYYY.-.#####",
+ "creation": "2022-01-25 10:30:02.294967",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "applicant_details_section",
+  "applicant_type",
+  "applicant",
+  "applicant_name",
+  "loan_application",
+  "column_break_3",
+  "company",
+  "posting_date",
+  "status",
+  "is_imported",
+  "migration_date",
+  "auto_create_disbursement_on_loan_booking",
+  "section_break_8",
+  "loan_product",
+  "loan_amount",
+  "loan_partner",
+  "loan_category",
+  "repayment_schedule_type",
+  "no_interest_till_month_end",
+  "cancellation_date",
+  "settlement_date",
+  "column_break_11",
+  "rate_of_interest",
+  "penalty_charges_rate",
+  "disbursement_date",
+  "disbursed_amount",
+  "closure_date",
+  "maximum_loan_amount",
+  "is_secured_loan",
+  "is_term_loan",
+  "term_details_section",
+  "repayment_start_date",
+  "repayment_frequency",
+  "monthly_repayment_amount",
+  "column_break_qsfx",
+  "repayment_method",
+  "repayment_periods",
+  "moratorium_details_section",
+  "moratorium_type",
+  "column_break_nzzj",
+  "moratorium_tenure",
+  "treatment_of_interest",
+  "loan_credit_limits_section",
+  "limit_applicable_start",
+  "maximum_limit_amount",
+  "column_break_foeo",
+  "limit_applicable_end",
+  "utilized_limit_amount",
+  "available_limit_amount",
+  "loan_classification_details_section",
+  "days_past_due",
+  "classification_code",
+  "classification_name",
+  "column_break_zpe2",
+  "loan_restructure_count",
+  "watch_period_end_date",
+  "tenure_post_restructure",
+  "accounting_dimensions_section",
+  "cost_center",
+  "loan_charges_section",
+  "loan_charges",
+  "account_info",
+  "disbursement_account",
+  "payment_account",
+  "column_break_9",
+  "loan_account",
+  "interest_income_account",
+  "penalty_income_account",
+  "totals_tab",
+  "section_break_17",
+  "total_payment",
+  "total_interest_payable",
+  "total_principal_paid",
+  "amended_from",
+  "column_break_19",
+  "total_amount_paid",
+  "is_npa",
+  "manual_npa",
+  "unmark_npa",
+  "freeze_account",
+  "freeze_date",
+  "fldg_triggered",
+  "fldg_trigger_date",
+  "adjustments_section",
+  "written_off_amount",
+  "debit_adjustment_amount",
+  "credit_adjustment_amount",
+  "column_break_yskw",
+  "refund_amount",
+  "excess_amount_paid",
+  "loan_import_details_tab",
+  "loan_import_details",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "label": "Applicant Type",
+   "options": "Customer\nEmployee",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "applicant",
+   "fieldtype": "Dynamic Link",
+   "in_standard_filter": 1,
+   "label": "Applicant",
+   "options": "applicant_type",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "applicant_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "label": "Applicant Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_application",
+   "fieldtype": "Link",
+   "label": "Loan Application",
+   "no_copy": 1,
+   "options": "Loan Application",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Posting Date",
+   "no_copy": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Status",
+   "mandatory_depends_on": "is_imported",
+   "no_copy": 1,
+   "options": "\nDraft\nSanctioned\nPartially Disbursed\nDisbursed\nActive\nLoan Closure Requested\nClosed\nWritten Off\nSettled",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Loan Details"
+  },
+  {
+   "depends_on": "eval:doc.repayment_schedule_type!=\"Line of Credit\"",
+   "fieldname": "loan_amount",
+   "fieldtype": "Currency",
+   "label": "Loan Amount",
+   "non_negative": 1,
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fetch_from": "loan_product.rate_of_interest",
+   "fetch_if_empty": 1,
+   "fieldname": "rate_of_interest",
+   "fieldtype": "Percent",
+   "label": "Rate of Interest (%) / Year",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.status==\"Disbursed\"",
+   "fieldname": "disbursement_date",
+   "fieldtype": "Date",
+   "label": "Disbursement Date",
+   "no_copy": 1
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fieldname": "repayment_start_date",
+   "fieldtype": "Date",
+   "label": "Repayment Start Date"
+  },
+  {
+   "fieldname": "column_break_11",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fieldname": "repayment_method",
+   "fieldtype": "Select",
+   "label": "Repayment Method",
+   "options": "\nRepay Fixed Amount per Period\nRepay Over Number of Periods"
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fieldname": "repayment_periods",
+   "fieldtype": "Int",
+   "label": "Tenure"
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fetch_from": "loan_application.repayment_amount",
+   "fetch_if_empty": 1,
+   "fieldname": "monthly_repayment_amount",
+   "fieldtype": "Currency",
+   "label": "Monthly Repayment Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "account_info",
+   "fieldtype": "Section Break",
+   "label": "Account Info"
+  },
+  {
+   "fetch_from": "loan_product.payment_account",
+   "fieldname": "payment_account",
+   "fieldtype": "Link",
+   "label": "Payment Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "loan_product.loan_account",
+   "fieldname": "loan_account",
+   "fieldtype": "Link",
+   "label": "Loan Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan_product.interest_income_account",
+   "fieldname": "interest_income_account",
+   "fieldtype": "Link",
+   "label": "Interest Income Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_17",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_payment",
+   "fieldtype": "Currency",
+   "label": "Total Payable Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_19",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "is_term_loan",
+   "fieldname": "total_interest_payable",
+   "fieldtype": "Currency",
+   "label": "Total Interest Payable",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "total_amount_paid",
+   "fieldtype": "Currency",
+   "label": "Total Amount Paid",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_secured_loan",
+   "fieldtype": "Check",
+   "label": "Is Secured Loan"
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan_product.is_term_loan",
+   "fieldname": "is_term_loan",
+   "fieldtype": "Check",
+   "label": "Is Term Loan",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan_product.penalty_income_account",
+   "fieldname": "penalty_income_account",
+   "fieldtype": "Link",
+   "label": "Penalty Income Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_principal_paid",
+   "fieldtype": "Currency",
+   "label": "Total Principal Paid",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "disbursed_amount",
+   "fieldtype": "Currency",
+   "label": "Disbursed Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.is_secured_loan",
+   "fieldname": "maximum_loan_amount",
+   "fieldtype": "Currency",
+   "label": "Maximum Loan Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "written_off_amount",
+   "fieldtype": "Currency",
+   "label": "Written Off Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closure_date",
+   "fieldtype": "Date",
+   "label": "Closure Date",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan_product.disbursement_account",
+   "fieldname": "disbursement_account",
+   "fieldtype": "Link",
+   "label": "Disbursement Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "refund_amount",
+   "fieldtype": "Currency",
+   "label": "Refund amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "credit_adjustment_amount",
+   "fieldtype": "Currency",
+   "label": "Credit Adjustment Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "debit_adjustment_amount",
+   "fieldtype": "Currency",
+   "label": "Debit Adjustment Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.docstatus == 1",
+   "description": "Loan is a Non Performing Asset",
+   "fieldname": "is_npa",
+   "fieldtype": "Check",
+   "label": "Is NPA",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "is_term_loan",
+   "fetch_from": "loan_product.repayment_schedule_type",
+   "fieldname": "repayment_schedule_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Repayment Schedule Type",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "loan_product.no_interest_till_month_end",
+   "fieldname": "no_interest_till_month_end",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "No Interest Accrual Till Month End",
+   "read_only": 1
+  },
+  {
+   "fieldname": "days_past_due",
+   "fieldtype": "Int",
+   "label": "Days Past Due",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "depends_on": "eval:doc.docstatus == 1",
+   "description": "Manually marked as NPA",
+   "fieldname": "manual_npa",
+   "fieldtype": "Check",
+   "label": "Manual NPA",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "loan_restructure_count",
+   "fieldtype": "Int",
+   "label": "Loan Restructure Count",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_zpe2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "watch_period_end_date",
+   "fieldtype": "Date",
+   "label": "Watch Period End Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "tenure_post_restructure",
+   "fieldtype": "Int",
+   "label": "Tenure Post Restructure",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "classification_code",
+   "fieldtype": "Link",
+   "label": "Classification Code",
+   "no_copy": 1,
+   "options": "Loan Classification",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "classification_code.classification_name",
+   "fieldname": "classification_name",
+   "fieldtype": "Data",
+   "label": "Classification Name",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_classification_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Classification Details"
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fieldname": "repayment_frequency",
+   "fieldtype": "Select",
+   "label": "Repayment Frequency",
+   "options": "Monthly\nDaily\nWeekly\nBi-Weekly\nQuarterly\nOne Time"
+  },
+  {
+   "depends_on": "eval:doc.applicant_type==\"Customer\"",
+   "fieldname": "loan_charges",
+   "fieldtype": "Table",
+   "label": "Loan Charges",
+   "options": "Loan Disbursement Charge"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "loan_charges_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Booking Charges"
+  },
+  {
+   "depends_on": "eval:doc.moratorium_tenure && doc.moratorium_type == \"EMI\"",
+   "fieldname": "treatment_of_interest",
+   "fieldtype": "Select",
+   "label": "Treatment of Interest",
+   "mandatory_depends_on": "eval:doc.moratorium_tenure && doc.moratorium_type == \"EMI\"",
+   "options": "\nCapitalize\nAdd to first repayment"
+  },
+  {
+   "depends_on": "moratorium_type",
+   "fieldname": "moratorium_tenure",
+   "fieldtype": "Int",
+   "label": "Moratorium Tenure"
+  },
+  {
+   "depends_on": "eval:doc.repayment_schedule_type == \"Line of Credit\"",
+   "fieldname": "loan_credit_limits_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Credit Limits"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "limit_applicable_start",
+   "fieldtype": "Date",
+   "label": "Limit Applicable Start",
+   "mandatory_depends_on": "eval: doc.repayment_schedule_type == \"Line of Credit\"",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_foeo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "limit_applicable_end",
+   "fieldtype": "Date",
+   "label": "Limit Applicable End",
+   "mandatory_depends_on": "eval: doc.repayment_schedule_type == \"Line of Credit\"",
+   "no_copy": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "maximum_limit_amount",
+   "fieldtype": "Currency",
+   "label": "Maximum Limit Amount",
+   "mandatory_depends_on": "eval: doc.repayment_schedule_type == \"Line of Credit\"",
+   "no_copy": 1,
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fetch_from": "loan_product.loan_category",
+   "fieldname": "loan_category",
+   "fieldtype": "Link",
+   "label": "Loan Category",
+   "options": "Loan Category"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "available_limit_amount",
+   "fieldtype": "Currency",
+   "label": "Available Limit Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "utilized_limit_amount",
+   "fieldtype": "Currency",
+   "label": "Utilized Limit Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval: doc.is_term_loan && doc.repayment_schedule_type != \"Line of Credit\"",
+   "fieldname": "moratorium_type",
+   "fieldtype": "Select",
+   "label": "Moratorium Type",
+   "options": "\nEMI\nPrincipal"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "freeze_account",
+   "fieldtype": "Check",
+   "label": "Freeze Account",
+   "no_copy": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "depends_on": "freeze_account",
+   "fieldname": "freeze_date",
+   "fieldtype": "Date",
+   "label": "Freeze Date",
+   "mandatory_depends_on": "freeze_account",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "cancellation_date",
+   "fieldtype": "Date",
+   "label": "Cancellation Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_partner",
+   "fieldtype": "Link",
+   "label": "Loan Partner",
+   "options": "Loan Partner"
+  },
+  {
+   "default": "0",
+   "depends_on": "loan_partner",
+   "fieldname": "fldg_triggered",
+   "fieldtype": "Check",
+   "label": "FLDG Triggered",
+   "no_copy": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "unmark_npa",
+   "fieldtype": "Check",
+   "label": "Unmark NPA"
+  },
+  {
+   "depends_on": "fldg_triggered",
+   "fieldname": "fldg_trigger_date",
+   "fieldtype": "Date",
+   "label": "FLDG Trigger Date"
+  },
+  {
+   "fieldname": "excess_amount_paid",
+   "fieldtype": "Currency",
+   "label": "Excess Amount Paid",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan_product.penalty_interest_rate",
+   "fetch_if_empty": 1,
+   "fieldname": "penalty_charges_rate",
+   "fieldtype": "Percent",
+   "label": "Penalty Charges Rate"
+  },
+  {
+   "fieldname": "settlement_date",
+   "fieldtype": "Date",
+   "label": "Settlement Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  },
+  {
+   "fieldname": "totals_tab",
+   "fieldtype": "Tab Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "adjustments_section",
+   "fieldtype": "Section Break",
+   "label": "Adjustments"
+  },
+  {
+   "fieldname": "column_break_yskw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "applicant_details_section",
+   "fieldtype": "Section Break",
+   "label": "Applicant Details"
+  },
+  {
+   "fieldname": "term_details_section",
+   "fieldtype": "Section Break",
+   "label": "Term Details"
+  },
+  {
+   "fieldname": "column_break_qsfx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_imported",
+   "fieldtype": "Check",
+   "label": "Is Imported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "moratorium_details_section",
+   "fieldtype": "Section Break",
+   "label": "Moratorium Details"
+  },
+  {
+   "fieldname": "column_break_nzzj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "is_imported",
+   "fieldname": "migration_date",
+   "fieldtype": "Date",
+   "label": "Migration Date",
+   "read_only": 1
+  },
+  {
+   "depends_on": "is_imported",
+   "fieldname": "loan_import_details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Loan Import Details"
+  },
+  {
+   "fieldname": "loan_import_details",
+   "fieldtype": "Table",
+   "label": "Loan Import Details",
+   "mandatory_depends_on": "eval:(doc.is_imported && doc.status !== \"Closed\")",
+   "options": "Loan Import Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_create_disbursement_on_loan_booking",
+   "fieldtype": "Check",
+   "label": "Auto create disbursement on loan booking"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-03-09 14:19:18.157852",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "posting_date",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,46 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-09-24 14:40:05.492094",
+ "disable_prepared_report_automation": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "doctype_to_sync": [],
+ "filters": [
+  {
+   "fieldname": "metal",
+   "fieldtype": "Select",
+   "label": "Metal",
+   "mandatory": 0,
+   "options": "\nGold\nSilver",
+   "wildcard_filter": 0
+  }
+ ],
+ "generate_csv": 0,
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-09-24 14:40:05.492094",
+ "modified_by": "Administrator",
+ "module": "Jewellery Management",
+ "name": "Item Rate Card",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Retail Stock Item",
+ "report_name": "Item Rate Card",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "Stock User"
+  }
+ ],
+ "snapshot_report": 0,
+ "timeout": 0
+}

@@ -1,0 +1,211 @@
+# Copyright (c) 2019, Frappe Technologies Pvt. Ltd. and contributors
+# For license information, please see license.txt
+
+
+import frappe
+from frappe import _
+from frappe.model.document import Document
+
+from lending.loan_management.utils import loan_accounting_enabled
+
+
+class LoanProduct(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from lending.loan_management.doctype.loan_charges.loan_charges import LoanCharges
+		from lending.loan_management.doctype.loan_product_loan_partner.loan_product_loan_partner import (
+			LoanProductLoanPartner,
+		)
+
+		additional_interest_accrued: DF.Link | None
+		additional_interest_income: DF.Link | None
+		additional_interest_receivable: DF.Link | None
+		additional_interest_suspense: DF.Link | None
+		additional_interest_waiver: DF.Link | None
+		advance_payment_handling: DF.Literal["Reduce Tenure", "Reduce EMI"]
+		amended_from: DF.Link | None
+		bpi_recovery_method: DF.Literal["", "Upfront Deduction", "Amortized Over Tenure", "Add to First EMI", "Add to Last EMI"]
+		bpi_treatment: DF.Literal["On top of first EMI", "Adjust within the EMI amount"]
+		broken_period_interest_recovery_account: DF.Link | None
+		collection_offset_sequence_for_settlement_collection: DF.Link | None
+		collection_offset_sequence_for_standard_asset: DF.Link | None
+		collection_offset_sequence_for_sub_standard_asset: DF.Link | None
+		collection_offset_sequence_for_written_off_asset: DF.Link | None
+		company: DF.Link
+		cooling_period_days: DF.Int
+		customer_refund_account: DF.Link | None
+		cyclic_day_of_the_month: DF.Int
+		days_past_due_threshold_for_npa: DF.Int
+		disabled: DF.Check
+		disbursement_account: DF.Link | None
+		excess_amount_acceptance_limit: DF.Float
+		grace_period_in_days: DF.Int
+		interest_accrued_account: DF.Link | None
+		interest_income_account: DF.Link | None
+		interest_receivable_account: DF.Link | None
+		interest_waiver_account: DF.Link | None
+		is_term_loan: DF.Check
+		loan_account: DF.Link | None
+		loan_category: DF.Link | None
+		loan_charges: DF.Table[LoanCharges]
+		loan_partners: DF.TableMultiSelect[LoanProductLoanPartner]
+		maximum_loan_amount: DF.Currency
+		min_days_bw_disbursement_first_repayment: DF.Int
+		payment_account: DF.Link | None
+		penalty_accrued_account: DF.Link | None
+		penalty_income_account: DF.Link | None
+		penalty_interest_rate: DF.Percent
+		penalty_receivable_account: DF.Link | None
+		penalty_suspense_account: DF.Link | None
+		penalty_waiver_account: DF.Link | None
+		product_code: DF.Data
+		product_name: DF.Data
+		rate_of_interest: DF.Percent
+		repayment_date_on: DF.Literal["", "Start of the next month", "End of the current month"]
+		repayment_schedule_type: DF.Literal["", "Monthly as per repayment start date", "Pro-rated calendar months", "Monthly as per cycle date", "Line of Credit", "Flat Interest Rate"]
+		same_as_regular_interest_accounts: DF.Check
+		sanctioned_amount_tolerance_percentage: DF.Percent
+		security_deposit_account: DF.Link | None
+		subsidy_adjustment_account: DF.Link | None
+		suspense_collection_account: DF.Link | None
+		suspense_interest_income: DF.Link | None
+		validate_normal_repayment: DF.Check
+		write_off_account: DF.Link | None
+		write_off_amount: DF.Currency
+		write_off_recovery_account: DF.Link | None
+	# end: auto-generated types
+
+	def before_validate(self):
+		self.set_missing_values()
+		self.set_optional_accounts()
+
+	def validate(self):
+		if loan_accounting_enabled(self.company):
+			self.validate_accounts()
+		self.validate_rates()
+		self.validate_demand_offset_sequences()
+
+	def set_missing_values(self):
+		company_min_days_bw_disbursement_first_repayment = frappe.get_cached_value(
+			"Company", self.company, "min_days_bw_disbursement_first_repayment"
+		)
+		if (
+			self.min_days_bw_disbursement_first_repayment is None
+			and company_min_days_bw_disbursement_first_repayment
+		):
+			self.min_days_bw_disbursement_first_repayment = company_min_days_bw_disbursement_first_repayment
+
+	def validate_accounts(self):
+		for fieldname in [
+			"payment_account",
+			"loan_account",
+			"interest_income_account",
+			"penalty_income_account",
+		]:
+			account = self.get(fieldname)
+			if not account:
+				continue
+
+			company = frappe.get_value("Account", account, "company")
+			if company and company != self.company:
+				frappe.throw(
+					_("Account {0} does not belong to company {1}").format(
+						frappe.bold(account), frappe.bold(self.company)
+					)
+				)
+
+		if self.get("loan_account") and self.get("payment_account"):
+			if self.get("loan_account") == self.get("payment_account"):
+				frappe.throw(_("Loan Account and Payment Account cannot be same"))
+
+	def validate_rates(self):
+		for field in ["rate_of_interest", "penalty_interest_rate"]:
+			if self.get(field) and self.get(field) < 0:
+				frappe.throw(_("{0} cannot be negative").format(frappe.unscrub(field)))
+
+	def validate_demand_offset_sequences(self):
+		mandatory_sequences = [
+			"collection_offset_sequence_for_standard_asset",
+			"collection_offset_sequence_for_sub_standard_asset"
+		]
+
+		for seq in mandatory_sequences:
+			sequence_value = self.get(seq)
+			if not sequence_value:
+				sequence_value = frappe.db.get_value("Company", self.company, seq)
+
+			if not sequence_value:
+				frappe.throw(
+					_("{0} is mandatory. Please set it in Loan Product or Company").format(
+						frappe.bold(frappe.unscrub(seq))
+					)
+				)
+
+	def set_optional_accounts(self):
+		if not loan_accounting_enabled(self.company):
+			return
+
+		required_fields = [
+			"disbursement_account",
+			"payment_account",
+			"loan_account",
+			"security_deposit_account",
+			"customer_refund_account",
+			"interest_income_account",
+			"interest_accrued_account",
+			"interest_waiver_account",
+			"interest_receivable_account",
+			"broken_period_interest_recovery_account",
+			"penalty_income_account",
+			"penalty_accrued_account",
+			"penalty_waiver_account",
+			"penalty_receivable_account",
+			"write_off_account",
+			"write_off_recovery_account",
+		]
+
+		missing = []
+		for f in required_fields:
+			if not self.get(f):
+				label = self.meta.get_label(f)
+				missing.append(label)
+
+		if missing:
+			frappe.throw(
+				_("{0} {1} mandatory when Loan Accounting is enabled for {2}").format(
+					", ".join(frappe.bold(m) for m in missing),
+					"are" if len(missing) > 1 else "is",
+					frappe.bold(self.company),
+				)
+			)
+
+
+@frappe.whitelist()
+def get_default_charge_accounts(charge_type: str, company: str):
+	default_charge_accounts = frappe.db.get_value(
+		"Item Default",
+		{"parent": charge_type, "company": company},
+		[
+			"income_account",
+			"default_receivable_account",
+			"default_waiver_account",
+			"default_write_off_account",
+			"default_suspense_account",
+		],
+		as_dict=True,
+	)
+	out = {
+		"income_account": default_charge_accounts.income_account,
+		"receivable_account": default_charge_accounts.default_receivable_account,
+		"waiver_account": default_charge_accounts.default_waiver_account,
+		"write_off_account": default_charge_accounts.default_write_off_account,
+		"suspense_account": default_charge_accounts.default_suspense_account,
+	}
+
+	return out

@@ -1,0 +1,641 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "LM-REP-.####",
+ "creation": "2022-01-25 10:30:02.767941",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "against_loan",
+  "applicant",
+  "repayment_type",
+  "loan_disbursement",
+  "loan_adjustment",
+  "repayment_schedule_type",
+  "applicant_type",
+  "loan_product",
+  "bulk_repayment_log",
+  "is_imported",
+  "full_settlement_job",
+  "column_break_3",
+  "company",
+  "posting_date",
+  "value_date",
+  "loan_restructure",
+  "clearance_date",
+  "rate_of_interest",
+  "days_past_due",
+  "mode_of_payment",
+  "is_term_loan",
+  "is_npa",
+  "is_write_off_waiver",
+  "is_backdated",
+  "is_invoice_generated",
+  "payment_details_section",
+  "due_date",
+  "pending_principal_amount",
+  "interest_payable",
+  "payable_amount",
+  "total_charges_payable",
+  "column_break_9",
+  "shortfall_amount",
+  "payable_principal_amount",
+  "penalty_amount",
+  "amount_paid",
+  "section_break_55wc",
+  "repayment_details",
+  "references_section",
+  "reference_number",
+  "total_interest_paid",
+  "total_penalty_paid",
+  "unbooked_interest_paid",
+  "unbooked_penalty_paid",
+  "payable_charges",
+  "column_break_21",
+  "reference_date",
+  "principal_amount_paid",
+  "total_charges_paid",
+  "excess_amount",
+  "manual_remarks",
+  "amended_from",
+  "accounting_dimensions_section",
+  "cost_center",
+  "loan_partner",
+  "prepayment_charges_section",
+  "prepayment_charges",
+  "accounting_details_section",
+  "payment_account",
+  "penalty_income_account",
+  "column_break_36",
+  "loan_account",
+  "bank_account",
+  "co_lending_tab",
+  "loan_partner_details_section",
+  "total_partner_interest_share",
+  "total_partner_principal_share",
+  "loan_partner_interest_rate",
+  "column_break_uxwo",
+  "loan_partner_payment_ratio",
+  "loan_partner_share_percentage",
+  "loan_partner_repayment_schedule_type",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "against_loan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Against Loan",
+   "options": "Loan",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Now",
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_details_section",
+   "fieldtype": "Section Break",
+   "label": "Payment Details"
+  },
+  {
+   "fieldname": "penalty_amount",
+   "fieldtype": "Currency",
+   "label": "Penalty Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "interest_payable",
+   "fieldtype": "Currency",
+   "label": "Interest Payable",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "against_loan.applicant",
+   "fieldname": "applicant",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Applicant",
+   "options": "applicant_type",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "against_loan.loan_product",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payable_amount",
+   "fieldtype": "Currency",
+   "label": "Payable Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "amount_paid",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount Paid",
+   "non_negative": 1,
+   "options": "Company:company:default_currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Loan Repayment",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fetch_from": "against_loan.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pending_principal_amount",
+   "fieldtype": "Currency",
+   "label": "Pending Principal Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "against_loan.is_term_loan",
+   "fieldname": "is_term_loan",
+   "fieldtype": "Check",
+   "label": "Is Term Loan",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.payment_type==\"Loan Closure\" || doc.is_term_loan",
+   "fieldname": "payable_principal_amount",
+   "fieldtype": "Currency",
+   "label": "Payable Principal Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "label": "Payment References"
+  },
+  {
+   "fieldname": "reference_number",
+   "fieldtype": "Data",
+   "label": "Reference Number"
+  },
+  {
+   "fieldname": "reference_date",
+   "fieldtype": "Date",
+   "label": "Reference Date"
+  },
+  {
+   "fieldname": "column_break_21",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0.0",
+   "fieldname": "principal_amount_paid",
+   "fieldtype": "Currency",
+   "label": "Principal Amount Paid",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "against_loan.applicant_type",
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Applicant Type",
+   "options": "Employee\nMember\nCustomer",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repayment_details",
+   "fieldtype": "Table",
+   "label": "Repayment Details",
+   "options": "Loan Repayment Detail",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_interest_paid",
+   "fieldtype": "Currency",
+   "label": "Total Interest Paid",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "against_loan.rate_of_interest",
+   "fieldname": "rate_of_interest",
+   "fieldtype": "Percent",
+   "hidden": 1,
+   "label": "Rate Of Interest",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shortfall_amount",
+   "fieldtype": "Currency",
+   "label": "Shortfall Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_penalty_paid",
+   "fieldtype": "Currency",
+   "label": "Total Penalty Paid",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "clearance_date",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Clearance Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_details_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Details"
+  },
+  {
+   "fetch_from": ".payment_account",
+   "fieldname": "payment_account",
+   "fieldtype": "Link",
+   "label": "Repayment Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_36",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "against_loan.loan_account",
+   "fieldname": "loan_account",
+   "fieldtype": "Link",
+   "label": "Loan Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "against_loan.penalty_income_account",
+   "fieldname": "penalty_income_account",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Penalty Income Account",
+   "options": "Account"
+  },
+  {
+   "default": "0",
+   "fetch_from": "against_loan.is_npa",
+   "fieldname": "is_npa",
+   "fieldtype": "Check",
+   "label": "Is NPA",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "against_loan.days_past_due",
+   "fieldname": "days_past_due",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Days Past Due",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_55wc",
+   "fieldtype": "Section Break",
+   "label": "Allocated Demands"
+  },
+  {
+   "fieldname": "total_charges_payable",
+   "fieldtype": "Currency",
+   "label": "Total Charges Payable",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "default": "Normal Repayment",
+   "fieldname": "repayment_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Repayment Type",
+   "options": "Normal Repayment\nInterest Waiver\nPenalty Waiver\nCharges Waiver\nPrincipal Adjustment\nInterest Carry Forward\nWrite Off Recovery\nSecurity Deposit Adjustment\nAdvance Payment\nPre Payment\nSubsidy Adjustments\nLoan Closure\nPartial Settlement\nFull Settlement\nWrite Off Settlement\nCharge Payment\nPenalty Capitalization\nInterest Capitalization\nCharges Capitalization\nPrincipal Capitalization",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_restructure",
+   "fieldtype": "Link",
+   "label": "Loan Restructure",
+   "options": "Loan Restructure",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "against_loan.repayment_schedule_type",
+   "fieldname": "repayment_schedule_type",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Repayment Schedule Type"
+  },
+  {
+   "fieldname": "loan_disbursement",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Loan Disbursement",
+   "options": "Loan Disbursement",
+   "search_index": 1
+  },
+  {
+   "fieldname": "total_charges_paid",
+   "fieldtype": "Currency",
+   "label": "Total Charges Paid",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mode_of_payment",
+   "fieldtype": "Link",
+   "label": "Mode Of Payment",
+   "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "prepayment_charges_section",
+   "fieldtype": "Section Break",
+   "label": "Prepayment Charges"
+  },
+  {
+   "fieldname": "prepayment_charges",
+   "fieldtype": "Table",
+   "label": "Pre Payment Charges",
+   "options": "Prepayment Charges"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_write_off_waiver",
+   "fieldtype": "Check",
+   "label": "Is Write Off Waiver",
+   "read_only": 1
+  },
+  {
+   "fieldname": "excess_amount",
+   "fieldtype": "Currency",
+   "label": "Excess Amount",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_adjustment",
+   "fieldtype": "Link",
+   "label": "Loan Adjustment",
+   "options": "Loan Adjustment",
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.repayment_type==\"Charge Payment\"",
+   "fieldname": "payable_charges",
+   "fieldtype": "Table",
+   "label": "Payable Charges",
+   "options": "Loan Repayment Charges"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "manual_remarks",
+   "fieldtype": "Small Text",
+   "label": "Manual Remarks"
+  },
+  {
+   "fieldname": "unbooked_interest_paid",
+   "fieldtype": "Currency",
+   "label": "Unbooked Interest Paid",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unbooked_penalty_paid",
+   "fieldtype": "Currency",
+   "label": "Unbooked Penalty Paid",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "against_loan.loan_partner",
+   "fieldname": "loan_partner",
+   "fieldtype": "Link",
+   "label": "Loan Partner",
+   "options": "Loan Partner"
+  },
+  {
+   "fieldname": "loan_partner_payment_ratio",
+   "fieldtype": "Percent",
+   "label": "Loan Partner Payment Ratio",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_partner_principal_share",
+   "fieldtype": "Currency",
+   "label": "Total Partner Principal Share",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_partner_interest_share",
+   "fieldtype": "Currency",
+   "label": "Total Partner Interest Share",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "loan_partner_share_percentage",
+   "fieldtype": "Percent",
+   "label": "Loan Partner Share Percentage"
+  },
+  {
+   "fieldname": "loan_partner_details_section",
+   "fieldtype": "Section Break",
+   "label": "Loan Partner Details"
+  },
+  {
+   "fieldname": "column_break_uxwo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "loan_partner_repayment_schedule_type",
+   "fieldtype": "Data",
+   "label": "Loan Partner Repayment Schedule Type"
+  },
+  {
+   "fieldname": "loan_partner_interest_rate",
+   "fieldtype": "Percent",
+   "label": "Loan Partner Interest Rate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "co_lending_tab",
+   "fieldtype": "Tab Break",
+   "label": "Co Lending"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_backdated",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is Backdated"
+  },
+  {
+   "fieldname": "value_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Value Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bulk_repayment_log",
+   "fieldtype": "Link",
+   "label": "Bulk Repayment Log",
+   "options": "Bulk Repayment Log"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_imported",
+   "fieldtype": "Check",
+   "label": "Is Imported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "full_settlement_job",
+   "fieldtype": "Data",
+   "label": "Full Settlement Job",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_invoice_generated",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is Invoice generated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-06-16 13:58:07.513924",
+ "modified_by": "Administrator",
+ "module": "Loan Management",
+ "name": "Loan Repayment",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Loan Reporter"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

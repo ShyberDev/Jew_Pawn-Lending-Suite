@@ -1,0 +1,51 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-09-24 14:40:40.954730",
+ "disable_prepared_report_automation": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "doctype_to_sync": [],
+ "filters": [
+  {
+   "default": "2026-09-24",
+   "fieldname": "as_of",
+   "fieldtype": "Date",
+   "label": "As On",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "retail_stock_item",
+   "fieldtype": "Link",
+   "label": "Retail Stock Item",
+   "mandatory": 0,
+   "options": "Retail Stock Item",
+   "wildcard_filter": 0
+  }
+ ],
+ "generate_csv": 0,
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-09-24 14:40:40.954730",
+ "modified_by": "Administrator",
+ "module": "Jewellery Management",
+ "name": "Jewellery Stock Ageing",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Jewellery Stock Transaction",
+ "report_name": "Jewellery Stock Ageing",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Stock User"
+  }
+ ],
+ "snapshot_report": 0,
+ "timeout": 0
+}
