@@ -402,6 +402,13 @@ source file**. `bench migrate` calls `sync_all(force=0)` → **safe**. If you ev
 run a forced sync, regenerate the workspace JSON from source before committing
 (see `docs/AI_HANDOFF.md` §18.5).
 
+**Second trap — `bench migrate` deletes workspaces that are not app files.**
+`remove_orphan_entities()` deletes any public Workspace with an `app` set that has
+no matching `*.json` under that app's `workspace/` folder. A workspace shipped
+**only as a fixture** is therefore deleted on the next migrate (this is exactly
+what happened to the Jewellery workspace — fixed in §18.9). **Always ship a
+workspace as an app file**, and re-check the desk rail after any migrate.
+
 ---
 
 ## 8. Features & options
@@ -518,18 +525,30 @@ totals: shop income ₹22,13,087 / purchases ₹33,66,397; pawn principal
     it. No **prebuilt VM image** yet; a VM snapshot is still the simplest handover
     for a fully non-technical user (§12). Windows is supported via WSL2/Docker
     (§5.6).
-16. Both repos are currently **private** — make public or grant access before
-    others can clone.
+16. Both repos are **public** now (verified by anonymous clone).
 17. The Lending sidebar patch lives in the vendored `apps/lending`; a future
     upstream update of lending would need the patch re-applied (the bundle
     already ships the patched copy).
 18. Production mode (nginx/supervisor/HTTPS) not yet exercised.
 19. No automated test suite in CI; verification so far is scripted and manual.
-20. **Mobile ↔ laptop sync is not built yet** (owner requested; planned). A full
-    design is in **[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)**:
-    an offline-first PWA + a Frappe `pull`/`push` sync API with `client_uuid`
-    idempotency. For now, use the browser on the same network
-    (`http://<laptop-ip>:8000/desk`).
+20. **Mobile ↔ laptop sync — Phase 1 (the server API) is DONE; the phone app is
+    next.** The client will be a **native Android (Flutter)** app (owner's
+    choice) that stores data locally in SQLite. The server half already ships:
+    `pawn_shop.api.sync` exposes `register_device` / `pull` / `push`, idempotent
+    by `client_uuid` (DocTypes `Sync Device`, `Sync ID Map`, `Sync Log`).
+    Verified end-to-end on this bench. Full design:
+    **[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)**.
+21. **Off-site backup is documented, not yet scheduled.** `backup-to-gdrive.sh` +
+    **[`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md)** push a
+    nightly `bench backup --with-files` snapshot to Google Drive via rclone
+    (optional encryption). Run it once and add the cron line to make it live.
+22. **Workspace orphan-cleanup trap (fixed, but remember it).** Frappe's
+    `bench migrate` **deletes** any public Workspace that has an `app` set but no
+    matching file under that app's `workspace/` folder. The Jewellery workspace
+    used to ship only as a *fixture*, so every migrate wiped it and broke the
+    desk sidebar. It now ships as an app file
+    (`jewellery_management/.../workspace/jewellery/jewellery.json`). **Never
+    ship a workspace only as a fixture.**
 
 ---
 
@@ -549,6 +568,18 @@ cd ~/frappe-bench
 bench --site library.local backup --with-files
 # files land in sites/library.local/private/backups/
 ```
+
+### Off-site backup → Google Drive (recommended)
+This is the **disaster-recovery** path: laptop lost/stolen → restore everything.
+It is separate from the **mobile two-way sync** (phone ⇄ laptop).
+```bash
+# one-time: install rclone + connect Google Drive (see docs/BACKUP_AND_RECOVERY.md)
+cd ~/Jew_Pawn-Lending-Suite && ./backup-to-gdrive.sh   # backup + upload + prune
+# nightly — add to `crontab -e`:
+#   15 2 * * *  /home/shyam/Jew_Pawn-Lending-Suite/backup-to-gdrive.sh >> ~/backup.log 2>&1
+```
+Full walkthrough (rclone config, encryption, restore steps):
+**[`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md)**.
 
 ### Restore onto a fresh bench
 ```bash
@@ -599,7 +630,7 @@ truly non-technical users:
 | `ShyberDev/jewellery_management` | `Frappe-Jewellery-Pawn-Lending-Suite` | Jewellery app's own repo (mirror/history) |
 | `frappe/lending` *(upstream)* | `develop` | Money Lending (patched copy is vendored in the bundle) |
 
-Both ShyberDev repos are currently **private**.
+Both ShyberDev repos are **public**.
 
 > Branch names with spaces/commas are allowed by git but awkward in URLs; the
 > machine-friendly slug is `Frappe-Jewellery-Pawn-Lending-Suite`.

@@ -52,6 +52,24 @@ Loss** report.
 - **Docker (any OS):** `./docker/build.sh` builds a Frappe/ERPNext image with all
   three apps; `docker/README.md` runs it via the `frappe_docker` stack.
 
+## Backup & disaster recovery
+
+Keep the whole business safe **off the laptop**:
+
+```bash
+./backup-to-gdrive.sh          # bench backup --with-files + upload to Google Drive
+```
+
+See **[`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md)** for the rclone
+setup, encryption, nightly cron, and step-by-step restore after a laptop loss.
+
+## Mobile sync (Android app)
+
+The server side of phone ⇄ laptop sync is **done** (`pawn_shop.api.sync`:
+`register_device` / `pull` / `push`, idempotent by `client_uuid`). The native
+Android (Flutter) app is next. Design:
+**[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)**.
+
 ## Keeping the bundle in sync
 
 After changing the apps in your working bench:
@@ -63,14 +81,17 @@ After changing the apps in your working bench:
 ## Layout
 
 ```
-install.sh          one-command installer (Linux / WSL2)
-update-bundle.sh    sync bench apps -> this bundle
-versions.env        pinned frappe/erpnext commits
-README_FIRST.md     full onboarding guide
-apps/               vendored apps (jewellery_management, lending, pawn_shop)
-docker/             Containerfile + build script + Docker guide
-windows/            WSL2 setup script + Windows guide
-docs/AI_HANDOFF.md  engineering log
+install.sh            one-command installer (Linux / WSL2)
+update-bundle.sh      sync bench apps -> this bundle
+backup-to-gdrive.sh   nightly bench backup -> Google Drive (rclone)
+versions.env          pinned frappe/erpnext commits
+README_FIRST.md       full onboarding guide
+apps/                 vendored apps (jewellery_management, lending, pawn_shop)
+docker/               Containerfile + build script + Docker guide
+windows/              WSL2 setup script + Windows guide
+docs/AI_HANDOFF.md    engineering log
+docs/MOBILE_SYNC_DESIGN.md    phone <-> laptop sync design
+docs/BACKUP_AND_RECOVERY.md   Google Drive backup + restore runbook
 ```
 
 ## License
