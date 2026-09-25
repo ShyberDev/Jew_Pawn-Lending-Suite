@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -15,12 +16,61 @@ class LocalDb {
   Database get db => _db!;
 
   Future<void> init() async {
-    final dir = await getDatabasesPath();
+    // Web (wasm SQLite) has no path concept — open by plain filename.
+    final file = kIsWeb
+        ? 'jewellery_suite.db'
+        : p.join(await getDatabasesPath(), 'jewellery_suite.db');
     _db = await openDatabase(
-      p.join(dir, 'jewellery_suite.db'),
-      version: 1,
+      file,
+      version: 4,
       onCreate: _create,
+      onUpgrade: _upgrade,
     );
+  }
+
+  Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Khata type for village groups (Village / Personal / Business).
+      try {
+        await db
+            .execute('ALTER TABLE villages ADD COLUMN khata_type TEXT');
+      } catch (_) {/* column already present */}
+    }
+    if (oldVersion < 3) {
+      // v3: google-pin location on villages, ID photo front/back on customers,
+      // and the "You Gave" extra-amount ledger table (fees / late interest).
+      try {
+        await db.execute('ALTER TABLE villages ADD COLUMN latitude REAL');
+      } catch (_) {/* column already present */}
+      try {
+        await db.execute('ALTER TABLE villages ADD COLUMN longitude REAL');
+      } catch (_) {/* column already present */}
+      try {
+        await db
+            .execute('ALTER TABLE customers ADD COLUMN id_photo_front TEXT');
+      } catch (_) {/* column already present */}
+      try {
+        await db
+            .execute('ALTER TABLE customers ADD COLUMN id_photo_back TEXT');
+      } catch (_) {/* column already present */}
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS khatabook_given (
+          client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
+          customer TEXT, customer_name TEXT, village TEXT, khatabook_loan TEXT,
+          given_date TEXT, amount REAL, note TEXT, updated_at TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 4) {
+      // v4: collection reminder date on customers + "You Gave" type
+      // (principal / late_fee / interest) so reports can distinguish them.
+      try {
+        await db.execute('ALTER TABLE customers ADD COLUMN reminder_date TEXT');
+      } catch (_) {/* column already present */}
+      try {
+        await db.execute('ALTER TABLE khatabook_given ADD COLUMN given_type TEXT');
+      } catch (_) {/* column already present */}
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -29,8 +79,9 @@ class LocalDb {
     await db.execute('''
       CREATE TABLE villages (
         client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
-        village_name TEXT, district TEXT, state TEXT, pincode TEXT,
-        collector TEXT, notes TEXT, updated_at TEXT
+        village_name TEXT, khata_type TEXT, district TEXT, state TEXT,
+        pincode TEXT, collector TEXT, notes TEXT, updated_at TEXT,
+        latitude REAL, longitude REAL
       )
     ''');
 
@@ -40,7 +91,8 @@ class LocalDb {
         customer_name TEXT, phone TEXT, customer_type TEXT, village TEXT,
         address TEXT, status TEXT, id_proof_type TEXT, id_proof_number TEXT,
         rating TEXT, gold_interest_rate REAL, silver_interest_rate REAL,
-        khatabook_interest_rate REAL, notes TEXT, photo_path TEXT, updated_at TEXT
+        khatabook_interest_rate REAL, notes TEXT, photo_path TEXT, updated_at TEXT,
+        id_photo_front TEXT, id_photo_back TEXT, reminder_date TEXT
       )
     ''');
 
@@ -87,6 +139,15 @@ class LocalDb {
         khatabook_loan TEXT, customer TEXT, village TEXT, collection_date TEXT,
         amount REAL, payment_mode TEXT, is_irregular INTEGER DEFAULT 0,
         remarks TEXT, updated_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE khatabook_given (
+        client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
+        customer TEXT, customer_name TEXT, village TEXT, khatabook_loan TEXT,
+        given_date TEXT, amount REAL, note TEXT, updated_at TEXT,
+        given_type TEXT
       )
     ''');
 

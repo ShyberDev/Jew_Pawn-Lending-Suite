@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jewellery Suite — App Prototype (clickable)</title>
+<style>
+  :root{
+    --bg:#EFECE4; --surface:#FFFFFF; --text:#26241f; --muted:#8a8578;
+    --gold:#C9A227; --gold-dark:#a58412; --ink:#232323;
+    --green:#2E7D32; --red:#C62828; --line:#e7e2d6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI', Roboto, system-ui, sans-serif;}
+  body{background:var(--bg); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px;}
+  h1.hint{color:#6b6557; font-size:14px; font-weight:500; margin-bottom:14px; text-align:center;}
+  h1.hint b{color:var(--gold-dark);}
+
+  /* ---------- phone frame ---------- */
+  .phone{
+    width:390px; height:844px; background:var(--surface); border-radius:40px;
+    border:10px solid #191919; box-shadow:0 30px 60px rgba(0,0,0,.35);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .statusbar{height:34px; background:var(--surface); display:flex; justify-content:space-between;
+    align-items:center; padding:0 22px; font-size:12px; font-weight:600; color:var(--text);}
+
+  /* ---------- screens ---------- */
+  .screen{position:absolute; inset:34px 0 0 0; display:none; flex-direction:column; overflow-y:auto;}
+  .screen.active{display:flex;}
+  .screen::-webkit-scrollbar{display:none;}
+
+  /* ---------- shared widgets ---------- */
+  .appbar{display:flex; align-items:center; gap:10px; padding:14px 16px 10px;}
+  .appbar .title{font-size:19px; font-weight:700; flex:1;}
+  .appbar .sub{font-size:12px; color:var(--muted); font-weight:500;}
+  .avatar{width:42px; height:42px; border-radius:21px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; font-size:15px; flex-shrink:0;}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px; margin:0 14px 10px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .statcard{background:linear-gradient(135deg,#2b2b28,#1f1f1c); color:#fff; border-radius:16px; padding:16px; margin:0 14px 12px;}
+  .statrow{display:flex; gap:10px; margin:0 14px 12px;}
+  .statrow .card{flex:1; margin:0; text-align:center;}
+  .statrow .card .n{font-size:19px; font-weight:800; color:var(--text);}
+  .statrow .card .l{font-size:11px; color:var(--muted); margin-top:2px;}
+  .pill{display:inline-block; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px;}
+  .pill.green{background:#e8f3e8; color:var(--green);} .pill.red{background:#fdeaea; color:var(--red);}
+  .pill.gold{background:#f7efd8; color:var(--gold-dark);} .pill.grey{background:#efede6; color:var(--muted);}
+  .row{display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--line);
+    border-radius:16px; padding:12px 14px; margin:0 14px 10px; cursor:pointer; transition:.12s;}
+  .row:active{transform:scale(.985);}
+  .row .grow{flex:1; min-width:0;}
+  .row .name{font-weight:650; font-size:15px; color:var(--text);}
+  .row .meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .row .amt{font-weight:800; font-size:14.5px; color:var(--text); text-align:right;}
+  .row .sub2{font-size:11px; color:var(--muted); text-align:right;}
+  .fab{position:sticky; bottom:14px; align-self:flex-end; margin:6px 14px 14px; background:var(--gold); color:#fff;
+    border:none; width:58px; height:58px; border-radius:29px; font-size:30px; font-weight:300; box-shadow:0 6px 14px rgba(201,162,39,.5); cursor:pointer;}
+  .fab:active{transform:scale(.95);}
+  .btn{background:var(--gold); color:#fff; border:none; border-radius:12px; padding:13px; font-size:15px; font-weight:700; cursor:pointer;}
+  .btn:active{transform:scale(.98);}
+  .btn.ghost{background:#f1eee4; color:var(--text); font-weight:650;}
+  .btn.danger{background:var(--red);}
+  .btn.small{padding:9px 14px; font-size:13px; border-radius:10px;}
+  .btn.full{margin:0 14px 14px;}
+  .field{margin:0 14px 12px;}
+  .field label{display:block; font-size:12px; font-weight:650; color:var(--muted); margin-bottom:5px;}
+  .field input,.field select{width:100%; border:1.5px solid var(--line); border-radius:11px; padding:12px; font-size:14.5px; background:var(--surface);}
+  .field input:focus{outline:none; border-color:var(--gold);}
+  .back{background:none; border:none; font-size:20px; cursor:pointer; color:var(--text); padding:4px;}
+  .divider{height:1px; background:var(--line); margin:4px 14px 12px;}
+  .kv{display:flex; justify-content:space-between; padding:7px 0; font-size:13.5px;}
+  .kv .k{color:var(--muted);} .kv .v{font-weight:650; color:var(--text); text-align:right;}
+  .progress{height:8px; background:var(--line); border-radius:5px; overflow:hidden; margin-top:8px;}
+  .progress i{display:block; height:100%; background:var(--gold);}
+  .section{font-size:12px; font-weight:800; letter-spacing:.6px; color:var(--muted); margin:4px 14px 10px; text-transform:uppercase;}
+
+  /* ---------- bottom nav ---------- */
+  .nav{position:absolute; left:0; right:0; bottom:0; height:62px; background:var(--surface); border-top:1px solid var(--line);
+    display:flex; justify-content:space-around; align-items:center;}
+  .nav button{background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer;
+    font-size:10.5px; font-weight:650; color:var(--muted); padding:4px 10px;}
+  .nav button .ic{font-size:20px; line-height:1;}
+  .nav button.on{color:var(--gold-dark);}
+
+  /* ---------- modal ---------- */
+  .modal{position:absolute; inset:0; background:rgba(20,20,18,.55); display:none; align-items:flex-end; z-index:20;}
+  .modal.show{display:flex;}
+  .sheet{background:var(--surface); border-radius:22px 22px 0 0; width:100%; padding:18px 16px 22px; max-height:86%; overflow-y:auto;}
+  .sheet h3{font-size:17px; font-weight:750; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;}
+  .sheet .close{background:var(--bg); border:none; width:30px; height:30px; border-radius:15px; font-size:15px; cursor:pointer; font-weight:700;}
+  .grab{width:44px; height:4px; background:var(--line); border-radius:2px; margin:0 auto 12px;}
+  .inline-row{display:flex; gap:8px;}
+  .inline-row .field{flex:1; margin:0 0 12px;}
+  .switch{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; margin:0 14px 12px;}
+
+  /* ---------- toast ---------- */
+  .toast{position:absolute; left:50%; bottom:76px; transform:translateX(-50%) translateY(20px); background:#26241f; color:#fff;
+    font-size:13px; font-weight:600; border-radius:22px; padding:10px 18px; opacity:0; transition:.25s; pointer-events:none; z-index:40; white-space:nowrap;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* login */
+  #login{justify-content:center; background:linear-gradient(160deg,#2b2b28 0%,#171714 100%); color:#fff; padding:30px;}
+  .logo{width:76px; height:76px; border-radius:22px; background:linear-gradient(135deg,var(--gold),#8a6a10);
+    display:flex; align-items:center; justify-content:center; font-size:34px; margin:0 auto 14px; box-shadow:0 10px 24px rgba(201,162,39,.35);}
+  #login h2{text-align:center; font-size:23px; font-weight:800; letter-spacing:.3px;}
+  #login .tag{text-align:center; color:#a9a395; font-size:12.5px; margin:6px 0 26px;}
+  #login .field label{color:#a9a395;}
+  #login .field input{background:#34342f; border-color:#3d3d37; color:#fff; border-radius:12px;}
+  #login .btn{margin-top:8px;}
+  .login-feet{text-align:center; color:#8a8578; font-size:11.5px; margin-top:18px; line-height:1.6;}
+</style>
+</head>
+<body>
+
+<h1 class="hint">📱 <b>Jewellery Suite prototype</b> — click through it, then tell me what to keep / remove / add</h1>
+
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>📶 🔋 82%</span></div>
+
+  <!-- ============ LOGIN ============ -->
+  <section class="screen active" id="login">
+    <div class="logo">👑</div>
+    <h2>Jewellery Suite</h2>
+    <p class="tag">Pawn Shop · Khatabook · Jewellery — one app</p>
+    <div class="field"><label>Server URL (laptop LAN IP)</label><input id="srv" value="http://192.168.0.104:8000"></div>
+    <div class="field"><label>Username</label><input id="usr" value="shyamsailolugu@gmail.com"></div>
+    <div class="field"><label>Password</label><input id="pwd" type="password" placeholder="••••••••"></div>
+    <button class="btn" style="margin:0 14px;" onclick="connect()">Connect</button>
+    <p class="login-feet">Works fully offline.<br>Syncing happens automatically when the phone and laptop are on the same Wi-Fi.</p>
+  </section>
+
+  <!-- ============ HOME ============ -->
+  <section class="screen" id="home">
+    <div class="appbar"><div><div class="title">Today</div><div class="sub">Fri, 25 Sep 2026</div></div></div>
+    <div class="statcard">
+      <div class="kv"><span class="k" style="color:#b9b3a3;">Collections today</span><span class="v" style="font-size:22px;">₹850</span></div>
+      <div class="kv" style="border-top:1px solid #3a3a35; margin-top:8px;"><span class="k" style="color:#b9b3a3;">Pending sync</span><span class="v">All synced ✓</span></div>
+    </div>
+    <div class="statrow">
+      <div class="card"><div class="n">3</div><div class="l">Active pawn</div></div>
+      <div class="card"><div class="n">5</div><div class="l">KH loans</div></div>
+      <div class="card"><div class="n">₹31.2k</div><div class="l">KH outstand.</div></div>
+    </div>
+    <div class="section">Metal rates today</div>
+    <div class="statrow">
+      <div class="card"><div class="n" style="color:var(--gold-dark);">₹15,600</div><div class="l">Gold / g</div></div>
+      <div class="card"><div class="n" style="color:#5a5a5a;">₹240</div><div class="l">Silver / g</div></div>
+    </div>
+    <div class="section">Recent activity</div>
+    <div class="row" onclick="go('khatabook')">
+      <div class="avatar" style="background:var(--green);">AR</div>
+      <div class="grow"><div class="name">Arun paid ₹550</div><div class="meta">Khatabook · 10:24 AM · irregular</div></div>
+      <div><span class="pill gold">+₹550</span></div>
+    </div>
+    <div class="row" onclick="go('pawn')">
+      <div class="avatar" style="background:var(--gold-dark);">RK</div>
+      <div class="grow"><div class="name">Interest accrued ₹600</div><div class="meta">PL-2026-00002 · Ramesh Kumar</div></div>
+      <div><span class="pill grey">30 days</span></div>
+    </div>
+    <div class="row" onclick="go('sync')">
+      <div class="avatar" style="background:#5b6471;">🔄</div>
+      <div class="grow"><div class="name">3 photos uploaded</div><div class="meta">After sync · 9:52 AM</div></div>
+    </div>
+  </section>
+
+  <!-- ============ CUSTOMERS LIST ============ -->
+  <section class="screen" id="customers">
+    <div class="appbar"><div class="title">Customers</div><div class="sub">5 total</div>
+      <button class="back" onclick="toast('Search coming soon')">🔍</button></div>
+    <div class="row" onclick="go('customer-detail')">
+      <div class="avatar" style="background:#c28b1f;">RK</div>
+      <div class="grow"><div class="name">Ramesh Kumar</div><div class="meta">Ramapuram · 9876543210</div></div>
+      <div><span class="pill gold">1 pawn</span><div class="sub2" style="margin-top:4px;">3% / mo</div></div>
+    </div>
+    <div class="row" onclick="go('customer-detail')">
+      <div class="avatar" style="background:#b0612f;">SD</div>
+      <div class="grow"><div class="name">Sita Devi</div><div class="meta">Ramapuram · 9876501234</div></div>
+      <div><span class="pill gold">1 pawn</span><div class="sub2" style="margin-top:4px;">2.5% / mo</div></div>
+    </div>
+    <div class="row" onclick="go('customer-detail')">
+      <div class="avatar" style="background:#6d6d6d;">ML</div>
+      <div class="grow"><div class="name">Mohan Lal</div><div class="meta">Villupuram · 9812345678</div></div>
+      <div><span class="pill grey">Silver</span><div class="sub2" style="margin-top:4px;">4% / mo</div></div>
+    </div>
+    <div class="section">Khatabook customers</div>
+    <div class="row" onclick="go('customer-detail')">
+      <div class="avatar" style="background:var(--green);">LB</div>
+      <div class="grow"><div class="name">Lakshmi Bai</div><div class="meta">Pallipatti · 9008123456</div></div>
+      <div><span class="pill green">Good</span><div class="sub2" style="margin-top:4px;">6/12 paid</div></div>
+    </div>
+    <div class="row" onclick="go('customer-detail')">
+      <div class="avatar" style="background:var(--red);">AR</div>
+      <div class="grow"><div class="name">Arun</div><div class="meta">Pallipatti · 9008123444</div></div>
+      <div><span class="pill red">Bad</span><div class="sub2" style="margin-top:4px;">4/12 paid</div></div>
+    </div>
+    <button class="fab" onclick="go('customer-form')">+</button>
+  </section>
+
+  <!-- ============ CUSTOMER FORM ============ -->
+  <section class="screen" id="customer-form">
+    <div class="appbar"><button class="back" onclick="go('customers')">←</button><div class="title">New customer</div></div>
+    <div style="display:flex; justify-content:center; margin:6px 0 14px;">
+      <div class="avatar" style="width:74px; height:74px; border-radius:37px; background:var(--line); color:var(--muted); font-size:13px;">📷 Photo</div>
+    </div>
+    <div class="field"><label>Full name</label><input placeholder="e.g. K. Annamalai"></div>
+    <div class="field"><label>Phone</label><input placeholder="10-digit number"></div>
+    <div class="field"><label>Address</label><input placeholder="Street, area"></div>
+    <div class="field"><label>Village / Town</label><select><option>Ramapuram</option><option>Pallipatti</option><option>Villupuram</option></select></div>
+    <div class="section">Interest override (optional — leave empty for defaults)</div>
+    <div class="inline-row">
+      <div class="field"><label>Gold % / month</label><input placeholder="3.0"></div>
+      <div class="field"><label>Silver % / month</label><input placeholder="4.0"></div>
+    </div>
+    <div class="field"><label>Khatabook rating</label><select><option>New</option><option>Good</option><option>Bad</option></select></div>
+    <button class="btn full" onclick="toast('Customer saved locally ✓')">Save customer</button>
+  </section>
+
+  <!-- ============ CUSTOMER DETAIL ============ -->
+  <section class="screen" id="customer-detail">
+    <div class="appbar"><button class="back" onclick="go('customers')">←</button>
+      <div class="avatar" style="background:#c28b1f;">RK</div>
+      <div class="grow"><div class="title" style="font-size:17px;">Ramesh Kumar</div><div class="sub">Ramapuram · 9876543210</div></div>
+    </div>
+    <div class="card">
+      <div class="kv"><span class="k">Interest — Gold</span><span class="v">3.0% / month</span></div>
+      <div class="kv"><span class="k">Interest — Silver</span><span class="v">4.0% / month (default)</span></div>
+      <div class="kv"><span class="k">Khatabook rating</span><span class="v"><span class="pill green">Good</span></span></div>
+    </div>
+    <div class="section">Open pawn loan</div>
+    <div class="row" onclick="go('pawn-detail')">
+      <div class="grow"><div class="name">PL-2026-00002</div><div class="meta">₹10,000 · 3%/mo · due in 15 days</div></div>
+      <div><div class="amt">₹10,600</div><div class="sub2">balance</div></div>
+    </div>
+    <div class="section">Khatabook history</div>
+    <div class="row"><div class="grow"><div class="name">KL-2026-00001</div><div class="meta">Paid 6 of 12 · ₹550/wk</div></div><div><span class="pill green">Good</span></div></div>
+    <div class="section">Photos</div>
+    <div class="row"><div class="avatar" style="background:var(--line);">📷</div><div class="grow"><div class="name">Aadhaar card</div><div class="meta">Uploaded at sync</div></div></div>
+    <button class="btn ghost full" onclick="go('customer-form')">Edit customer</button>
+  </section>
+
+  <!-- ============ PAWN LIST ============ -->
+  <section class="screen" id="pawn">
+    <div class="appbar"><div class="title">Pawn loans</div><div class="sub">3 active</div></div>
+    <div style="margin:0 14px 12px;" class="statrow">
+      <div class="card"><div class="n">₹29,900</div><div class="l">Outstanding</div></div>
+      <div class="card"><div class="n">3</div><div class="l">Active</div></div>
+      <div class="card"><div class="n">0</div><div class="l">Overdue</div></div>
+    </div>
+    <div class="row" onclick="go('pawn-detail')">
+      <div class="avatar" style="background:#c28b1f;">RK</div>
+      <div class="grow"><div class="name">PL-2026-00002 · <span style="color:var(--muted); font-weight:500;">Gold</span></div>
+        <div class="meta">Ramesh Kumar · chain 22g · 15 days left</div></div>
+      <div><div class="amt">₹10,600</div><div class="sub2">3% / mo</div></div>
+    </div>
+    <div class="row" onclick="go('pawn-detail')">
+      <div class="avatar" style="background:#b0612f;">SD</div>
+      <div class="grow"><div class="name">PL-2026-00003 · <span style="color:var(--muted); font-weight:500;">Gold</span></div>
+        <div class="meta">Sita Devi · bangle 30g · 40 days left</div></div>
+      <div><div class="amt">₹15,900</div><div class="sub2">2.5% / mo</div></div>
+    </div>
+    <div class="row" onclick="go('pawn-detail')">
+      <div class="avatar" style="background:#6d6d6d;">ML</div>
+      <div class="grow"><div class="name">PL-2026-00004 · <span style="color:var(--muted); font-weight:500;">Silver</span></div>
+        <div class="meta">Mohan Lal · anklet 220g · 62 days left</div></div>
+      <div><div class="amt">₹4,280</div><div class="sub2">4% / mo</div></div>
+    </div>
+    <div class="section">Recently released</div>
+    <div class="row"><div class="avatar" style="background:#7a7a7a;">KK</div>
+      <div class="grow"><div class="name">PL-2026-00001 · <span style="color:var(--muted); font-weight:500;">Gold</span></div>
+        <div class="meta">Kavitha · released yesterday</div></div>
+      <div><span class="pill grey">Closed</span></div></div>
+    <button class="fab" onclick="go('pawn-new')">+</button>
+  </section>
+
+  <!-- ============ PAWN NEW LOAN ============ -->
+  <section class="screen" id="pawn-new">
+    <div class="appbar"><button class="back" onclick="go('pawn')">←</button><div class="title">New pawn loan</div></div>
+    <div class="field"><label>Customer</label><select><option>Ramesh Kumar (3%)</option><option>Sita Devi (2.5%)</option><option>Mohan Lal (Silver 4%)</option></select></div>
+    <div class="field"><label>Interest basis</label><select><option>Gold</option><option>Silver</option></select></div>
+    <div class="inline-row">
+      <div class="field"><label>Loan amount (₹)</label><input value="10,000"></div>
+      <div class="field"><label>Rate % / mo</label><input value="3.0"></div>
+    </div>
+    <div class="field"><label>Due date</label><input value="+45 days" placeholder="date"></div>
+    <div class="section">Item 1</div>
+    <div class="field"><label>Description</label><input value="Gold chain"></div>
+    <div class="inline-row">
+      <div class="field"><label>Gross wt (g)</label><input value="22.400"></div>
+      <div class="field"><label>Net wt (g)</label><input value="22.000"></div>
+    </div>
+    <div class="inline-row">
+      <div class="field"><label>Valuation ₹/g</label><input value="15,600"></div>
+      <div class="field"><label>Hallmark</label><select><option>Yes</option><option>No</option></select></div>
+    </div>
+    <div class="switch">📷 <span>Add item photo (required)</span></div>
+    <div class="card" style="text-align:center; color:var(--muted); font-size:13px; padding:18px;">
+      Estimated market value of item 1: <b style="color:var(--text);">₹3,43,200</b><br><br>
+      <span style="font-size:12px;">Auto-calculated · LTV = loan ÷ value</span><br>
+      <b style="color:var(--gold-dark);">LTV 2.9%</b>
+    </div>
+    <button class="btn ghost full" onclick="toast('Another item added')">+ Add another item</button>
+    <button class="btn full" onclick="toast('Loan saved — will sync when online')">Save loan</button>
+  </section>
+
+  <!-- ============ PAWN DETAIL ============ -->
+  <section class="screen" id="pawn-detail">
+    <div class="appbar"><button class="back" onclick="go('pawn')">←</button>
+      <div class="grow"><div class="title" style="font-size:17px;">PL-2026-00002</div>
+      <div class="sub">Ramesh Kumar · Gold · 3% / mo</div></div>
+      <span class="pill gold">Active</span></div>
+    <div class="card">
+      <div class="kv"><span class="k">Loan amount</span><span class="v">₹10,000</span></div>
+      <div class="kv"><span class="k">Interest accrued</span><span class="v">₹600 (30 days)</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);"><span class="k">Balance payable</span><span class="v" style="font-size:17px;">₹10,600</span></div>
+    </div>
+    <div class="card">
+      <div class="kv"><span class="k">Item</span><span class="v">Gold chain</span></div>
+      <div class="kv"><span class="k">Gross / Net</span><span class="v">22.400 / 22.000 g</span></div>
+      <div class="kv"><span class="k">Hallmarked</span><span class="v">✔ Yes</span></div>
+      <div class="kv"><span class="k">Rate</span><span class="v">₹15,600 / g</span></div>
+      <div class="kv"><span class="k">Market value</span><span class="v">₹3,43,200</span></div>
+      <div class="kv"><span class="k">LTV</span><span class="v">2.9%</span></div>
+      <div class="kv"><span class="k">Due date</span><span class="v">10 Oct 2026 (15 days)</span></div>
+    </div>
+    <div class="card" style="text-align:center; padding:18px; color:var(--muted);">📷 <span style="font-size:12px;">item photo preview</span></div>
+    <button class="btn full" onclick="openModal('release')">Release / settle →</button>
+    <button class="btn ghost full" onclick="toast('Partial payment on the way')">Record partial payment</button>
+  </section>
+
+  <!-- ============ KHATABOOK LIST ============ -->
+  <section class="screen" id="khatabook">
+    <div class="appbar"><div class="title">Khatabook</div><div class="sub">5 active loans</div>
+      <button class="back" onclick="toast('Village filter coming')">🏘️</button></div>
+    <div style="margin:0 14px 12px;" class="statrow">
+      <div class="card"><div class="n">₹31,250</div><div class="l">Outstanding</div></div>
+      <div class="card"><div class="n">53/60</div><div class="l">Wkly collections</div></div>
+    </div>
+    <div class="row" onclick="go('khatabook-detail')">
+      <div class="avatar" style="background:var(--green);">LB</div>
+      <div class="grow"><div class="name">Lakshmi Bai</div><div class="meta">Pallipatti · ₹1,200/wk · 6/12</div>
+        <div class="progress" style="margin-top:6px;"><i style="width:50%;"></i></div></div>
+      <div><div class="amt">₹6,400</div><div class="sub2">left</div><span class="pill green" style="margin-top:5px;">Good</span></div>
+    </div>
+    <div class="row" onclick="go('khatabook-detail')">
+      <div class="avatar" style="background:var(--red);">AR</div>
+      <div class="grow"><div class="name">Arun</div><div class="meta">Pallipatti · ₹550/wk · 4/12</div>
+        <div class="progress" style="margin-top:6px;"><i style="width:33%;"></i></div></div>
+      <div><div class="amt">₹4,200</div><div class="sub2">left</div><span class="pill red" style="margin-top:5px;">Bad</span></div>
+    </div>
+    <div class="row" onclick="go('khatabook-detail')">
+      <div class="avatar" style="background:#7b6fc4;">KA</div>
+      <div class="grow"><div class="name">Kamala</div><div class="meta">Ramapuram · ₹1,000/wk · 1/12</div>
+        <div class="progress" style="margin-top:6px;"><i style="width:8%;"></i></div></div>
+      <div><div class="amt">₹10,500</div><div class="sub2">left</div><span class="pill red" style="margin-top:5px;">Bad</span></div>
+    </div>
+    <div class="section">Collections today</div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+      <div><b>₹850</b> <span style="font-size:12px; color:var(--muted);">· 2 collections</span></div>
+      <div style="font-size:12px; color:var(--green); font-weight:700;">Synced ✓</div>
+    </div>
+    <button class="fab" onclick="go('khatabook-new')">+</button>
+  </section>
+
+  <!-- ============ KHATABOOK NEW LOAN ============ -->
+  <section class="screen" id="khatabook-new">
+    <div class="appbar"><button class="back" onclick="go('khatabook')">←</button><div class="title">New khatabook loan</div></div>
+    <div class="field"><label>Customer</label><select><option>Lakshmi Bai</option><option>Arun</option><option>+ new customer</option></select></div>
+    <div class="field"><label>Village</label><select><option>Pallipatti</option><option>Ramapuram</option><option>Villupuram</option></select></div>
+    <div class="inline-row">
+      <div class="field"><label>Principal (₹)</label><input value="12,000"></div>
+      <div class="field"><label>Interest (₹)</label><input value="2,400"></div>
+    </div>
+    <div class="field"><label>Installments</label><select><option>12 weekly</option><option>8 weekly</option><option>24 biweekly</option><option>6 monthly</option></select></div>
+    <div class="card" style="text-align:center;">
+      Payable <b>₹14,400</b> · <b>₹1,200</b>/week × 12
+    </div>
+    <button class="btn full" onclick="toast('Khatabook loan created')">Create loan</button>
+  </section>
+
+  <!-- ============ KHATABOOK DETAIL ============ -->
+  <section class="screen" id="khatabook-detail">
+    <div class="appbar"><button class="back" onclick="go('khatabook')">←</button>
+      <div class="grow"><div class="title" style="font-size:17px;">Lakshmi Bai</div>
+      <div class="sub">KL-2026-00001 · Pallipatti</div></div>
+      <span class="pill green">Good</span></div>
+    <div class="card">
+      <div class="kv"><span class="k">Loan date</span><span class="v">01 Aug 2026</span></div>
+      <div class="kv"><span class="k">Principal + Interest</span><span class="v">₹12,000 + ₹2,400</span></div>
+      <div class="kv"><span class="k">Installment</span><span class="v">₹1,200 / week × 12</span></div>
+      <div class="kv"><span class="k">Collected so far</span><span class="v">₹7,200 (6 of 12)</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);"><span class="k">Outstanding</span><span class="v" style="font-size:17px;">₹6,400</span></div>
+      <div class="progress"><i style="width:50%;"></i></div>
+    </div>
+    <div class="section">Schedule</div>
+    <div class="card" style="padding:6px 14px;">
+      <div class="kv"><span class="k">Aug 10 · ₹1,200</span><span class="v" style="color:var(--green);">paid ✓</span></div>
+      <div class="kv"><span class="k">Aug 17 · ₹1,200</span><span class="v" style="color:var(--green);">paid ✓</span></div>
+      <div class="kv"><span class="k">Aug 24 · ₹1,200</span><span class="v" style="color:var(--green);">paid ✓</span></div>
+      <div class="kv"><span class="k">…</span><span class="v"></span></div>
+      <div class="kv"><span class="k">Sep 19 · ₹1,200</span><span class="v" style="color:var(--green);">paid ✓</span></div>
+      <div class="kv"><span class="k">Sep 26 · ₹1,200</span><span class="v" style="color:var(--gold-dark); font-weight:700;">today</span></div>
+    </div>
+    <button class="btn full" onclick="openModal('collect')">Collect payment</button>
+    <button class="btn ghost full" onclick="openModal('refinance')">Refinance balance</button>
+  </section>
+
+  <!-- ============ SYNC ============ -->
+  <section class="screen" id="sync">
+    <div class="appbar"><div class="title">Sync</div><div class="sub">DEV-00003 · Shyam's Phone</div></div>
+    <div class="statcard">
+      <div class="kv"><span class="k" style="color:#b9b3a3;">Last synced</span><span class="v">5 min ago</span></div>
+      <div class="kv"><span class="k" style="color:#b9b3a3;">Pending changes</span><span class="v" style="color:#7ce08a;">0 ✓</span></div>
+      <div class="kv"><span class="k" style="color:#b9b3a3;">Failed</span><span class="v">0</span></div>
+      <div class="kv"><span class="k" style="color:#b9b3a3;">Photos queued</span><span class="v">0</span></div>
+    </div>
+    <div class="section">How it works</div>
+    <div class="card" style="font-size:13px; color:var(--muted); line-height:1.7;">
+      1. You record data on the phone — fully offline.<br>
+      2. When the phone is on the same Wi-Fi as the laptop, this syncs automatically.<br>
+      3. No internet needed. Google Drive backup happens on the laptop.
+    </div>
+    <button class="btn full" onclick="toast('Syncing… done ✓ (no changes)')">Sync now</button>
+    <button class="btn ghost small" style="margin:0 14px 8px;" onclick="toast('No failed records')">Retry failed changes</button>
+    <div class="section">Server</div>
+    <div class="card"><div class="kv"><span class="k">URL</span><span class="v" style="font-size:13px;">http://192.168.0.104:8000</span></div>
+      <div class="kv"><span class="k">User</span><span class="v" style="font-size:13px;">shyamsailolugu@gmail.com</span></div></div>
+  </section>
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <div class="nav">
+    <button class="on" id="nav-home" onclick="tab('home')"><span class="ic">🏠</span>Home</button>
+    <button id="nav-customers" onclick="tab('customers')"><span class="ic">👥</span>Customers</button>
+    <button id="nav-pawn" onclick="tab('pawn')"><span class="ic">📿</span>Pawn</button>
+    <button id="nav-khatabook" onclick="tab('khatabook')"><span class="ic">📒</span>Khatabook</button>
+    <button id="nav-sync" onclick="tab('sync')"><span class="ic">🔄</span>Sync</button>
+  </div>
+
+  <!-- ============ MODALS ============ -->
+  <div class="modal" id="modal-collect">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>Collect payment — Lakshmi Bai <button class="close" onclick="closeModal('collect')">✕</button></h3>
+      <div class="card" style="margin:0 0 12px;"><div class="kv"><span class="k">Installment</span><span class="v">₹1,200 / week</span></div>
+        <div class="kv"><span class="k">Outstanding before</span><span class="v">₹6,400</span></div></div>
+      <div class="field"><label>Amount (₹)</label><input value="1,200"></div>
+      <div class="switch"><input type="checkbox"> Mark as irregular / late payment</div>
+      <div class="field"><label>Payment mode</label><select><option>Cash</option><option>UPI</option><option>Bank</option></select></div>
+      <button class="btn full" onclick="toast('Payment saved — syncs later ✓')">Save collection</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-refinance">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>Refinance — Lakshmi Bai <button class="close" onclick="closeModal('refinance')">✕</button></h3>
+      <div class="card" style="margin:0 0 12px;"><div class="kv"><span class="k">Old outstanding</span><span class="v">₹6,400</span></div>
+        <div class="kv"><span class="k">Old loan</span><span class="v">KL-2026-00001</span></div></div>
+      <div class="field"><label>New principal (₹)</label><input value="6,400"></div>
+      <div class="field"><label>Interest on new loan (₹)</label><input value="1,280"></div>
+      <div class="field"><label>Installments</label><select><option>12 weekly</option><option>8 weekly</option></select></div>
+      <div class="field"><label>Interest note</label><input value="200 per 1000, 12 weeks"></div>
+      <div class="card" style="margin:0 0 12px; font-size:12.5px; color:var(--muted);">
+        ⟳ Old loan closes and a new loan KL-2026-00005 is created automatically on the server.
+      </div>
+      <button class="btn full" onclick="toast('Refinanced — new loan created ✓')">Create refinance</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-release">
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>Release / settle — PL-2026-00002 <button class="close" onclick="closeModal('release')">✕</button></h3>
+      <div class="card" style="margin:0 0 12px;">
+        <div class="kv"><span class="k">Principal</span><span class="v">₹10,000</span></div>
+        <div class="kv"><span class="k">Interest (to today)</span><span class="v">₹600</span></div>
+        <div class="kv" style="border-top:1px solid var(--line);"><span class="k">Total to pay</span><span class="v" style="font-size:17px; color:var(--gold-dark);">₹10,600</span></div>
+        <div class="kv"><span class="k">Item handed back</span><span class="v">Gold chain · 22g</span></div>
+      </div>
+      <div class="field"><label>Payment mode</label><select><option>Cash</option><option>UPI</option><option>Bank</option></select></div>
+      <button class="btn full" onclick="toast('Released — loan closed ✓')">Confirm release</button>
+      <button class="btn ghost small" style="width:100%; margin-top:8px;" onclick="toast('Partial: interest only')">Take interest only (partial)</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<p class="hint" style="margin-top:16px;">Screen order: Login → Home · Customers (+form/detail) · Pawn (+new/detail/release) · Khatabook (+new/detail/collect/refinance) · Sync</p>
+
+<script>
+  const TABS = ['home','customers','pawn','khatabook','sync'];
+  function go(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id==='login'){ document.querySelector('.nav').style.display='none'; } else { document.querySelector('.nav').style.display='flex'; }
+  }
+  function tab(id){
+    TABS.forEach(t=>{ document.getElementById('screen-'+t)?.removeAttribute('id'); });
+    go(id);
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('nav-'+id).classList.add('on');
+  }
+  function connect(){
+    if(!document.getElementById('pwd').value){ toast('Type a password to demo'); return; }
+    toast('Connecting…'); setTimeout(()=>{ toast('Connected ✓'); go('home'); tab('home'); }, 600);
+  }
+  function openModal(id){ document.getElementById('modal-'+id).classList.add('show'); }
+  function closeModal(id){ document.getElementById('modal-'+id).classList.remove('show'); }
+  let toastTimer;
+  function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'), 1800); }
+  // clicking outside a modal closes it
+  document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('show'); }));
+  document.querySelector('.nav').style.display='none';
+</script>
+</body>
+</html>

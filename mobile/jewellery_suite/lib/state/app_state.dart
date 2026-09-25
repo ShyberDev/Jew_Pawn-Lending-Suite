@@ -141,16 +141,18 @@ class AppState extends ChangeNotifier {
   }
 
   /// Stores a photo path on a record and queues it for upload once the record
-  /// exists on the server.
+  /// exists on the server. [column] defaults to `photo_path` (customer photo) —
+  /// pass `id_photo_front` / `id_photo_back` for ID-proof photos.
   Future<void> savePhoto({
     required String table,
     required String doctype,
     required String uuid,
     required String path,
+    String column = 'photo_path',
   }) async {
     final existing = await db.byUuid(table, uuid);
     if (existing != null) {
-      await db.upsert(table, {...existing, 'photo_path': path});
+      await db.upsert(table, {...existing, column: path});
     }
     await db.enqueuePhoto(uuid, doctype, path);
   }

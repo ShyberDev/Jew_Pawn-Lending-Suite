@@ -63,12 +63,12 @@ class _KhatabookScreenState extends State<KhatabookScreen> {
                 ),
                 title: Text(row['customer_name']?.toString() ?? '-'),
                 subtitle: Text(
-                    '${row['collection_frequency'] ?? ''} · ${row['installment_count'] ?? 0} × ₹${moneyText(row['installment_amount'] as num?)}'),
+                    '${row['collection_frequency'] ?? ''} · ${row['installment_count'] ?? 0} × ₹${moneyWhole(row['installment_amount'] as num?)}'),
                 trailing: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('₹${moneyText(row['outstanding'] as num?)}',
+                    Text('₹${moneyWhole(row['outstanding'] as num?)}',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     Text(row['status']?.toString() ?? 'Active',
                         style: TextStyle(
@@ -115,7 +115,7 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
   Future<void> _collect() async {
     final loan = widget.loan;
     final amount = TextEditingController(
-        text: Num.toDouble(loan['installment_amount']).toStringAsFixed(2));
+        text: moneyWhole(Num.toDouble(loan['installment_amount'])));
     final irregular = ValueNotifier<bool>(false);
     final ok = await showDialog<bool>(
       context: context,
@@ -187,7 +187,7 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
     final loan = widget.loan;
     final outstanding = Num.toDouble(loan['outstanding']);
     final principal =
-        TextEditingController(text: outstanding.toStringAsFixed(2));
+        TextEditingController(text: moneyWhole(outstanding));
     final note = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -196,7 +196,7 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Old outstanding: ₹${moneyText(outstanding)}'),
+            Text('Old outstanding: ₹${moneyWhole(outstanding)}'),
             const SizedBox(height: 12),
             TextField(
                 controller: principal,
@@ -264,11 +264,11 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
           const SizedBox(height: 4),
           Text('${loan['village'] ?? ''}  ${loan['phone'] ?? ''}'),
           const Divider(height: 24),
-          _kv('Principal', '₹${moneyText(loan['principal_amount'] as num?)}'),
-          _kv('Interest', '₹${moneyText(loan['interest_amount'] as num?)}'),
-          _kv('Total payable', '₹${moneyText(loan['total_payable'] as num?)}'),
-          _kv('Collected', '₹${moneyText(loan['total_collected'] as num?)}'),
-          _kv('Outstanding', '₹${moneyText(loan['outstanding'] as num?)}'),
+          _kv('Principal', '₹${moneyWhole(loan['principal_amount'] as num?)}'),
+          _kv('Interest', '₹${moneyWhole(loan['interest_amount'] as num?)}'),
+          _kv('Total payable', '₹${moneyWhole(loan['total_payable'] as num?)}'),
+          _kv('Collected', '₹${moneyWhole(loan['total_collected'] as num?)}'),
+          _kv('Outstanding', '₹${moneyWhole(loan['outstanding'] as num?)}'),
           _kv('Installments',
               '${loan['paid_installments'] ?? 0} / ${loan['installment_count'] ?? 0}'),
           _kv('Frequency', loan['collection_frequency']?.toString() ?? '-'),
@@ -284,7 +284,7 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.payments_outlined),
-              title: Text('₹${moneyText(c['amount'] as num?)}'),
+              title: Text('₹${moneyWhole(c['amount'] as num?)}'),
               subtitle: Text(
                   '${c['collection_date']}${c['is_irregular'] == 1 ? ' · irregular' : ''}'),
             ),
@@ -325,7 +325,15 @@ class _KhatabookDetailState extends State<_KhatabookDetail> {
 }
 
 class KhatabookLoanForm extends StatefulWidget {
-  const KhatabookLoanForm({super.key});
+  const KhatabookLoanForm(
+      {super.key,
+      this.initialCustomerUuid,
+      this.initialCustomerName,
+      this.initialVillage});
+
+  final String? initialCustomerUuid;
+  final String? initialCustomerName;
+  final String? initialVillage;
 
   @override
   State<KhatabookLoanForm> createState() => _KhatabookLoanFormState();
@@ -341,6 +349,14 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
   String? _customerUuid;
   String? _customerName;
   String? _village;
+
+  @override
+  void initState() {
+    super.initState();
+    _customerUuid = widget.initialCustomerUuid;
+    _customerName = widget.initialCustomerName;
+    _village = widget.initialVillage;
+  }
 
   @override
   void dispose() {
@@ -409,7 +425,7 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     decoration: fieldDecoration('Customer *'),
-                    value: _customerUuid,
+                    initialValue: _customerUuid,
                     items: customers
                         .map((c) => DropdownMenuItem(
                               value: c['client_uuid'] as String,
@@ -457,7 +473,7 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _frequency,
+                        initialValue: _frequency,
                         decoration: fieldDecoration('Frequency'),
                         items: const ['Weekly', 'Biweekly', 'Monthly']
                             .map((v) =>
@@ -470,7 +486,7 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
                   ]),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: _rating,
+                    initialValue: _rating,
                     decoration: fieldDecoration('Customer rating'),
                     items: const ['New', 'Good', 'Bad']
                         .map((v) => DropdownMenuItem(value: v, child: Text(v)))

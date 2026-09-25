@@ -1,9 +1,18 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+import 'photo_local.dart';
+
+/// Returns a [FileImage] when [path] exists on disk (mobile only).
+ImageProvider? awaitFileImage(String path) {
+  if (kIsWeb) return null;
+  final file = File(path);
+  if (file.existsSync()) return FileImage(file);
+  return null;
+}
 
 /// Picks an image and copies it into the app's documents folder so it survives
 /// the image_picker cache being cleared.
@@ -14,13 +23,8 @@ Future<String?> pickAndStoreImage(ImageSource source) async {
     maxWidth: 1600,
   );
   if (picked == null) return null;
-  final dir = await getApplicationDocumentsDirectory();
-  final photosDir = Directory(p.join(dir.path, 'photos'));
-  if (!await photosDir.exists()) await photosDir.create(recursive: true);
-  final target = p.join(photosDir.path,
-      '${DateTime.now().millisecondsSinceEpoch}_${p.basename(picked.path)}');
-  await File(picked.path).copy(target);
-  return target;
+  if (kIsWeb) return null; // web preview: photos are not persisted
+  return storePickedPhoto(picked.path, picked.name);
 }
 
 /// A tap-to-capture / pick photo widget with a preview.
@@ -38,7 +42,6 @@ class PhotoField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = (path != null && path!.isNotEmpty) ? File(path!) : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -50,10 +53,9 @@ class PhotoField extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           clipBehavior: Clip.antiAlias,
-          child: file != null && file.existsSync()
-              ? Image.file(file, fit: BoxFit.cover)
-              : Icon(Icons.photo_camera_outlined,
-                  size: 30, color: Theme.of(context).hintColor),
+          child: photoThumb(path, width: 76, height: 76, fit: BoxFit.cover,
+              fallback: Icon(Icons.photo_camera_outlined,
+                  size: 30, color: Theme.of(context).hintColor)),
         ),
         const SizedBox(width: 12),
         Expanded(

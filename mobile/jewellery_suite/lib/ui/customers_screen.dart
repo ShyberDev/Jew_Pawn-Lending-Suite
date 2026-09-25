@@ -111,9 +111,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
 }
 
 class CustomerForm extends StatefulWidget {
-  const CustomerForm({super.key, this.existing});
+  const CustomerForm(
+      {super.key, this.existing, this.initialVillage, this.initialType});
 
   final Map<String, Object?>? existing;
+  final String? initialVillage;
+  final String? initialType;
 
   @override
   State<CustomerForm> createState() => _CustomerFormState();
@@ -126,15 +129,12 @@ class _CustomerFormState extends State<CustomerForm> {
   late final TextEditingController _phone;
   late final TextEditingController _address;
   late final TextEditingController _idNumber;
-  late final TextEditingController _gold;
-  late final TextEditingController _silver;
-  late final TextEditingController _khatabook;
-  late final TextEditingController _notes;
   String _type = 'General';
-  String _rating = 'New';
   String _idType = 'Aadhaar';
   String? _village;
   String? _photo;
+  String? _idFront;
+  String? _idBack;
 
   @override
   void initState() {
@@ -145,37 +145,21 @@ class _CustomerFormState extends State<CustomerForm> {
     _phone = TextEditingController(text: e?['phone']?.toString());
     _address = TextEditingController(text: e?['address']?.toString());
     _idNumber = TextEditingController(text: e?['id_proof_number']?.toString());
-    _gold = TextEditingController(text: e?['gold_interest_rate']?.toString());
-    _silver = TextEditingController(text: e?['silver_interest_rate']?.toString());
-    _khatabook =
-        TextEditingController(text: e?['khatabook_interest_rate']?.toString());
-    _notes = TextEditingController(text: e?['notes']?.toString());
-    _type = (e?['customer_type'] as String?) ?? 'General';
-    _rating = (e?['rating'] as String?) ?? 'New';
+    _type = (e?['customer_type'] as String?) ?? widget.initialType ?? 'General';
     _idType = (e?['id_proof_type'] as String?) ?? 'Aadhaar';
-    _village = e?['village'] as String?;
+    _village = (e?['village'] as String?) ?? widget.initialVillage;
     _photo = e?['photo_path'] as String?;
+    _idFront = e?['id_photo_front'] as String?;
+    _idBack = e?['id_photo_back'] as String?;
   }
 
   @override
   void dispose() {
-    for (final c in [
-      _name,
-      _phone,
-      _address,
-      _idNumber,
-      _gold,
-      _silver,
-      _khatabook,
-      _notes
-    ]) {
+    for (final c in [_name, _phone, _address, _idNumber]) {
       c.dispose();
     }
     super.dispose();
   }
-
-  double? _num(TextEditingController c) =>
-      c.text.trim().isEmpty ? null : double.tryParse(c.text.trim());
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -189,21 +173,27 @@ class _CustomerFormState extends State<CustomerForm> {
       'id_proof_type': _idType,
       'id_proof_number':
           _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
-      'rating': _rating,
-      'gold_interest_rate': _num(_gold),
-      'silver_interest_rate': _num(_silver),
-      'khatabook_interest_rate': _num(_khatabook),
-      'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      'id_photo_front': _idFront,
+      'id_photo_back': _idBack,
       'status': 'Active',
     };
     await state.saveEntity(
         table: 'customers', doctype: 'Pawn Customer', uuid: _uuid, data: data);
-    if (_photo != null && _photo!.isNotEmpty) {
-      await state.savePhoto(
-          table: 'customers',
-          doctype: 'Pawn Customer',
-          uuid: _uuid,
-          path: _photo!);
+    for (final entry in {
+      'photo_path': (_photo, 'photo_path'),
+      'id_photo_front': (_idFront, 'id_photo_front'),
+      'id_photo_back': (_idBack, 'id_photo_back'),
+    }.entries) {
+      final path = entry.value.$1;
+      final column = entry.value.$2;
+      if (path != null && path.isNotEmpty) {
+        await state.savePhoto(
+            table: 'customers',
+            doctype: 'Pawn Customer',
+            uuid: _uuid,
+            path: path,
+            column: column);
+      }
     }
     if (mounted) Navigator.pop(context);
   }
@@ -271,15 +261,6 @@ class _CustomerFormState extends State<CustomerForm> {
                 decoration: fieldDecoration('Phone'),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _type,
-                decoration: fieldDecoration('Customer type'),
-                items: const ['Gold Pawn', 'Silver Pawn', 'Khatabook', 'General']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-                onChanged: (v) => setState(() => _type = v ?? _type),
-              ),
-              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(child: _villageDropdown()),
@@ -297,9 +278,9 @@ class _CustomerFormState extends State<CustomerForm> {
                 decoration: fieldDecoration('Address'),
               ),
             ]),
-            SectionCard(title: 'ID & rating', children: [
+            SectionCard(title: 'ID proof', children: [
               DropdownButtonFormField<String>(
-                value: _idType,
+                initialValue: _idType,
                 decoration: fieldDecoration('ID proof type'),
                 items: const ['Aadhaar', 'Voter ID', 'PAN', 'Driving License', 'Other']
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -311,45 +292,22 @@ class _CustomerFormState extends State<CustomerForm> {
                 controller: _idNumber,
                 decoration: fieldDecoration('ID proof number'),
               ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _rating,
-                decoration: fieldDecoration('Rating'),
-                items: const ['New', 'Good', 'Bad']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-                onChanged: (v) => setState(() => _rating = v ?? _rating),
-              ),
-            ]),
-            SectionCard(title: 'Interest overrides (% / month)', children: [
-              Row(children: [
-                Expanded(
-                    child: TextFormField(
-                  controller: _gold,
-                  keyboardType: TextInputType.number,
-                  decoration: fieldDecoration('Gold'),
-                )),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: TextFormField(
-                  controller: _silver,
-                  keyboardType: TextInputType.number,
-                  decoration: fieldDecoration('Silver'),
-                )),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: TextFormField(
-                  controller: _khatabook,
-                  keyboardType: TextInputType.number,
-                  decoration: fieldDecoration('Khatabook'),
-                )),
-              ]),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _notes,
-                maxLines: 2,
-                decoration: fieldDecoration('Notes'),
-              ),
+              const SizedBox(height: 12),
+              Text('ID photo — front',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 6),
+              PhotoField(
+                  label: 'ID front',
+                  path: _idFront,
+                  onPicked: (path) => setState(() => _idFront = path)),
+              const SizedBox(height: 12),
+              Text('ID photo — back',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 6),
+              PhotoField(
+                  label: 'ID back',
+                  path: _idBack,
+                  onPicked: (path) => setState(() => _idBack = path)),
             ]),
             const SizedBox(height: 60),
           ],
@@ -370,7 +328,7 @@ class _CustomerFormState extends State<CustomerForm> {
             .toList();
         final value = (_village != null && names.contains(_village)) ? _village : null;
         return DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           isExpanded: true,
           decoration: fieldDecoration('Village'),
           items: names
