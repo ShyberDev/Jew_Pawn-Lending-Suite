@@ -278,6 +278,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ('principal', 'Principal'),
                     ('late_fee', 'Late fee'),
                     ('interest', 'Interest'),
+                    ('other', 'Other'),
                   ])
                     ChoiceChip(
                       label: Text(label,
@@ -342,6 +343,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         return 'Fresh cash given — this becomes part of the principal.';
       case 'interest':
         return 'Interest added on top of the balance.';
+      case 'other':
+        return 'Any other amount — shows the note, no type word.';
       default:
         return 'Late fee / penalty — adds to the balance. '
             'Balance ₹${moneyWhole(Num.toDouble(loan['outstanding']))}';
@@ -512,6 +515,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ('principal', 'Principal'),
                     ('late_fee', 'Late fee'),
                     ('interest', 'Interest'),
+                    ('other', 'Other'),
                   ])
                     ChoiceChip(
                       label: Text(label, style: const TextStyle(fontSize: 12.5)),
@@ -577,6 +581,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         return 'Principal';
       case 'interest':
         return 'Interest';
+      case 'other':
+        return ''; // Other: no type word in the ledger, note only.
       default:
         return 'Late fee';
     }
@@ -1199,11 +1205,17 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   Widget _ledgerRow(_LedgerRow r) {
     final isGave = r.isGave;
     final color = isGave ? kRed : kGreen;
-    // You-Gave rows show why: "Late fee — Hello".
+    // You-Gave rows show why: "Late fee — Hello". The note always shows;
+    // for type "Other" only the note is shown (no type word).
     String? note;
     if (r.kind == 'given') {
-      note = '${_givenTypeLabel(r.source['given_type']?.toString())}'
-          '${(r.source['note']?.toString() ?? '').isEmpty ? '' : ' — ${r.source['note']}'}';
+      final typeLabel = _givenTypeLabel(r.source['given_type']?.toString());
+      final noteText = (r.source['note']?.toString() ?? '').trim();
+      note = typeLabel.isEmpty
+          ? (noteText.isEmpty ? null : noteText)
+          : noteText.isEmpty
+              ? typeLabel
+              : '$typeLabel — $noteText';
     }
     return GestureDetector(
       onTap: () => _editRow(r),
