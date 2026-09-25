@@ -288,3 +288,21 @@ to 2 dp, weights round half-up to 3 dp, interest
 sync, a conflict-resolution UI (not needed while transactions are append-only),
 and per-device role restrictions.
 
+## 13. Phase 3 — on-device backup & Excel export (v1.0.1)
+
+The phone also holds business data (SQLite) and must be able to protect it
+independently of the laptop. Design locked with the owner:
+
+| Requirement | Design |
+|---|---|
+| **No duplicate backups** | A change-fingerprint is stored after each backup (SHA-256 over `rowid` count + `MAX(rowid)` per table, plus a sentinel `updated_at` on the loans tables). If the fingerprint is unchanged since the last backup, the auto-backup job is **skipped** — nothing new is written, so Drive never fills with identical copies. |
+| **Excel-format backup** | Backup job opens the SQLite DB **read-only** and writes the same four workbooks the desktop uses: `FULL`, `Khatа`, `Pawn`, `Customers` (same sheet names, same column order — files can be merged across devices). |
+| **Data protection** | Exports are pure reads — they never alter the DB. Files are written to a temp name then atomically renamed, and old exports are only pruned after the new one succeeds. An app crash mid-export leaves the previous good files untouched. The DB itself is protected with WAL mode + `PRAGMA foreign_keys` and is never deleted by the app. |
+| **Google Drive backup** | Auto-backup uploads the four `.xlsx` files (and the SQLite snapshot) to a user-chosen Drive folder through the **owner's own Google account** (OAuth, no shared secrets). Upload uses resumable chunked transfer so a dropped connection resumes rather than duplicating. |
+| **Export / share system** | Manual "Export" button on Settings writes fresh Excel files and opens the system **share sheet**, so files can be sent via WhatsApp/email or saved to Files/Drive — a personal copy the owner controls. |
+| **Fast data collection format** | Besides Excel, a compressed single-file `.jswallet` (SQLite snapshot + manifest with schema version) is written for fast restore; Excel remains the human-readable share format. |
+| **When to run** | Auto-backup runs after a sync settles and on app open (if >24 h since last), with the fingerprint skip rule above. |
+
+Implementation lands with the v1.0.1 port of the Khata + Pawn flows
+(`lib/services/backup_service.dart`, `excel` + `share_plus` + `googleapis/drive`).
+

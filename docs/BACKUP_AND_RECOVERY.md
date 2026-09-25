@@ -199,11 +199,14 @@ On the **new** machine:
 ## 6. Quick reference
 
 ```bash
-# Back up now (local + upload + prune)
+# Back up now (local + Excel exports + upload + prune)
 ./backup-to-gdrive.sh
 
-# Local backup only
+# Local backup only (no upload)
 ./backup-to-gdrive.sh --no-upload
+
+# Excel exports only — no DB backup, no upload (use for sharing)
+./backup-to-gdrive.sh --export-only
 
 # See what is on Drive
 ./backup-to-gdrive.sh --list
@@ -211,3 +214,52 @@ On the **new** machine:
 # Restore (interactive, overwrites the site)
 ./backup-to-gdrive.sh --restore 20260924_021500-library_local
 ```
+
+---
+
+## 7. Excel exports (shareable copies)
+
+Every backup run also writes four **Excel workbooks** (via `tools/export_excel.py`,
+which reads the database directly and never writes back to it — a safe side copy):
+
+| File | Contents |
+|------|----------|
+| `<stamp>_full.xlsx`      | Every non-empty table in the whole site DB (complete data snapshot) |
+| `<stamp>_khata.xlsx`     | Money-lending module — loans, installments, collections, refinances |
+| `<stamp>_pawn.xlsx`      | Pawn module — loans, items, releases + customer/village master |
+| `<stamp>_customers.xlsx` | Villages + businesses master list (handy to share) |
+
+They are uploaded to Google Drive with the rest of the backup (`*.xlsx` is in the
+rclone include list), so you always have a human-readable, spreadsheet-openable
+copy next to the raw database dumps.
+
+### Just want the Excel files (no backup)?
+
+```bash
+./backup-to-gdrive.sh --export-only
+```
+
+Writes the four files fresh into `sites/<site>/backups/` — perfect when someone
+asks for "the current data" to store in a personal location.
+
+---
+
+## 8. No-duplicate backups (change detection)
+
+`backup-to-gdrive.sh` stores a **fingerprint** (a SHA-256 over `CHECKSUM TABLE …
+EXTENDED` of every table) in `sites/<site>/backups/.last-fingerprint`.
+
+Before a run it recomputes the fingerprint:
+
+- **Data changed** → normal backup + Excel exports + upload.
+- **Nothing changed** → the whole job is skipped:
+  `no data changes since last backup — skipping (no duplicates)`.
+
+So Google Drive never accumulates identical snapshots, and night-after-night
+cron runs don't fill the Drive with duplicate files. The fingerprint is also
+written *after* a successful run, never before, so a failed backup can never
+mask a real data change (you never get a false "skip").
+
+> If you change the data *programmatically* and want to force the next run,
+> delete `.last-fingerprint` (or just wait for the next data edit — any change
+> flips the checksum).

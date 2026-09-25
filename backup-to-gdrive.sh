@@ -22,9 +22,15 @@
 # Usage:
 #   ./backup-to-gdrive.sh                 # backup + upload + prune
 #   ./backup-to-gdrive.sh --no-upload     # local backup only
+#   ./backup-to-gdrive.sh --export-only   # Excel exports only (no DB backup)
 #   ./backup-to-gdrive.sh --config FILE   # use a specific config file
 #   ./backup-to-gdrive.sh --list          # list backups on the remote
 #   ./backup-to-gdrive.sh --restore NAME  # restore (interactive, DANGEROUS)
+#
+# In addition to the Frappe snapshot it also writes Excel exports
+# (full / khata / pawn / customers) via tools/export_excel.py and uses a
+# change-fingerprint so a run with NO data changes is skipped entirely —
+# Google Drive never fills with duplicate backups.
 #
 set -euo pipefail
 
@@ -40,6 +46,9 @@ RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive:JewelleryBackups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 # Skip the upload if the local disk is below this % free (safety).
 MIN_FREE_PCT="${MIN_FREE_PCT:-5}"
+# Bench python environment + Excel export tool.
+ENV_PY="${ENV_PY:-$BENCH_DIR/env/bin/python}"
+EXPORT_SCRIPT="${EXPORT_SCRIPT:-$SCRIPT_DIR/tools/export_excel.py}"
 
 # Allow overrides from an optional config file next to this script.
 CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/backup.env}"
@@ -50,6 +59,8 @@ fi
 
 BACKUP_DIR="$BENCH_DIR/sites/$SITE/backups"
 STAMP="$(date +%Y-%m-%d_%H-%M-%S)"
+# Where the change-detection fingerprint is stored (enables "skip if unchanged").
+FINGERPRINT_FILE="$BACKUP_DIR/.last-fingerprint"
 
 log()  { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 die()  { log "ERROR: $*" >&2; exit 1; }
@@ -57,6 +68,33 @@ die()  { log "ERROR: $*" >&2; exit 1; }
 # ------------------------------- helpers -----------------------------------
 require_cmd() {
 	command -v "$1" >/dev/null 2>&1 || die "'$1' not found. $2"
+}
+
+# ---------------------------------------------------------------------------
+# Change detection (dedup) + Excel exports
+# ---------------------------------------------------------------------------
+
+data_fingerprint() {
+	(cd "$BENCH_DIR" && "$ENV_PY" "$EXPORT_SCRIPT" fingerprint --site "$SITE" 2>/dev/null)
+}
+
+# Returns 0 (skip) when the data is byte-for-byte identical to the last backup.
+skip_if_unchanged() {
+	[[ -f "$FINGERPRINT_FILE" ]] || return 1
+	local prev now
+	prev="$(cat "$FINGERPRINT_FILE")"
+	now="$(data_fingerprint)"
+	[[ -n "$now" && -n "$prev" && "$now" == "$prev" ]]
+}
+
+store_fingerprint() {
+	data_fingerprint > "$FINGERPRINT_FILE"
+	log "stored change-fingerprint $(cat "$FINGERPRINT_FILE" | cut -c1-16)…"
+}
+
+do_excel_export() {
+	log "writing Excel exports (full / khata / pawn / customers) ..."
+	(cd "$BENCH_DIR" && "$ENV_PY" "$EXPORT_SCRIPT" export --site "$SITE" --out "$BACKUP_DIR" --stamp "$STAMP")
 }
 
 check_disk() {
@@ -92,6 +130,7 @@ do_upload() {
 		--include "*_database.sql.gz" \
 		--include "*_files.tar" \
 		--include "*_private_files.tar" \
+		--include "*.xlsx" \
 		--include "*.json" \
 		--transfers 2 --retries 5 --low-level-retries 10 \
 		--stats-one-line --stats 30s
@@ -101,7 +140,7 @@ do_upload() {
 do_prune() {
 	log "pruning local backups older than ${RETENTION_DAYS} days ..."
 	find "$BACKUP_DIR" -maxdepth 1 -type f \
-		\( -name '*.sql.gz' -o -name '*_files.tar' -o -name '*_private_files.tar' -o -name '*.json' \) \
+		\( -name '*.sql.gz' -o -name '*_files.tar' -o -name '*_private_files.tar' -o -name '*.xlsx' -o -name '*.json' \) \
 		-mtime +"$RETENTION_DAYS" -print -delete || true
 	require_cmd rclone "Install it: curl https://rclone.org/install.sh | sudo bash"
 	log "pruning remote backups older than ${RETENTION_DAYS} days ..."
@@ -143,20 +182,42 @@ EOF
 # ------------------------------- main --------------------------------------
 MODE="full"
 case "${1:-}" in
-	--no-upload) MODE="local" ;;
-	--list)      MODE="list" ;;
-	--restore)   MODE="restore"; shift ;;
-	--config)    CONFIG_FILE="$2"; source "$CONFIG_FILE" ;;
-	-h|--help)   grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-	"")          ;;
-	*)           die "unknown option: $1 (try --help)" ;;
+	--no-upload)   MODE="local" ;;
+	--list)        MODE="list" ;;
+	--export-only) MODE="export" ;;
+	--restore)     MODE="restore"; shift ;;
+	--config)      CONFIG_FILE="$2"; source "$CONFIG_FILE" ;;
+	-h|--help)     grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	"")            ;;
+	*)             die "unknown option: $1 (try --help)" ;;
 esac
 
 case "$MODE" in
-	list)    do_list ;;
+	list)   do_list ;;
 	restore) do_restore "${1:-}" ;;
-	local)   do_backup; log "skipping upload (--no-upload)" ;;
-	full)    do_backup; do_upload; do_prune ;;
+
+	# Excel refresh / sharing — no database backup, no upload. Use this when
+	# you simply want an up-to-date shareable Excel set.
+	export) do_excel_export ;;
+
+	# A full run. First check whether ANYTHING changed since the last backup:
+	# if not, we skip the whole job so Google Drive never fills with duplicate
+	# snapshots. If changed: bench backup -> Excel exports -> upload -> prune.
+	local|full)
+		if skip_if_unchanged; then
+			log "no data changes since last backup — skipping (no duplicates)"
+			exit 0
+		fi
+		do_backup
+		do_excel_export
+		store_fingerprint
+		if [[ "$MODE" == "local" ]]; then
+			log "skipping upload (--no-upload)"
+		else
+			do_upload
+			do_prune
+		fi
+		;;
 esac
 
 log "done."

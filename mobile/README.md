@@ -1,24 +1,26 @@
 # Jewellery Suite — Android app
 
 Offline-first Android app for the **Jewellery + Pawn + Khatabook** suite. It
-stores everything on the phone and syncs to your Frappe server whenever the
-phone and laptop are on the same Wi-Fi (or the server is reachable).
+stores everything on the phone (SQLite) and runs **fully offline with sample
+demo data and no login** — a live server is *not* involved in the current
+workflow. (The server link exists as a data interface only and is deferred.)
 
-This is a **native Flutter app**, not a web/PWA wrapper, so it keeps working
-with no network at all.
+This is a **native Flutter app**, not a web/PWA wrapper.
 
 ---
 
-## What it does (v1)
+## What it does (v1.0.2)
 
 | Screen | Purpose |
 |---|---|
-| Login | Server URL + Frappe username/password. Session is remembered. |
-| Home | Today's collections, active pawn loans, outstanding, sync button. |
+| Home | Jewellers-gold module launcher — greeting, KPI strip (collected today, pawn outstanding), compact Core Modules grid (Khatabook / Pawn Loans / Jewellery / Cashbook), Reports entry, sync count. |
+| Khata Books | **Khata/Village groups** (Village Location / Personal / Business) with members + outstanding + overdue badges, **Create New Khata**, and a **collection-first customer list** (🔴 overdue → due today → this week → upcoming) with filters + search. |
+| Customer profile | Outstanding hero card, **You Gave** (loans), **You Got** (collections), **Collect**, **Refinance**, **Add Loan**, full history + payment schedule sheets. |
 | Customers | Add/edit customers with **photo**, phone, village, ID, ratings and per-customer interest overrides. |
-| Pawn Loans | New loan with items (metal, weight, hallmark, rate, **item photo**), and one-tap **Release** (principal + interest). |
-| Khatabook | New loan (principal + interest, N installments, weekly/biweekly/monthly), **Collect** payments (with irregular flag) and **Refinance** the balance. |
-| Sync | Pending-change count, manual sync, and any records that need attention. |
+| Pawn Loans | Summary strip (principal out · interest due · active count), status chips, new loan with items (metal, weight, hallmark, rate, **item photo**), and **Release** — now enforces the blueprint rule: interest clears first and **partial release is not supported**. |
+| Pawn Dashboard | Principal outstanding hero, gold/silver reserve, **age groups (0–3M / 3–6M / 6–12M / 12M+)**, quick views (interest due, old pawns 12M+, recently added, released). |
+| Reports | **Khata reports** (Today's/This week/This month collection, total given/received, interest earned, outstanding, overdue, village-wise, customer-wise, bad credit/blocked) and **Pawn reports** (period/metal/status filters, principal, interest due, receivable, reserves, released, interest realised). |
+| Sync | Pending-change count and manual sync (currently nothing to sync — offline mode). |
 
 Photos are stored on the phone and uploaded to the server (attached to the
 document) as soon as that document has synced.
@@ -116,14 +118,67 @@ flutter doctor
 
 ## Install the APK on a phone
 
-1. Copy `jewellery_suite-release.apk` to the phone (USB, Bluetooth, or
-   `adb install jewellery_suite-release.apk`).
-2. On the phone, allow **Install unknown apps** for the file manager.
-3. Open the app and log in with the server URL, e.g.
-   `http://192.168.1.10:8000` (the laptop's LAN IP — **not** `localhost`).
+1. Copy `app-release.apk` to the phone (USB, Bluetooth, or adb), or install
+   over USB:
+   `adb install -r build/app/outputs/flutter-apk/app-release.apk`.
+2. **No login, no server** — on first launch the app seeds demo khatas,
+   customers, pawn loans and khatabook loans, and opens straight to the Home
+   screen (the old login screen is gone in v1.0.2).
 
-> The app allows plain-HTTP (`usesCleartextTraffic`) so it can reach the local
-> server. If you later put the server behind HTTPS, you can turn that off.
+> **Xiaomi/Redmi (MIUI/HyperOS) — "Install canceled by user":** after you
+> uninstall the app, fresh USB installs are blocked until you enable
+> **Settings → Additional settings → Developer options → "Install via USB"**
+> (may ask for Mi-account/SIM verification once). Then re-plug the cable and
+> tap **Allow** on the USB-debugging prompt. "Update" installs over an
+> existing app usually don't need this.
+
+> The app allows plain-HTTP (`usesCleartextTraffic`) so it can later reach a
+> local server without extra setup.
+
+---
+
+## Preview in Chromium (web demo mode — no server needed)
+
+For fast design review without a phone, the app also runs in a browser with
+**seeded sample data** and **no login** (server login + sync stay phone-only):
+
+```bash
+cd mobile/jewellery_suite
+flutter run -d web-server --web-port 8090
+# then open http://localhost:8090 in Chromium
+```
+
+Demo data: 2 villages · 3 customers · 2 pawn loans · 2 khatabook loans
+(one collection today + one overdue). Photos render as placeholders on web (no
+persistent file system in a browser). The web platform is demo-only — the
+Android app is unchanged and remains the real product.
+
+---
+
+## Live preview on your phone (hot reload)
+
+The fastest way to review design changes on a real screen — no APK install,
+changes appear in ~1s while the app is running:
+
+1. **Plug your Android phone in with USB** and enable **USB debugging**
+   (Settings → About phone → tap *Build number* 7× → Developer options →
+   *USB debugging*).
+2. Trust the computer when the phone prompts.
+3. In VS Code: File → Open Folder → `mobile/jewellery_suite` → Run →
+   **Start Debugging**. Or from a terminal:
+
+   ```bash
+   cd mobile/jewellery_suite
+   export PATH="$HOME/development/flutter/bin:$PATH"   # if not on PATH
+   flutter run
+   ```
+
+4. Edit any screen in `lib/ui/` and press **`r`** in the terminal — the app
+   updates instantly on the phone.
+
+> No emulator is bundled; if you prefer one, `flutter emulators --create
+> --name pixel` needs a system image (`sdkmanager "system-images;android-34;
+> google_apis;x86_64"`) first.
 
 ---
 
@@ -142,7 +197,8 @@ mobile/jewellery_suite/
 │   ├── util/
 │   │   ├── format.dart           money/weight rounding (mirrors server)
 │   │   └── ids.dart              client_uuid generator
-│   └── ui/                       screens
+│   └── ui/                       screens (home, khata, customer profile,
+│                                pawn, pawn dashboard, reports, customers…)
 └── android/                      Android project (manifest, Gradle)
 ```
 

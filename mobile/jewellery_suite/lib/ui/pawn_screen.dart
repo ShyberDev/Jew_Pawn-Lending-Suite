@@ -6,10 +6,16 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
+import 'palette.dart';
+import 'pawn_dashboard_screen.dart';
+import 'reports_screen.dart';
 import 'widgets.dart';
 
 class PawnScreen extends StatefulWidget {
-  const PawnScreen({super.key});
+  const PawnScreen({super.key, this.filter});
+
+  /// 'active' | 'released' | 'old' | 'recent' | 'interest'
+  final String? filter;
 
   @override
   State<PawnScreen> createState() => _PawnScreenState();
@@ -17,17 +23,56 @@ class PawnScreen extends StatefulWidget {
 
 class _PawnScreenState extends State<PawnScreen> {
   String _search = '';
+  late String _filter = widget.filter ?? 'All';
 
   Future<List<Map<String, Object?>>> _load() {
     final db = context.read<AppState>().db;
-    if (_search.trim().isEmpty) {
-      return db.query('pawn_loans', orderBy: 'loan_date desc');
+    String? where;
+    List<Object?> args = [];
+    switch (_filter) {
+      case 'active':
+        where = 'status = ? OR status IS NULL';
+        args = ['Active'];
+        break;
+      case 'released':
+        where = 'status = ?';
+        args = ['Released'];
+        break;
+      case 'old':
+        final days = DateTime.now()
+            .subtract(const Duration(days: 365))
+            .toIso8601String()
+            .substring(0, 10);
+        where = '(status = ? OR status IS NULL) AND loan_date <= ?';
+        args = ['Active', days];
+        break;
+      case 'interest':
+        where = 'status = ? OR status IS NULL';
+        args = ['Active'];
+        break;
+      case 'recent':
+        break;
+      default:
+        break;
     }
-    final term = '%${_search.trim()}%';
+    if (_search.trim().isNotEmpty) {
+      final term = '%${_search.trim()}%';
+      where = where == null
+          ? 'customer_name LIKE ? OR phone LIKE ?'
+          : '($where) AND (customer_name LIKE ? OR phone LIKE ?)';
+      args.addAll([term, term]);
+    }
+    if (_filter == 'recent') {
+      return db.query('pawn_loans',
+          where: where,
+          whereArgs: args,
+          orderBy: 'loan_date desc',
+          limit: 10);
+    }
+    final order =
+        _filter == 'interest' ? 'interest_accrued desc' : 'loan_date desc';
     return db.query('pawn_loans',
-        where: 'customer_name LIKE ? OR phone LIKE ?',
-        whereArgs: [term, term],
-        orderBy: 'loan_date desc');
+        where: where, whereArgs: args, orderBy: order);
   }
 
   Future<void> _openForm() async {
@@ -48,7 +93,24 @@ class _PawnScreenState extends State<PawnScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pawn Loans')),
+      backgroundColor: kBg,
+      appBar: AppBar(
+        title: const Text('Pawn Loans'),
+        actions: [
+          IconButton(
+            tooltip: 'Dashboard',
+            icon: const Icon(Icons.dashboard_outlined),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PawnDashboardScreen())),
+          ),
+          IconButton(
+            tooltip: 'Reports',
+            icon: const Icon(Icons.bar_chart_outlined),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ReportsScreen(initialTab: 1))),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openForm,
         icon: const Icon(Icons.add),
@@ -56,8 +118,10 @@ class _PawnScreenState extends State<PawnScreen> {
       ),
       body: Column(
         children: [
+          _summaryStrip(),
+          _chipRow(),
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
               decoration: fieldDecoration('Search customer or phone'),
               onChanged: (v) => setState(() => _search = v),
@@ -68,11 +132,12 @@ class _PawnScreenState extends State<PawnScreen> {
               future: _load(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                      child: CircularProgressIndicator(color: kGold));
                 }
                 final rows = snapshot.data!;
                 if (rows.isEmpty) {
-                  return const Center(child: Text('No pawn loans yet.'));
+                  return const Center(child: Text('No pawn loans here.'));
                 }
                 return ListView.separated(
                   itemCount: rows.length,
@@ -84,23 +149,24 @@ class _PawnScreenState extends State<PawnScreen> {
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: released
-                            ? Colors.green.shade100
-                            : Colors.amber.shade100,
-                        child: Icon(released ? Icons.check : Icons.lock_clock,
-                            size: 20),
+                            ? kGreenSoft
+                            : kGold.withValues(alpha: .25),
+                        child: Icon(
+                            released ? Icons.check : Icons.lock_clock,
+                            size: 20,
+                            color: released ? kGreen : kGoldDark),
                       ),
                       title: Text(row['customer_name']?.toString() ?? '-'),
                       subtitle: Text(
-                          '${row['loan_date'] ?? ''} · ${row['interest_basis'] ?? ''} · ₹${moneyText(row['loan_amount'] as num?)}'),
+                          '${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(status,
                               style: TextStyle(
-                                  color: released
-                                      ? Colors.green
-                                      : Theme.of(context).colorScheme.primary,
+                                  color:
+                                      released ? kGreen : kGoldDark,
                                   fontWeight: FontWeight.w600)),
                           if (row['server_name'] == null)
                             const Icon(Icons.cloud_upload_outlined, size: 16),
@@ -114,6 +180,133 @@ class _PawnScreenState extends State<PawnScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _summaryStrip() {
+    final db = context.read<AppState>().db;
+    return FutureBuilder<Map<String, Object?>>(
+      future: () async {
+        final loans = await db.query('pawn_loans',
+            where: 'status = ? OR status IS NULL', whereArgs: ['Active']);
+        double out = 0, intDue = 0;
+        for (final l in loans) {
+          out += Num.toDouble(l['loan_amount']);
+          intDue += Num.toDouble(l['interest_accrued']);
+        }
+        return {
+          'out': Num.money(out),
+          'int': Num.money(intDue),
+          'n': loans.length,
+        };
+      }(),
+      builder: (context, snap) {
+        final r = snap.data ?? const {};
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3A2E0E), Color(0xFF6B5417)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('₹${r['out'] ?? 0}',
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                    Text('Principal out',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white.withValues(alpha: .75))),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('₹${r['int'] ?? 0}',
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                    Text('Interest due',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white.withValues(alpha: .75))),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${r['n'] ?? 0}',
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                    Text('Active pawns',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white.withValues(alpha: .75))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _chipRow() {
+    final tags = <(String, String)>[
+      ('All', 'All'),
+      ('Active', 'active'),
+      ('Released', 'released'),
+      if (_filter == 'old') ('Old 12M+', 'old'),
+      if (_filter == 'recent') ('Recent', 'recent'),
+      if (_filter == 'interest') ('Interest due', 'interest'),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (label, value) in tags)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: _filter == value,
+                  selectedColor: kGold.withValues(alpha: .3),
+                  labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: _filter == value
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: _filter == value
+                          ? kGoldDark
+                          : kInk.withValues(alpha: .7)),
+                  onSelected: (_) =>
+                      setState(() => _filter = value),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -154,28 +347,70 @@ class _PawnDetailState extends State<_PawnDetail> {
     final days = DateTime.now().difference(loanDate).inDays;
     final rate = Num.toDouble(loan['interest_rate']);
     // Prefer the server's accrued interest/balance so the settlement matches.
-    double interest = Num.toDouble(loan['interest_accrued']);
-    if (interest <= 0) {
-      interest = Num.simpleInterest(
+    double interestDue = Num.toDouble(loan['interest_accrued']);
+    if (interestDue <= 0) {
+      interestDue = Num.simpleInterest(
           principal: loanAmount, ratePerMonth: rate, days: days);
     }
-    if (balance > 0 && interest > balance) interest = balance;
+    if (balance > 0 && interestDue > balance) interestDue = balance;
     final principalDue = balance > 0
-        ? Num.money(balance - interest)
+        ? Num.money(balance - interestDue)
         : Num.money(loanAmount - paid);
+    final totalToReceive = Num.money(interestDue + principalDue);
 
     final principalController =
         TextEditingController(text: principalDue.toStringAsFixed(2));
     final interestController =
-        TextEditingController(text: interest.toStringAsFixed(2));
+        TextEditingController(text: interestDue.toStringAsFixed(2));
+
+    Widget sumRow(String label, String value, {bool bold = false}) {
+      final color = Theme.of(context).colorScheme.onSurface;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+                    color: bold ? color : color.withValues(alpha: .65))),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                    color: color)),
+          ],
+        ),
+      );
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Release pawn'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('Days: $days  ·  Rate: $rate%/month'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  sumRow('Principal outstanding', '₹${moneyText(principalDue)}'),
+                  sumRow('Interest outstanding', '₹${moneyText(interestDue)}'),
+                  const Divider(height: 14),
+                  sumRow('Total to receive', '₹${moneyText(totalToReceive)}',
+                      bold: true),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
                 controller: principalController,
@@ -186,6 +421,16 @@ class _PawnDetailState extends State<_PawnDetail> {
                 controller: interestController,
                 keyboardType: TextInputType.number,
                 decoration: fieldDecoration('Interest paid')),
+            const SizedBox(height: 8),
+            Text(
+              'Interest clears first, then principal. Partial release is '
+              'not supported — the full Total to receive must be paid to '
+              'release.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color:
+                      Theme.of(ctx).colorScheme.onSurface.withValues(alpha: .6)),
+            ),
           ],
         ),
         actions: [
@@ -204,6 +449,24 @@ class _PawnDetailState extends State<_PawnDetail> {
     final pp = Num.money(double.tryParse(principalController.text) ?? 0);
     final ip = Num.money(double.tryParse(interestController.text) ?? 0);
     final total = Num.money(pp + ip);
+
+    // Blueprint §10: interest clears first, remaining payment clears
+    // principal, and partial release is intentionally not supported.
+    final interestShort = ip < interestDue - 0.005;
+    final totalOff = (total - totalToReceive).abs() > 0.005;
+    if (interestShort || totalOff) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(interestShort
+              ? 'Interest of ₹${moneyText(interestDue)} must be cleared '
+                  'first — the remaining amount reduces principal.'
+              : 'Partial release is not supported. The full balance of '
+                  '₹${moneyText(totalToReceive)} is required to release.'),
+        ));
+      }
+      return;
+    }
+
     await state.saveEntity(
       table: 'pawn_releases',
       doctype: 'Pawn Release',
@@ -254,8 +517,8 @@ class _PawnDetailState extends State<_PawnDetail> {
             _kv('Loan amount', '₹${moneyText(loan['loan_amount'] as num?)}'),
             _kv('Interest basis', loan['interest_basis']?.toString() ?? '-'),
             _kv('Rate', '${loan['interest_rate'] ?? '-'} %/month'),
-            _kv('Loan date', loan['loan_date']?.toString() ?? '-'),
-            _kv('Due date', loan['due_date']?.toString() ?? '-'),
+            _kv('Loan date', fmtDate(loan['loan_date'])),
+            _kv('Due date', fmtDate(loan['due_date'])),
             _kv('Status', loan['status']?.toString() ?? 'Active'),
             _kv('Total payable',
                 '₹${moneyText(loan['total_payable'] as num?)}'),
@@ -505,7 +768,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     decoration: fieldDecoration('Customer *'),
-                    value: _customerUuid,
+                    initialValue: _customerUuid,
                     items: customers
                         .map((c) => DropdownMenuItem(
                               value: c['client_uuid'] as String,
@@ -531,7 +794,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 ]),
                 SectionCard(title: 'Loan', children: [
                   DropdownButtonFormField<String>(
-                    value: _basis,
+                    initialValue: _basis,
                     decoration: fieldDecoration('Interest basis'),
                     items: const ['Gold', 'Silver']
                         .map((v) => DropdownMenuItem(value: v, child: Text(v)))
@@ -565,7 +828,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                     Expanded(
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.calendar_today, size: 16),
-                        label: Text(_loanDate.toIso8601String().substring(0, 10)),
+                        label: Text(fmtDate(_loanDate)),
                         onPressed: () => _pickDate(false),
                       ),
                     ),
@@ -575,7 +838,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                         icon: const Icon(Icons.event, size: 16),
                         label: Text(_dueDate == null
                             ? 'Due date'
-                            : _dueDate!.toIso8601String().substring(0, 10)),
+                            : fmtDate(_dueDate)),
                         onPressed: () => _pickDate(true),
                       ),
                     ),
@@ -609,7 +872,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
         Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: item.metalType,
+              initialValue: item.metalType,
               decoration: fieldDecoration('Metal'),
               items: const ['Gold', 'Silver', 'Other']
                   .map((v) => DropdownMenuItem(value: v, child: Text(v)))
