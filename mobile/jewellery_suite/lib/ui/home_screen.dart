@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import 'customers_screen.dart';
+import 'history_screen.dart';
 import 'khata_screen.dart';
 import 'pawn_screen.dart';
 import 'reports_screen.dart';
@@ -244,7 +245,9 @@ class _HomeScreenState extends State<HomeScreen> {
               'Outstanding ₹${moneyWhole(pawnOut)}',
           () => _open(const PawnScreen())),
       (Icons.diamond_outlined, 'Jewellery', 'Coming soon', _comingSoon),
-      (Icons.book_outlined, 'Cashbook', 'Coming soon', _comingSoon),
+      (Icons.history, 'History',
+          'Recent activity & deletions',
+          () => _open(const HistoryScreen())),
     ];
     return GridView.count(
       crossAxisCount: 2,

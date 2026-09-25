@@ -22,7 +22,7 @@ class LocalDb {
         : p.join(await getDatabasesPath(), 'jewellery_suite.db');
     _db = await openDatabase(
       file,
-      version: 4,
+      version: 5,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -70,6 +70,27 @@ class LocalDb {
       try {
         await db.execute('ALTER TABLE khatabook_given ADD COLUMN given_type TEXT');
       } catch (_) {/* column already present */}
+    }
+    if (oldVersion < 5) {
+      // v5: refinance records (already in _create for fresh installs) and the
+      // activity history log (deletions + recent transactions, with retention).
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS khatabook_refinances (
+          client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
+          khatabook_loan TEXT, customer TEXT, refinance_date TEXT,
+          old_outstanding REAL, new_principal REAL, new_interest_amount REAL,
+          new_installment_count INTEGER, new_interest_note TEXT, new_loan TEXT,
+          remarks TEXT, updated_at TEXT
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_refinances_loan '
+          'ON khatabook_refinances(khatabook_loan)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS history_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, module TEXT, kind TEXT,
+          title TEXT, amount REAL, village TEXT, loan_ref TEXT, created_at TEXT
+        )
+      ''');
     }
   }
 
@@ -171,6 +192,13 @@ class LocalDb {
     ''');
 
     await db.execute('''
+      CREATE TABLE history_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, module TEXT, kind TEXT,
+        title TEXT, amount REAL, village TEXT, loan_ref TEXT, created_at TEXT
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE outbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, doctype TEXT,
         client_uuid TEXT, data TEXT, created_at TEXT, status TEXT, error TEXT
@@ -228,6 +256,13 @@ class LocalDb {
 
   Future<void> deleteWhere(String table, String where, List<Object?> args) async {
     await db.delete(table, where: where, whereArgs: args);
+  }
+
+  /// Deletes rows (optionally filtered) from a table — mirrors sqflite's
+  /// delete so screens can call `db.delete(table, where: …)`.
+  Future<void> delete(String table,
+      {String? where, List<Object?>? whereArgs}) async {
+    await db.delete(table, where: where, whereArgs: whereArgs);
   }
 
   Future<int> count(String table,

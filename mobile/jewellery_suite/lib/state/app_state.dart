@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/sync_service.dart';
+import '../util/format.dart';
 
 /// Single source of truth for the UI: session, local data helpers and sync.
 class AppState extends ChangeNotifier {
@@ -184,5 +185,35 @@ class AppState extends ChangeNotifier {
       'collected_today': await db.sum('khatabook_collections', 'amount',
           where: 'collection_date = ?', whereArgs: [today]),
     };
+  }
+
+  // ---------------------------------------------------------------- history
+  /// Records an activity/deletion event for the History screen.
+  Future<void> logEvent(String module, String kind, String title,
+      {double amount = 0, String? village, String? ref}) async {
+    try {
+      await db.upsert('history_log', {
+        'module': module,
+        'kind': kind,
+        'title': title,
+        'amount': Num.money(amount),
+        'village': village,
+        'loan_ref': ref,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (error) {
+      debugPrint('history log failed: $error');
+    }
+  }
+
+  /// Deletes events older than [before] (retention-based auto-clear).
+  Future<void> purgeHistory(DateTime before) async {
+    await db.delete('history_log',
+        where: 'created_at < ?', whereArgs: [before.toIso8601String()]);
+  }
+
+  /// "Clear Now" — wipes the whole history (admin-password guarded).
+  Future<void> clearHistory() async {
+    await db.delete('history_log');
   }
 }
