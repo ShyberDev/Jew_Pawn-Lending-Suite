@@ -64,11 +64,15 @@ class _Chip {
 _Chip _bucketChip(LoanBucket bucket, int lateDays) {
   switch (bucket) {
     case LoanBucket.overdue:
-      return _Chip('OVERDUE · $lateDays d', kRedSoft, kRed);
+      return _Chip(
+          lateDays <= 0
+              ? 'DUE TODAY'
+              : 'DUE $lateDays DAY${lateDays == 1 ? '' : 'S'} AGO',
+          kRedSoft, kRed);
     case LoanBucket.dueToday:
       return _Chip('DUE TODAY', kGold.withValues(alpha: .18), kGoldDark);
     case LoanBucket.upcoming:
-      return _Chip('UPCOMING', kBlueSoft, kBlue);
+      return _Chip('DUE NEXT WEEK', kBlueSoft, kBlue);
     case LoanBucket.onSchedule:
       return _Chip('ON TIME', kGreenSoft, kGreen);
   }
@@ -247,7 +251,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('PRINCIPAL (INVESTED)',
+                    const Text('INVESTMENT',
                         style: TextStyle(
                             fontSize: 11,
                             letterSpacing: 1,
@@ -265,7 +269,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('TOTAL OUTSTANDING',
+                    const Text('OUTSTANDING',
                         style: TextStyle(
                             fontSize: 11,
                             letterSpacing: 1,
@@ -656,6 +660,21 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
           nextDue = nd;
         }
       }
+      // A reminder date set on the customer drives the due display — the
+      // shopkeeper's word overrides the loan schedule ("collect this week").
+      final reminder = _parseDate(c['reminder_date']);
+      if (reminder != null) {
+        final rLate = _day(today).difference(reminder).inDays;
+        if (rLate > 0) {
+          overdue = overdue > 0 ? overdue : 1;
+          if (rLate > late) late = rLate;
+        } else if (rLate == 0) {
+          anyDueToday = true;
+        } else if (rLate >= -7) {
+          anyUpcoming = true;
+        }
+        nextDue = reminder;
+      }
       rows.add(_MemberRow(
         customer: c,
         principal: Num.money(prin),
@@ -733,11 +752,13 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                   0, (s, r) => s + Num.toDouble(r.principal));
               final out = all.fold<double>(
                   0, (s, r) => s + Num.toDouble(r.outstanding));
-              final overdueCount =
-                  all.where((r) => r.overdueLoans > 0).length;
+              // Total amount still to collect for overdue + due-today members.
+              final toCollect = all
+                  .where((r) => r.overdueLoans > 0 || r.anyDueToday)
+                  .fold<double>(0, (s, r) => s + Num.toDouble(r.outstanding));
               return Column(
                 children: [
-                  _summaryStrip(prin, out, overdueCount, all.length),
+                  _summaryStrip(prin, out, toCollect, all.length),
                   _chipRow(),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -771,7 +792,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   }
 
   Widget _summaryStrip(
-      double principal, double outstanding, int overdueCount, int members) {
+      double investment, double outstanding, double toCollect, int members) {
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -782,7 +803,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _stat('Principal', '₹${moneyWhole(principal)}', kGoldDark),
+            child: _stat('Investment', '₹${moneyWhole(investment)}', kGoldDark),
           ),
           _dividerV(),
           Expanded(
@@ -790,7 +811,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
           ),
           _dividerV(),
           Expanded(
-            child: _stat('Overdue', '$overdueCount', kRed),
+            child: _stat('To Collect', '₹${moneyWhole(toCollect)}', kRed),
           ),
           _dividerV(),
           Expanded(

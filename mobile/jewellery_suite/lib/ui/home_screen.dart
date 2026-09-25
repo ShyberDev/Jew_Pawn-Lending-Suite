@@ -230,12 +230,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _modulesGrid(AppState state) {
+    final pawnOut = (Num.toDouble(_stats['pawn_payable'] as num?) -
+            Num.toDouble(_stats['pawn_paid'] as num?))
+        .clamp(0.0, double.infinity);
     final modules = <(IconData, String, String, VoidCallback)>[
       (Icons.menu_book_outlined, 'Khatabook',
-          '${_stats['khatabook_active'] ?? 0} active · Khata & villages',
+          'Investment ₹${moneyWhole(_stats['khatabook_principal'] as num?)} · '
+              'Outstanding ₹${moneyWhole(_stats['khatabook_outstanding'] as num?)}',
           () => _open(const KhataGroupsScreen())),
       (Icons.account_balance_outlined, 'Pawn Loans',
-          '${_stats['active_pawn'] ?? 0} active · ₹${moneyWhole(_stats['pawn_out'] as num?)} out',
+          '${_stats['active_pawn'] ?? 0} active · '
+              'Investment ₹${moneyWhole(_stats['pawn_out'] as num?)} · '
+              'Outstanding ₹${moneyWhole(pawnOut)}',
           () => _open(const PawnScreen())),
       (Icons.diamond_outlined, 'Jewellery', 'Coming soon', _comingSoon),
       (Icons.book_outlined, 'Cashbook', 'Coming soon', _comingSoon),

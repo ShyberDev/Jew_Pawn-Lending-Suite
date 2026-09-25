@@ -108,6 +108,31 @@ String fmtReminder(Object? value) {
   return DateFormat('dd-MM-yy EEE').format(dt);
 }
 
+DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// "Due Today" / "Due Next Week" / "Due 5 Days Ago" / "Due 25-10-26".
+String dueWording(DateTime due, DateTime today) {
+  final late = _dayOnly(today).difference(_dayOnly(due)).inDays;
+  if (late > 0) return 'Due $late Day${late == 1 ? '' : 's'} Ago';
+  if (late == 0) return 'Due Today';
+  if (late >= -7) return 'Due Next Week';
+  return 'Due ${DateFormat('dd-MM-yy').format(due)}';
+}
+
+/// Lateness for the payment schedule: "13 Weeks Due",
+/// "3 Months 1 Week Due", "1 Week Due".
+String weeksLateWording(int days) {
+  if (days <= 0) return 'On Time';
+  final w = days ~/ 7;
+  if (w == 0) return '$days Day${days == 1 ? '' : 's'} Due';
+  if (w < 4) return '$w Week${w == 1 ? '' : 's'} Due';
+  final months = w ~/ 4;
+  final rem = w % 4;
+  if (rem == 0) return '$months Month${months == 1 ? '' : 's'} Due';
+  return '$months Month${months == 1 ? '' : 's'}'
+      ' $rem Week${rem == 1 ? '' : 's'} Due';
+}
+
 /// Parse ISO date ("2026-08-16") or datetime ("2026-08-16T08:03:00") strings.
 DateTime? parseIso(Object? value) {
   if (value == null) return null;
