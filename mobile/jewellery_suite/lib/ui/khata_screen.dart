@@ -61,7 +61,7 @@ class _Chip {
   final Color fg;
 }
 
-_Chip _bucketChip(LoanBucket bucket, int lateDays) {
+_Chip _bucketChip(LoanBucket bucket, int lateDays, [DateTime? due]) {
   switch (bucket) {
     case LoanBucket.overdue:
       return _Chip(
@@ -72,6 +72,12 @@ _Chip _bucketChip(LoanBucket bucket, int lateDays) {
     case LoanBucket.dueToday:
       return _Chip('DUE TODAY', kGold.withValues(alpha: .18), kGoldDark);
     case LoanBucket.upcoming:
+      // A far-future reminder (set on the customer) shows its own date.
+      if (due != null &&
+          _day(due).isAfter(_day(DateTime.now()).add(const Duration(days: 7)))) {
+        return _Chip('DUE ${fmtDate(due.toIso8601String())}',
+            kBlueSoft, kBlue);
+      }
       return _Chip('DUE NEXT WEEK', kBlueSoft, kBlue);
     case LoanBucket.onSchedule:
       return _Chip('ON TIME', kGreenSoft, kGreen);
@@ -386,6 +392,18 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 17,
+                    tooltip: 'Delete ${k['name']}',
+                    icon: Icon(Icons.delete_outline,
+                        color: kRed.withValues(alpha: .75)),
+                    onPressed: () => _confirmDeleteKhata(k),
+                  ),
+                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -420,6 +438,59 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
         ),
       ),
     );
+  }
+
+  /// Deletes a whole khata (village) with its customers, loans, collections,
+  /// givens and refinances — guarded by the admin password.
+  Future<void> _confirmDeleteKhata(Map<String, Object?> k) async {
+    final name = k['name']?.toString() ?? '';
+    final granted = await _adminDeleteDialog(context, name);
+    if (granted != true) {
+      _toast(context, 'Delete cancelled / wrong password.');
+      return;
+    }
+    final state = context.read<AppState>();
+    final db = state.db;
+    // Find the khata's customers (General = customers without a village).
+    final customers = name == 'General'
+        ? await db.query('customers').then((all) =>
+            all.where((c) => _khataOf(c) == null).toList())
+        : await db.query('customers',
+            where: 'village = ?', whereArgs: [name]);
+    var deleted = 0.0;
+    for (final c in customers) {
+      final cn = c['customer_name']?.toString() ?? '';
+      final cu = c['client_uuid'];
+      final loans = await db.query('khatabook_loans',
+          where: 'customer = ? OR customer_name = ?', whereArgs: [cu, cn]);
+      for (final l in loans) {
+        final ref = (l['server_name'] as String?) ?? l['client_uuid'];
+        await db.delete('khatabook_given',
+            where: 'khatabook_loan = ?', whereArgs: [ref]);
+        await db.delete('khatabook_collections',
+            where: 'khatabook_loan = ?', whereArgs: [ref]);
+        await db.delete('khatabook_refinances',
+            where: 'khatabook_loan = ?', whereArgs: [ref]);
+        deleted += Num.toDouble(l['total_payable']);
+      }
+      await db.delete('khatabook_loans',
+          where: 'customer = ? OR customer_name = ?', whereArgs: [cu, cn]);
+      await db.delete('khatabook_given',
+          where: 'customer = ? OR customer_name = ? OR customer = ?',
+          whereArgs: [cu, cn, cu]);
+      await db.delete('khatabook_collections',
+          where: 'customer = ? OR customer = ?', whereArgs: [cu, cn]);
+      await db.delete('customers',
+          where: 'client_uuid = ?', whereArgs: [cu]);
+    }
+    if (name != 'General') {
+      await db.delete('villages',
+          where: 'village_name = ?', whereArgs: [name]);
+    }
+    await state.logEvent('khata', 'khata_delete', 'Khata deleted — $name',
+        amount: deleted);
+    _toast(context, '$name deleted.');
+    await _refresh();
   }
 
   Widget _typeTag(String type) {
@@ -670,7 +741,9 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
           if (rLate > late) late = rLate;
         } else if (rLate == 0) {
           anyDueToday = true;
-        } else if (rLate >= -7) {
+        } else {
+          // Any future reminder (near or far) flags this member as upcoming;
+          // the chip shows "DUE 15-10-26" when it is beyond a week.
           anyUpcoming = true;
         }
         nextDue = reminder;
@@ -878,7 +951,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
             : r.anyUpcoming
                 ? LoanBucket.upcoming
                 : LoanBucket.onSchedule;
-    final chip = _bucketChip(bucket, r.lateDays);
+    final chip = _bucketChip(bucket, r.lateDays, r.nextDue);
     return InkWell(
       onTap: () async {
         await Navigator.push(
@@ -966,10 +1039,62 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                 ),
               ],
             ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 17,
+                tooltip: 'Delete ${c['customer_name'] ?? ''}',
+                icon: Icon(Icons.delete_outline,
+                    color: kRed.withValues(alpha: .75)),
+                onPressed: () => _confirmDeleteMember(c),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  /// Deletes a customer from the khata list — guarded by the admin password.
+  Future<void> _confirmDeleteMember(Map<String, Object?> c) async {
+    final name = c['customer_name']?.toString() ?? '';
+    final granted = await _adminDeleteDialog(context, name);
+    if (granted != true) {
+      _toast(context, 'Delete cancelled / wrong password.');
+      return;
+    }
+    final state = context.read<AppState>();
+    final db = state.db;
+    final uuid = c['client_uuid'];
+    final loans = await db.query('khatabook_loans',
+        where: 'customer = ? OR customer_name = ?', whereArgs: [uuid, name]);
+    var deleted = 0.0;
+    for (final l in loans) {
+      final ref = (l['server_name'] as String?) ?? l['client_uuid'];
+      await db.delete('khatabook_given',
+          where: 'khatabook_loan = ?', whereArgs: [ref]);
+      await db.delete('khatabook_collections',
+          where: 'khatabook_loan = ?', whereArgs: [ref]);
+      await db.delete('khatabook_refinances',
+          where: 'khatabook_loan = ?', whereArgs: [ref]);
+      deleted += Num.toDouble(l['total_payable']);
+    }
+    await db.delete('khatabook_loans',
+        where: 'customer = ? OR customer_name = ?', whereArgs: [uuid, name]);
+    await db.delete('khatabook_given',
+        where: 'customer = ? OR customer_name = ? OR customer = ?',
+        whereArgs: [uuid, name, uuid]);
+    await db.delete('khatabook_collections',
+        where: 'customer = ? OR customer = ?', whereArgs: [uuid, name]);
+    await db.delete('customers',
+        where: 'client_uuid = ?', whereArgs: [uuid]);
+    await state.logEvent('khata', 'customer_delete',
+        'Customer deleted — $name',
+        amount: deleted, village: c['village']?.toString());
+    if (mounted) setState(() {});
   }
 
   Widget _avatar(Map<String, Object?> c) {
@@ -1036,4 +1161,50 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shared delete helpers (khata + customer), used across the khata screens.
+// ---------------------------------------------------------------------------
+
+/// "Are you sure to delete {name}?" + admin password; returns true when the
+/// password equals "admin" (case-insensitive).
+Future<bool> _adminDeleteDialog(BuildContext context, String message) async {
+  final pw = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Are you sure to delete $message?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: pw,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Type admin password',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, pw.text.trim().toLowerCase() == 'admin'),
+            child: const Text('Delete')),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
