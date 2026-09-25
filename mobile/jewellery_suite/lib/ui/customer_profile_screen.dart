@@ -8,7 +8,7 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
 import 'customers_screen.dart';
-import 'khata_screen.dart' show LoanBucket, loanBucket, loanNextDue;
+import 'khata_screen.dart' show loanNextDue;
 import 'khatabook_screen.dart';
 import 'palette.dart';
 import 'widgets.dart';
@@ -109,8 +109,17 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       _toast('No phone number saved.');
       return;
     }
-    final ok = await launchUrl(Uri.parse('sms:$phone'),
-        mode: LaunchMode.externalApplication);
+    // Pre-fill the message body (like WhatsApp) — Android reads sms:?body=.
+    final uri = Uri(
+      scheme: 'sms',
+      path: phone,
+      queryParameters: {
+        'body':
+            'Namaste $_name 🙏\nYour khata balance is ₹${moneyWhole(_outstanding)}'
+                ' (Paid ₹${moneyWhole(_paid)} of ₹${moneyWhole(_total)}).',
+      },
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok) _toast('Could not open SMS.');
   }
 
@@ -365,7 +374,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   /// collections / You-Gave rows open an edit dialog to fix a wrong amount.
   Future<void> _editRow(_LedgerRow r) async {
     if (r.kind == 'loan') {
-      _openSheet(_giveDetailSheet(r.source));
+      await _editLoan(r.source);
       return;
     }
     if (r.kind == 'collection') {
@@ -373,6 +382,68 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     } else {
       await _editGiven(r.source);
     }
+  }
+
+  Future<void> _editLoan(Map<String, Object?> loan) async {
+    final pCtl =
+        TextEditingController(text: moneyWhole(Num.toDouble(loan['principal_amount'])));
+    final iCtl =
+        TextEditingController(text: moneyWhole(Num.toDouble(loan['interest_amount'])));
+    final state = context.read<AppState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit loan'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+                controller: pCtl,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: fieldDecoration('Principal')),
+            const SizedBox(height: 10),
+            TextField(
+                controller: iCtl,
+                keyboardType: TextInputType.number,
+                decoration: fieldDecoration('Interest')),
+            const SizedBox(height: 8),
+            Text(
+                'Total: '
+                '₹${moneyWhole(Num.toDouble(double.tryParse(pCtl.text) ?? 0) + Num.toDouble(double.tryParse(iCtl.text) ?? 0))}',
+                style: TextStyle(
+                    fontSize: 12, color: kInk.withValues(alpha: .6))),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final np = Num.money(double.tryParse(pCtl.text) ?? 0);
+    final ni = Num.money(double.tryParse(iCtl.text) ?? 0);
+    if (np <= 0 || ni < 0) return;
+    // Keep the fee/You-Gave part of total_payable intact, replace P + I.
+    final fees = Num.toDouble(loan['total_payable']) -
+        Num.toDouble(loan['principal_amount']) -
+        Num.toDouble(loan['interest_amount']);
+    final updated = Map<String, Object?>.from(loan)
+      ..['principal_amount'] = np
+      ..['interest_amount'] = ni
+      ..['total_payable'] = Num.money(np + ni + fees);
+    await state.db.upsert('khatabook_loans', {
+      ...updated,
+      'dirty': 0,
+    });
+    await _syncLoan(updated);
+    if (mounted) _refresh();
   }
 
   Future<void> _editCollection(Map<String, Object?> c) async {
@@ -498,76 +569,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       'dirty': 1,
     });
     if (mounted) _refresh();
-  }
-
-  /// Loan tap sheet: Principal, Interest and Principal + Interest, plus any
-  /// "You Gave" additions with their notes.
-  Widget _giveDetailSheet(Map<String, Object?> loan) {
-    final p = moneyWhole(Num.toDouble(loan['principal_amount']));
-    final i = moneyWhole(Num.toDouble(loan['interest_amount']));
-    final t = moneyWhole(Num.toDouble(loan['total_payable']));
-    final ref = (loan['server_name'] as String?) ?? loan['client_uuid'];
-    final givens =
-        _given.where((g) => g['khatabook_loan'] == ref).toList();
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      builder: (context, controller) => ListView(
-        controller: controller,
-        children: [
-          _sheetHeader('You Gave — $_name'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _detailLine('Principal', '₹$p'),
-                _detailLine('Interest', '₹$i'),
-                _detailLine('Total (principal + interest)', '₹$t'),
-                if (givens.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text('Added amounts',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: kInk)),
-                  const SizedBox(height: 4),
-                ],
-                for (final g in givens)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Text(
-                      '₹${moneyWhole(Num.toDouble(g['amount']))} · '
-                      '${_givenTypeLabel(g['given_type']?.toString())}'
-                      '${(g['note']?.toString() ?? '').isEmpty ? '' : ' — ${g['note']}'}',
-                      style: TextStyle(
-                          fontSize: 12.5, color: kInk.withValues(alpha: .7)),
-                    ),
-                  ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 13, color: kInk.withValues(alpha: .6)))),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w800, color: kInk)),
-        ],
-      ),
-    );
   }
 
   String _givenTypeLabel(String? type) {
@@ -941,9 +942,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                       fontSize: 12.5, color: kInk.withValues(alpha: .6)),
                 ),
                 const SizedBox(height: 5),
-                _ratingTag(_customer['rating']?.toString() ?? 'New'),
-                const SizedBox(height: 7),
-                _reminderChip(),
+                Row(children: [
+                  _ratingTag(_customer['rating']?.toString() ?? 'New'),
+                  const SizedBox(width: 6),
+                  Flexible(child: _reminderChip()),
+                ]),
               ],
             ),
           ),
@@ -973,6 +976,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   }
 
   Widget _outstandingCard() {
+    // Left: total principal + interest (the full amount to recover), with the
+    // paid-of-total line below. Right: the live outstanding balance.
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -986,17 +991,50 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('OUTSTANDING',
-              style: TextStyle(
-                  fontSize: 11, letterSpacing: 1, color: Color(0xFFE7D48B))),
-          const SizedBox(height: 4),
-          Text('₹${moneyWhole(_outstanding)}',
-              style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PRINCIPAL + INTEREST',
+                        style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 1,
+                            color: Color(0xFFE7D48B))),
+                    const SizedBox(height: 4),
+                    Text('₹${moneyWhole(_total)}',
+                        style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('OUTSTANDING',
+                        style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 1,
+                            color: Color(0xFFE7D48B))),
+                    const SizedBox(height: 4),
+                    Text('₹${moneyWhole(_outstanding)}',
+                        style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
-          Text('Paid ₹${moneyWhole(_paid)} of ₹${moneyWhole(_total)}',
+          Text('Paid ₹${moneyWhole(_paid)} of ₹${moneyWhole(_total)} '
+              '(principal + interest)',
               style: TextStyle(
                   fontSize: 12, color: Colors.white.withValues(alpha: .85))),
         ],
@@ -1044,22 +1082,28 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
   Widget _ledgerHeader() {
     return const Row(
-      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Text('YOU GAVE',
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .8,
-                color: kRed)),
-        SizedBox(width: 10),
-        Text('YOU GOT',
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .8,
-                color: kGreen)),
-        SizedBox(width: 2),
+        Expanded(child: SizedBox()),
+        SizedBox(
+          width: 94,
+          child: Text('YOU GAVE',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .8,
+                  color: kRed)),
+        ),
+        SizedBox(
+          width: 94,
+          child: Text('YOU GOT',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .8,
+                  color: kGreen)),
+        ),
       ],
     );
   }
@@ -1080,8 +1124,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       Map<String, Object?> source,
     })>[];
 
-    // Loans: red "You Gave" shows the cash handed over (principal); the running
-    // balance jumps by the full amount to recover (principal + interest).
+    // Loans: red "You Gave" shows the FULL amount to recover handed over
+    // (principal + interest); the running balance jumps by the same total.
     for (final l in _loans) {
       final raw = l['updated_at']?.toString() ?? l['loan_date']?.toString();
       final when = parseIso(raw) ?? DateTime.now();
@@ -1090,7 +1134,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       entries.add((
         when: when,
         stamp: fmtDateTime(raw),
-        gave: principal,
+        gave: Num.money(principal + interest),
         got: 0,
         delta: principal + interest,
         isGave: true,
@@ -1155,6 +1199,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   Widget _ledgerRow(_LedgerRow r) {
     final isGave = r.isGave;
     final color = isGave ? kRed : kGreen;
+    // You-Gave rows show why: "Late fee — Hello".
+    String? note;
+    if (r.kind == 'given') {
+      note = '${_givenTypeLabel(r.source['given_type']?.toString())}'
+          '${(r.source['note']?.toString() ?? '').isEmpty ? '' : ' — ${r.source['note']}'}';
+    }
     return GestureDetector(
       onTap: () => _editRow(r),
       child: Container(
@@ -1178,35 +1228,45 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           color: kInk.withValues(alpha: .7))),
                 ),
                 SizedBox(
-                  width: 92,
+                  width: 94,
                   child: Text(
-                    isGave ? '₹${moneyWhole(r.gave)}' : '₹${moneyWhole(r.got)}',
+                    isGave ? '₹${moneyWhole(r.gave)}' : '',
                     textAlign: TextAlign.right,
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: isGave ? kRed : kGreen),
+                        color: isGave ? kRed : Colors.transparent),
+                  ),
+                ),
+                SizedBox(
+                  width: 94,
+                  child: Text(
+                    !isGave ? '₹${moneyWhole(r.got)}' : '',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: !isGave ? kGreen : Colors.transparent),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 3),
-            // Daily outstanding balance — money lent out, shown in red, left
-            // side, below the date, inside this tile.
-            Row(
-              children: [
-                Expanded(
-                  child: Text('bal ₹${moneyWhole(r.balance)}',
-                      style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: kRed)),
-                ),
-                Text(r.kind == 'loan' ? 'details ✎' : 'edit ✎',
+            // Daily outstanding balance — money lent out, always red, left.
+            Text('bal ₹${moneyWhole(r.balance)}',
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: kRed)),
+            if (note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(note,
                     style: TextStyle(
-                        fontSize: 10, color: kInk.withValues(alpha: .35))),
-              ],
-            ),
+                        fontSize: 10.5,
+                        fontStyle: FontStyle.italic,
+                        color: color.withValues(alpha: .85))),
+              ),
           ],
         ),
       ),
@@ -1261,7 +1321,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   Widget _scheduleSheet() {
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.7,
+      initialChildSize: 0.85,
       builder: (context, controller) => ListView(
         controller: controller,
         children: [
@@ -1269,45 +1329,237 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           if (_activeLoans.isEmpty)
             const Padding(
                 padding: EdgeInsets.all(24), child: Text('No active loans.')),
-          for (final l in _activeLoans) _scheduleLoanTile(l),
+          for (final l in _activeLoans) _scheduleLoanCard(l),
           const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  Widget _scheduleLoanTile(Map<String, Object?> loan) {
-    final today = DateTime.now();
-    final due = loanNextDue(loan, today);
-    final bucket = loanBucket(loan, today);
-    final chip = bucket == LoanBucket.overdue
-        ? const _ChipLocal('OVERDUE', kRedSoft, kRed)
-        : bucket == LoanBucket.dueToday
-            ? const _ChipLocal('DUE TODAY', kGold, kGoldDark)
-            : bucket == LoanBucket.upcoming
-                ? const _ChipLocal('UPCOMING', kBlueSoft, kBlue)
-                : const _ChipLocal('ON TIME', kGreenSoft, kGreen);
-    final paid = (loan['paid_installments'] as num?)?.toInt() ?? 0;
-    final count = (loan['installment_count'] as num?)?.toInt() ?? 0;
+  /// Principal / Interest / Outstanding strip + per-installment rows with
+  /// scheduled date, actual paid date, paid-late wording and on-time count.
+  Widget _scheduleLoanCard(Map<String, Object?> loan) {
     final p = moneyWhole(Num.toDouble(loan['principal_amount']));
     final i = moneyWhole(Num.toDouble(loan['interest_amount']));
-    final t = moneyWhole(Num.toDouble(loan['total_payable']));
-    return ListTile(
-      title: Text('₹${moneyWhole(loan['outstanding'] as num?)} outstanding'),
-      subtitle: Text(
-          'Principal ₹$p · Interest ₹$i · Total ₹$t\n'
-          '${loan['collection_frequency']} · $paid/$count installments'
-          '${due != null ? ' · next ${fmtDate(due.toIso8601String())}' : ''}'),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-            color: chip.bg, borderRadius: BorderRadius.circular(8)),
-        child: Text(chip.label,
-            style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w700, color: chip.fg)),
+    final out = moneyWhole(Num.toDouble(loan['outstanding']));
+    final rows = _instalmentsFor(loan);
+    final paidCount = rows.where((r) => r.paid != null).length;
+    final onTime = rows.where((r) => r.paid != null && r.lateDays <= 0).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3A2E0E), Color(0xFF6B5417)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Expanded(child: _schedStat('PRINCIPAL', '₹$p')),
+              Expanded(child: _schedStat('INTEREST', '₹$i')),
+              Expanded(
+                  child: _schedStat('OUTSTANDING', '₹$out', end: true)),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Row(
+            children: [
+              Text('Settlements — ${loan['collection_frequency']}',
+                  style: TextStyle(
+                      fontSize: 12, color: kInk.withValues(alpha: .6))),
+              const Spacer(),
+              if (paidCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: onTime == paidCount
+                        ? kGreenSoft
+                        : const Color(0xFFFDEBD2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                      'ON-TIME $onTime/$paidCount',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: onTime == paidCount
+                              ? kGreen
+                              : const Color(0xFFB26A00))),
+                ),
+            ],
+          ),
+        ),
+        for (final r in rows) _schedTile(r, rows.length),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _schedStat(String label, String value, {bool end = false}) {
+    return Column(
+      crossAxisAlignment:
+          end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10, letterSpacing: .8, color: Color(0xFFE7D48B))),
+        const SizedBox(height: 3),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+      ],
+    );
+  }
+
+  /// Scheduled installments for a loan: due dates from start + frequency,
+  /// matched 1:1 with the actual collection dates (chronological order).
+  List<_SchedRow> _instalmentsFor(Map<String, Object?> loan) {
+    final today = _dayD(DateTime.now());
+    final count = (loan['installment_count'] as num?)?.toInt() ?? 12;
+    final f = (loan['collection_frequency']?.toString() ?? '').toLowerCase();
+    final step = f.contains('bi')
+        ? 14
+        : f.contains('month')
+            ? 30
+            : 7;
+    final start = parseIso(loan['start_date'] ?? loan['loan_date']);
+    final ref = (loan['server_name'] as String?) ?? loan['client_uuid'];
+    if (start == null) return const [];
+    final colls = _collections
+        .where((c) => c['khatabook_loan'] == ref)
+        .toList()
+      ..sort((a, b) => (parseIso(a['collection_date']) ?? today)
+          .compareTo(parseIso(b['collection_date']) ?? today));
+    final amount = Num.toDouble(loan['installment_amount']) > 0
+        ? Num.toDouble(loan['installment_amount'])
+        : Num.toDouble(loan['total_payable']) / count;
+    return [
+      for (var i = 0; i < count; i++)
+        () {
+          final due = _dayD(start).add(Duration(days: i * step));
+          final paid = i < colls.length
+              ? parseIso(colls[i]['collection_date'])
+              : null;
+          final late = paid == null
+              ? 0
+              : _dayD(paid).difference(due).inDays;
+          return _SchedRow(
+              due: due,
+              paid: paid,
+              amount: amount,
+              lateDays: late,
+              index: i);
+        }(),
+    ];
+  }
+
+  Widget _schedTile(_SchedRow r, int total) {
+    final today = _dayD(DateTime.now());
+    final (Color bg, Color fg, String label) = r.paid != null
+        ? (r.lateDays <= 0
+            ? (kGreenSoft, kGreen, 'ON TIME')
+            : (const Color(0xFFFDEBD2), const Color(0xFFB26A00),
+                weeksLateWording(r.lateDays).toUpperCase()))
+        : r.due.isAfter(today)
+            ? (kBlueSoft, kBlue,
+                r.due.difference(today).inDays <= 7 ? 'NEXT WEEK' : 'UPCOMING')
+            : r.due == today
+                ? (kGold.withValues(alpha: .18), kGoldDark, 'DUE TODAY')
+                : (kRedSoft, kRed,
+                    'DUE ${today.difference(r.due).inDays} '
+                    'DAY${today.difference(r.due).inDays == 1 ? '' : 'S'} AGO');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: bg.withValues(alpha: .4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: fg.withValues(alpha: .35)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    'Week ${r.index + 1}/$total · ${fmtDate(r.due.toIso8601String())}',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: kInk)),
+                const SizedBox(height: 2),
+                Text(
+                    'Due ${fmtDate(r.due.toIso8601String())} · '
+                    'Paid ${r.paid == null ? '—' : fmtDate(r.paid!.toIso8601String())}',
+                    style: TextStyle(
+                        fontSize: 10.5, color: kInk.withValues(alpha: .55))),
+                if (r.paid != null && r.lateDays > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(label,
+                        style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: fg)),
+                  ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('₹${moneyWhole(r.amount)}',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: kInk)),
+              const SizedBox(height: 3),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                    color: bg, borderRadius: BorderRadius.circular(6)),
+                child: Text(label,
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: fg)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
+
+DateTime _dayD(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// One scheduled installment row in the payment-schedule sheet.
+class _SchedRow {
+  const _SchedRow({
+    required this.due,
+    required this.paid,
+    required this.amount,
+    required this.lateDays,
+    required this.index,
+  });
+
+  final int index;
+  final DateTime due;
+  final DateTime? paid;
+  final double amount;
+
+  /// Days the payment arrived after its due date (0 when on time / unpaid).
+  final int lateDays;
 }
 
 class _LedgerRow {
@@ -1330,11 +1582,4 @@ class _LedgerRow {
   /// 'loan' | 'given' | 'collection' — decides what tapping the tile edits.
   final String kind;
   final Map<String, Object?> source;
-}
-
-class _ChipLocal {
-  const _ChipLocal(this.label, this.bg, this.fg);
-  final String label;
-  final Color bg;
-  final Color fg;
 }
