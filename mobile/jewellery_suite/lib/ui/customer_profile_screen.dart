@@ -373,7 +373,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               const SizedBox(height: 10),
               Text('Type',
                   style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700, color: kInk)),
+                      fontSize: 12, fontWeight: FontWeight.w700, color: inkOf(context))),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
@@ -619,7 +619,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 'Total: '
                 '₹${moneyWhole(Num.toDouble(parseMoney(pCtl.text)) + Num.toDouble(parseMoney(iCtl.text)))}',
                 style: TextStyle(
-                    fontSize: 12, color: kInk.withValues(alpha: .6))),
+                    fontSize: 12, color: mutedOf(context))),
           ],
         ),
         actions: [
@@ -1130,7 +1130,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('Customer'),
         actions: [
@@ -1248,7 +1248,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -1280,10 +1280,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                       child: Text(_name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
-                              color: kInk)),
+                              color: inkOf(context))),
                     ),
                     if ((_customer['customer_id']?.toString() ?? '')
                         .isNotEmpty) ...[
@@ -1313,7 +1313,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 Text(
                   _phone.isEmpty ? 'No phone saved' : _phone,
                   style: TextStyle(
-                      fontSize: 12.5, color: kInk.withValues(alpha: .6)),
+                      fontSize: 12.5, color: mutedOf(context)),
                 ),
                 const SizedBox(height: 5),
                 Row(children: [
@@ -1441,7 +1441,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(18)),
+            color: surfaceOf(context), borderRadius: BorderRadius.circular(18)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1450,7 +1450,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             Center(
               child: Text('No transactions yet. Tap "You Gave" to start a loan.',
                   style: TextStyle(
-                      fontSize: 12.5, color: kInk.withValues(alpha: .6))),
+                      fontSize: 12.5, color: mutedOf(context))),
             ),
           ],
         ),
@@ -1459,7 +1459,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(18)),
+          color: surfaceOf(context), borderRadius: BorderRadius.circular(18)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1800,19 +1800,19 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           leading: Icon(icon, color: kGoldDark),
           title: Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
-                  color: kInk)),
+                  color: inkOf(context))),
           subtitle: Text(subtitle,
-              style: TextStyle(fontSize: 11, color: kInk.withValues(alpha: .55))),
-          trailing: const Icon(Icons.chevron_right, color: kInk),
+              style: TextStyle(fontSize: 11, color: mutedOf(context))),
+          trailing: Icon(Icons.chevron_right, color: inkOf(context)),
           onTap: onTap,
         ),
       ),
@@ -1921,7 +1921,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             children: [
               Text('Settlements — ${loan['collection_frequency']}',
                   style: TextStyle(
-                      fontSize: 12, color: kInk.withValues(alpha: .6))),
+                      fontSize: 12, color: mutedOf(context))),
               const Spacer(),
               if (paidCount > 0)
                 Container(
@@ -2093,16 +2093,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('$unit ${r.index + 1}/$total',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
-                        color: kInk)),
+                        color: inkOf(context))),
                 const SizedBox(height: 2),
                 Text(
                     'Due ${fmtDate(r.due.toIso8601String())} | '
                     'Paid ${r.paid == null ? '—' : fmtDate(r.paid!.toIso8601String())}',
                     style: TextStyle(
-                        fontSize: 10.5, color: kInk.withValues(alpha: .55))),
+                        fontSize: 10.5, color: mutedOf(context))),
                 if (r.paid != null && r.lateDays > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -2130,8 +2130,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('₹${moneyWhole(r.amount)}',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: kInk)),
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: inkOf(context))),
               const SizedBox(height: 3),
               // Green = paid share, red = shortfall (half red + half green on
               // a partial payment; full red on no payment).

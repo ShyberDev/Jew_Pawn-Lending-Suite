@@ -67,7 +67,7 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('User Details'),
         actions: [

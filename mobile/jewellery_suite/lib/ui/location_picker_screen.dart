@@ -40,7 +40,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
@@ -94,7 +94,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             right: 12,
             bottom: 12,
             child: Material(
-              color: Colors.white,
+              color: surfaceOf(context),
               elevation: 4,
               borderRadius: BorderRadius.circular(14),
               child: Padding(

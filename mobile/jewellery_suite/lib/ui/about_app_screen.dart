@@ -11,8 +11,8 @@ import 'settings_screen.dart' show comingSoon;
 class AboutAppScreen extends StatelessWidget {
   const AboutAppScreen({super.key});
 
-  static const appVersion = '1.0.8';
-  static const apkSizeMb = 63;
+  static const appVersion = '1.0.9';
+  static const apkSizeMb = 95;
 
   String _fmtBytes(int bytes) {
     if (bytes <= 0) return '0 B';
@@ -29,7 +29,7 @@ class AboutAppScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(title: const Text('About App')),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -47,10 +47,12 @@ class AboutAppScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Center(
+          Center(
             child: Text('Jewellery Suite',
                 style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800, color: kInk)),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: inkOf(context))),
           ),
           const Center(
             child: Text('Version $appVersion',
@@ -59,7 +61,7 @@ class AboutAppScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _card(context, [
-            _row('App size (APK)', '≈ $apkSizeMb MB'),
+            _row(context, 'App size (APK)', '≈ $apkSizeMb MB'),
             _rightFuture('App data (your records)', state.appDataBytes(),
                 (v) => _fmtBytes(v)),
           ]),
@@ -79,7 +81,7 @@ class AboutAppScreen extends StatelessWidget {
 
   Widget _card(BuildContext context, List<Widget> children) {
     return Material(
-      color: Colors.white,
+      color: surfaceOf(context),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -89,17 +91,17 @@ class AboutAppScreen extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value) {
+  Widget _row(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Expanded(
             child: Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
-                    color: kInk)),
+                    color: inkOf(context))),
           ),
           Text(value,
               style: const TextStyle(
@@ -123,10 +125,10 @@ class AboutAppScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: kInk)),
+                        color: inkOf(context))),
               ),
               snap.connectionState == ConnectionState.waiting
                   ? const SizedBox(

@@ -193,7 +193,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('Khata Books'),
         actions: [
@@ -366,7 +366,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
       child: Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -403,10 +403,10 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                           child: Text(k['name']?.toString() ?? '-',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: kInk)),
+                                  color: inkOf(context))),
                         ),
                         const SizedBox(width: 6),
                         _typeTag(type),
@@ -423,7 +423,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 11.5,
-                            color: kInk.withValues(alpha: .55)),
+                            color: mutedOf(context)),
                       ),
                     ],
                   ),
@@ -433,10 +433,10 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('₹${moneyWhole(k['outstanding'] as num?)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: kInk)),
+                            color: inkOf(context))),
                     const SizedBox(height: 3),
                     if (overdue > 0)
                       Container(
@@ -525,7 +525,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           style: TextStyle(
               fontSize: 9.5,
               fontWeight: FontWeight.w600,
-              color: kInk.withValues(alpha: .6))),
+              color: mutedOf(context))),
     );
   }
 }
@@ -591,7 +591,7 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('New Khata'),
         actions: [TextButton(onPressed: _save, child: const Text('SAVE'))],
@@ -825,7 +825,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(title: Text(widget.khataName)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAdd,
@@ -914,7 +914,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -945,9 +945,9 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
         Text(value,
             style: TextStyle(
                 fontSize: 16, fontWeight: FontWeight.w800, color: color)),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         Text(label,
-            style: TextStyle(fontSize: 10.5, color: kInk.withValues(alpha: .55))),
+            style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
       ],
     );
   }
@@ -1033,10 +1033,10 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(c['customer_name']?.toString() ?? '-',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
-                          color: kInk)),
+                          color: inkOf(context))),
                   const SizedBox(height: 2),
                   Text(
                     [
@@ -1048,7 +1048,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 11.5, color: kInk.withValues(alpha: .55)),
+                        fontSize: 11.5, color: mutedOf(context)),
                   ),
                   const SizedBox(height: 5),
                   Container(
@@ -1079,10 +1079,10 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text('₹${moneyWhole(r.outstanding)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: kInk)),
+                        color: inkOf(context))),
                 const SizedBox(height: 4),
                 Container(
                   padding:

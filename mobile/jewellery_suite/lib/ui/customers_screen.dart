@@ -180,8 +180,8 @@ class _CustomerFormState extends State<CustomerForm> {
       'status': 'Active',
     };
     if (widget.existing == null) {
-      // v1.0.8+: numeric book sequence. Typed start (e.g. 5102) used as-is and
-      // the next customer continues 5103…; blank = auto from the sequence.
+      // v1.0.9+: book scheme (A-01 … Z-99 → A-001 …). A typed ID is used
+      // as-is and the next customer continues from it; blank = next in the book.
       try {
         data['customer_id'] =
             await state.claimCustomerId(_customerId.text);
@@ -295,23 +295,24 @@ class _CustomerFormState extends State<CustomerForm> {
                 decoration: fieldDecoration('Phone'),
               ),
               const SizedBox(height: 10),
-              // v1.0.8+: customer ID — typed start continues the sequence,
-              // blank = auto next number. Editable to fix a wrong entry.
+              // v1.0.9+: customer ID — book scheme A-01, A-02 … Z-99, then
+              // A-001 … Typed ID is used as-is and the sequence continues from
+              // it; blank = next ID in the book.
               TextFormField(
                 controller: _customerId,
-                keyboardType: TextInputType.number,
+                textCapitalization: TextCapitalization.characters,
                 decoration: fieldDecoration(
                   'Customer ID',
                   hint: widget.existing == null
-                      ? 'Leave blank for next number'
-                      : 'New book start number',
+                      ? 'Leave blank for next ID (A-01)'
+                      : 'Change ID',
                 ),
               ),
               if (widget.existing == null) ...[
                 const SizedBox(height: 4),
                 const Text(
-                  'Type a number to start a new book (e.g. 5102) — next '
-                  'customers continue 5103, 5104…',
+                  'Book numbers: A-01, A-02 … A-99, B-01 … Z-99, then A-001… '
+                  'Type an ID to start from it (e.g. C-07 → next C-08).',
                   style: TextStyle(fontSize: 10.5, color: Color(0xFF8A6D14)),
                 ),
               ],

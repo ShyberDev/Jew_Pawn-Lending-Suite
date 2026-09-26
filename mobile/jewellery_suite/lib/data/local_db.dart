@@ -22,7 +22,7 @@ class LocalDb {
         : p.join(await getDatabasesPath(), 'jewellery_suite.db');
     _db = await openDatabase(
       file,
-      version: 7,
+      version: 8,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -127,6 +127,21 @@ class LocalDb {
         )
       ''');
     }
+    if (oldVersion < 8) {
+      // v8: ID proof captured on the pawn loan itself (type, number, front and
+      // back images), so the slip's proof travels with the pledge.
+      for (final sql in [
+        'ALTER TABLE pawn_loans ADD COLUMN id_proof_type TEXT',
+        'ALTER TABLE pawn_loans ADD COLUMN id_proof_number TEXT',
+        'ALTER TABLE pawn_loans ADD COLUMN id_front TEXT',
+        'ALTER TABLE pawn_loans ADD COLUMN id_back TEXT',
+        'ALTER TABLE pawn_loans ADD COLUMN rate_per_gram REAL',
+      ]) {
+        try {
+          await db.execute(sql);
+        } catch (_) {/* column already present */}
+      }
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -170,7 +185,8 @@ class LocalDb {
         non_hallmarked_weight REAL, total_market_value REAL, ltv REAL,
         interest_accrued REAL, total_payable REAL, amount_paid REAL,
         balance REAL, last_interest_date TEXT, release_date TEXT, remarks TEXT,
-        updated_at TEXT
+        id_proof_type TEXT, id_proof_number TEXT, id_front TEXT, id_back TEXT,
+        rate_per_gram REAL, updated_at TEXT
       )
     ''');
 

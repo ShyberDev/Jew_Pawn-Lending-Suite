@@ -80,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       drawer: _buildDrawer(state),
       body: SafeArea(
         child: RefreshIndicator(
@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           state.userName.isNotEmpty
                               ? state.userName
-                              : 'Version 1.0.8 • user details',
+                              : 'Version 1.0.9 • user details',
                           style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context)
@@ -248,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tile(Icons.lock_outline, 'Change password', _drawerComingSoon),
             tile(Icons.info_outline, 'About App',
                 () => go(const AboutAppScreen()),
-                subtitle: 'Version 1.0.8, size & data'),
+                subtitle: 'Version 1.0.9, size & data'),
             tile(Icons.support_agent, 'Help & Support', _drawerComingSoon),
             const Divider(),
             ListTile(
@@ -269,20 +269,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _header(AppState state) {
     // Home button: the user's profile photo if one was uploaded, else the
-    // home icon. It opens the side dashboard.
+    // home icon. It opens the side dashboard. NOTE: the Builder is required —
+    // this State's own context sits ABOVE the Scaffold, so Scaffold.of() on it
+    // throws and the drawer would never open.
     return Row(
       children: [
-        GestureDetector(
-          onTap: () => Scaffold.of(context).openDrawer(),
-          child: CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.white,
-            backgroundImage: state.userPhoto.isNotEmpty
-                ? photoProvider(state.userPhoto)
-                : null,
-            child: state.userPhoto.isEmpty
-                ? const Icon(Icons.home, color: kInk, size: 22)
-                : null,
+        Builder(
+          builder: (inner) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Scaffold.of(inner).openDrawer(),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white,
+                backgroundImage: state.userPhoto.isNotEmpty
+                    ? photoProvider(state.userPhoto)
+                    : null,
+                child: state.userPhoto.isEmpty
+                    ? Icon(Icons.home, color: inkOf(context), size: 22)
+                    : null,
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -291,14 +299,14 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(_greeting,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: kInk)),
+                      color: inkOf(context))),
               const SizedBox(height: 2),
               Text(_dateLine,
                   style: TextStyle(
-                      fontSize: 13, color: kInk.withValues(alpha: .55))),
+                      fontSize: 13, color: mutedOf(context))),
             ],
           ),
         ),
@@ -317,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? const SizedBox(
                   width: 20, height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2, color: kGold))
-              : const Icon(Icons.sync, color: kInk),
+              : Icon(Icons.sync, color: inkOf(context)),
           onTap: state.syncing
               ? null
               : () async {
@@ -361,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: surfaceOf(context),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
@@ -374,13 +382,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(value,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: kInk)),
+                              color: inkOf(context))),
                       Text(label,
                           style: TextStyle(
-                              fontSize: 10.5, color: kInk.withValues(alpha: .55))),
+                              fontSize: 10.5, color: mutedOf(context))),
                     ],
                   ),
                 ),
@@ -414,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.45,
+      childAspectRatio: 1.6,
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
       children: [
@@ -426,34 +434,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _moduleCard(IconData icon, String title, VoidCallback onTap) {
     return Material(
-      color: Colors.white,
+      color: surfaceOf(context),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(4),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   color: kGold.withValues(alpha: .14),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 17, color: const Color(0xFF9A7B10)),
+                child: Icon(icon, size: 15, color: const Color(0xFF9A7B10)),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12.5,
+                  style: TextStyle(
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: kInk)),
+                      color: inkOf(context))),
             ],
           ),
         ),
@@ -480,21 +488,21 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Material(
-              color: Colors.white,
+              color: surfaceOf(context),
               borderRadius: BorderRadius.circular(14),
               clipBehavior: Clip.antiAlias,
               child: ListTile(
                 dense: true,
                 leading: Icon(icon, color: kGold),
                 title: Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: kInk)),
+                        color: inkOf(context))),
                 subtitle: Text(subtitle,
                     style: TextStyle(
-                        fontSize: 11, color: kInk.withValues(alpha: .55))),
-                trailing: const Icon(Icons.chevron_right, color: kInk),
+                        fontSize: 11, color: mutedOf(context))),
+                trailing: Icon(Icons.chevron_right, color: inkOf(context)),
                 onTap: onTap,
               ),
             ),
@@ -505,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _roundIcon(Widget child, {VoidCallback? onTap}) {
     return Material(
-      color: Colors.white,
+      color: surfaceOf(context),
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

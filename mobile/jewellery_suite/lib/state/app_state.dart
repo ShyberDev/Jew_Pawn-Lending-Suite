@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -64,6 +65,7 @@ class AppState extends ChangeNotifier {
     userEmail = await db.getSetting('user_email') ?? '';
     userName = await db.getSetting('user_name') ?? '';
     await refreshCounts();
+    await migrateCustomerIdScheme();
     await backfillCustomerIds();
   }
 
@@ -233,61 +235,122 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------- customer IDs
+  // Book-style IDs: a letter + at least two digits —
+  //   A-01, A-02 … A-99, B-01 … B-99, … Z-99,
+  //   then A-001 … Z-999, and A-0001 … when a letter runs out again.
+  // The number is the searchable book number shown wherever a customer is
+  // listed (khata card, pawn loan, profile, search results).
+
+  static final _bookIdRe = RegExp(r'^([A-Za-z])\s*-\s*(\d+)$');
+
+  /// "B-07" -> (width 2, letter index 1, number 7). Null when not a book ID.
+  static (int, int, int)? _parseBookId(String raw) {
+    final m = _bookIdRe.firstMatch(raw.trim());
+    if (m == null) return null;
+    final letter = m.group(1)!.toUpperCase().codeUnitAt(0) - 65; // A = 0
+    if (letter < 0 || letter > 25) return null;
+    final digits = m.group(2)!;
+    final n = int.tryParse(digits) ?? 0;
+    if (n <= 0) return null;
+    return (digits.length, letter, n);
+  }
+
+  static String _formatBookId(int width, int letter, int n) =>
+      '${String.fromCharCode(65 + letter)}-${n.toString().padLeft(width, '0')}';
+
+  /// The ID that follows (width, letter, number) in the book sequence.
+  static (int, int, int) _bookSuccessor(int width, int letter, int n) {
+    final max = (math.pow(10, width) - 1).toInt(); // 99, 999, 9999…
+    if (n < max) return (width, letter, n + 1);
+    if (letter < 25) return (width, letter + 1, 1);
+    return (width + 1, 0, 1); // Z-99 -> A-001
+  }
+
+  static bool _bookGt((int, int, int) a, (int, int, int) b) {
+    if (a.$1 != b.$1) return a.$1 > b.$1;
+    if (a.$2 != b.$2) return a.$2 > b.$2;
+    return a.$3 > b.$3;
+  }
+
+  /// Highest book ID in use, in book order (Z-99 beats A-5000's neighbours).
+  static (int, int, int)? _highestBookId(Iterable<String> ids) {
+    (int, int, int)? best;
+    for (final raw in ids) {
+      final p = _parseBookId(raw);
+      if (p == null) continue;
+      if (best == null || _bookGt(p, best)) best = p;
+    }
+    return best;
+  }
+
   /// Next customer ID. Order of preference:
-  /// 1. freed pool (deleted customer IDs are reused first),
-  /// 2. the user-seeded "book" number (`customer_id_next`, set when the user
-  ///    typed a start like 5102 — every following customer auto-continues 5103…),
-  /// 3. largest numeric ID in use + 1 (keeps counting when no seed is given).
+  /// 1. freed pool (IDs of deleted customers are reused first),
+  /// 2. continue after the last ID handed out (`customer_id_next`),
+  /// 3. continue after the highest ID currently in use.
   Future<String> nextCustomerId() async {
     final pool = await db.query('customer_id_pool', orderBy: 'id asc');
     if (pool.isNotEmpty) {
       final id = pool.first['id']!.toString();
-      await db
-          .deleteWhere('customer_id_pool', 'id = ?', [id]);
+      await db.deleteWhere('customer_id_pool', 'id = ?', [id]);
       return id;
     }
     final seed = await db.getSetting('customer_id_next');
-    if (seed != null) {
-      final n = int.tryParse(seed.trim()) ?? 0;
-      if (n > 0) {
-        await db.setSetting('customer_id_next', '${n + 1}');
-        return n.toString();
-      }
+    (int, int, int) last;
+    final seedParts = (seed == null) ? null : _parseBookId(seed);
+    if (seedParts != null) {
+      last = seedParts;
+    } else {
+      final rows = await db.query('customers', columns: ['customer_id']);
+      last = _highestBookId(rows.map((r) => r['customer_id']?.toString() ?? '')) ??
+          (2, 0, 0);
     }
-    final rows = await db.query('customers', columns: ['customer_id']);
-    var maxN = 0;
-    for (final r in rows) {
-      final id = r['customer_id']?.toString() ?? '';
-      final n = int.tryParse(RegExp(r'\d+').firstMatch(id)?.group(0) ?? '');
-      if (n != null && n > maxN) maxN = n;
-    }
-    return '${maxN + 1}';
+    final next = _bookSuccessor(last.$1, last.$2, last.$3);
+    final id = _formatBookId(next.$1, next.$2, next.$3);
+    await db.setSetting('customer_id_next', id);
+    return id;
   }
 
-  /// New-customer ID entry. Blank [input] → auto sequence ([nextCustomerId]).
-  /// A typed start (e.g. "5102") is used as-is and seeds `customer_id_next` so
-  /// the following customers continue (5103…). Throws [StateError] if a typed
-  /// ID already belongs to another customer.
+  /// New-customer ID entry. Blank [input] -> auto sequence ([nextCustomerId]).
+  /// A typed ID (e.g. "C-07", "c7", "B 12") is normalised to "C-07" / "B-12"
+  /// and the sequence continues from it. Throws [StateError] if the ID already
+  /// belongs to another customer or is not letter + digits.
   Future<String> claimCustomerId(String? input, {String? excludeUuid}) async {
     final raw = (input ?? '').trim();
     if (raw.isEmpty) return nextCustomerId();
-    final rows = await db.query('customers', columns: ['client_uuid', 'customer_id']);
+    final m = _bookIdRe.firstMatch(raw);
+    String normalized;
+    if (m != null) {
+      final letter = m.group(1)!.toUpperCase();
+      final digits = m.group(2)!;
+      final width = digits.length < 2 ? 2 : digits.length;
+      normalized = '$letter-${digits.padLeft(width, '0')}';
+    } else {
+      final n = int.tryParse(raw.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (n == null || n <= 0) {
+        throw StateError('Customer ID must be a letter + digits (e.g. A-01)');
+      }
+      // Digits only: keep the letter the sequence is currently on.
+      final seed = await db.getSetting('customer_id_next');
+      final letter = _parseBookId(seed ?? '')?.$2 ?? 0;
+      normalized = _formatBookId(2, letter, n);
+    }
+    final rows =
+        await db.query('customers', columns: ['client_uuid', 'customer_id']);
     for (final r in rows) {
       if (r['client_uuid'] == excludeUuid) continue;
-      if (r['customer_id']?.toString() == raw) {
-        throw StateError('Customer ID $raw is already used by another customer');
+      final existing = r['customer_id']?.toString() ?? '';
+      if (existing.toUpperCase() == normalized.toUpperCase()) {
+        throw StateError(
+            'Customer ID $normalized is already used by another customer');
       }
     }
-    final pool = await db.query('customer_id_pool',
-        where: 'id = ?', whereArgs: [raw]);
+    final pool =
+        await db.query('customer_id_pool', where: 'id = ?', whereArgs: [normalized]);
     if (pool.isNotEmpty) {
-      await db.deleteWhere('customer_id_pool', 'id = ?', [raw]);
+      await db.deleteWhere('customer_id_pool', 'id = ?', [normalized]);
     }
-    final n = int.tryParse(raw);
-    if (n != null && n > 0) {
-      await db.setSetting('customer_id_next', '${n + 1}');
-    }
-    return raw;
+    await db.setSetting('customer_id_next', normalized);
+    return normalized;
   }
 
   /// Puts a customer's ID back into the freed pool (called on delete) so the
@@ -313,6 +376,48 @@ class AppState extends ChangeNotifier {
       }
     } catch (error) {
       debugPrint('backfill customer ids failed: $error');
+    }
+  }
+
+  /// v1.0.9: IDs used to be plain numbers (1, 2, 3 …). The shop's book scheme
+  /// is A-01 … Z-99 → A-001 …, so any legacy numeric ID is re-issued once, in
+  /// customer order. A no-op on every start-up after the first run.
+  Future<void> migrateCustomerIdScheme() async {
+    try {
+      if (await db.getSetting('customer_id_scheme') == 'book') return;
+      // Full rows: upsert() replaces, so a partial row would wipe the customer.
+      final rows =
+          await db.query('customers', orderBy: 'updated_at asc');
+      final legacy = rows
+          .where((r) => _parseBookId(r['customer_id']?.toString() ?? '') == null)
+          .toList();
+      if (legacy.isEmpty) {
+        await db.setSetting('customer_id_scheme', 'book');
+        return;
+      }
+      final used = <String>{
+        for (final r in rows)
+          if (_parseBookId(r['customer_id']?.toString() ?? '') != null)
+            (r['customer_id']?.toString() ?? '').toUpperCase()
+      };
+      var cursor = _highestBookId(used) ?? (2, 0, 0);
+      for (final c in legacy) {
+        var next = _bookSuccessor(cursor.$1, cursor.$2, cursor.$3);
+        var id = _formatBookId(next.$1, next.$2, next.$3);
+        while (used.contains(id)) {
+          next = _bookSuccessor(next.$1, next.$2, next.$3);
+          id = _formatBookId(next.$1, next.$2, next.$3);
+        }
+        cursor = next;
+        used.add(id);
+        await db.upsert('customers',
+            {...c, 'customer_id': id, 'dirty': 1});
+      }
+      await db.setSetting(
+          'customer_id_next', _formatBookId(cursor.$1, cursor.$2, cursor.$3));
+      await db.setSetting('customer_id_scheme', 'book');
+    } catch (error) {
+      debugPrint('customer id scheme migration failed: $error');
     }
   }
 
