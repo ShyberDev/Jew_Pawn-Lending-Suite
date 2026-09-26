@@ -22,7 +22,7 @@ class LocalDb {
         : p.join(await getDatabasesPath(), 'jewellery_suite.db');
     _db = await openDatabase(
       file,
-      version: 5,
+      version: 7,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -92,10 +92,52 @@ class LocalDb {
         )
       ''');
     }
+    if (oldVersion < 6) {
+      // v6: khata customer IDs (order-wise A-01…A-99 → B-01… → Z-99 →
+      // A-001…), a pool of freed IDs (deleted customers reuse them), and a
+      // pawn transaction ledger (Amount Paying / Amount Requesting /
+      // Interest Paid / Release with dual dates).
+      try {
+        await db
+            .execute('ALTER TABLE customers ADD COLUMN customer_id TEXT');
+      } catch (_) {/* column already present */}
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS customer_id_pool (
+          id TEXT PRIMARY KEY, freed_at TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS pawn_transactions (
+          client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
+          pawn_loan TEXT, customer TEXT, customer_name TEXT,
+          tx_date TEXT, effective_date TEXT, tx_type TEXT,
+          amount REAL, principal_part REAL, interest_part REAL,
+          notes TEXT, updated_at TEXT
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_pawn_tx_loan '
+          'ON pawn_transactions(pawn_loan)');
+    }
+    if (oldVersion < 7) {
+      // v7: bank / UPI QR codes for the shop (add from gallery, swipe between).
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS qr_codes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, path TEXT,
+          created_at TEXT
+        )
+      ''');
+    }
   }
 
   Future<void> _create(Database db, int version) async {
     await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)');
+
+    await db.execute('''
+      CREATE TABLE qr_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, path TEXT,
+        created_at TEXT
+      )
+    ''');
 
     await db.execute('''
       CREATE TABLE villages (
@@ -113,7 +155,8 @@ class LocalDb {
         address TEXT, status TEXT, id_proof_type TEXT, id_proof_number TEXT,
         rating TEXT, gold_interest_rate REAL, silver_interest_rate REAL,
         khatabook_interest_rate REAL, notes TEXT, photo_path TEXT, updated_at TEXT,
-        id_photo_front TEXT, id_photo_back TEXT, reminder_date TEXT
+        id_photo_front TEXT, id_photo_back TEXT, reminder_date TEXT,
+        customer_id TEXT
       )
     ''');
 
@@ -182,6 +225,16 @@ class LocalDb {
     ''');
 
     await db.execute('''
+      CREATE TABLE pawn_transactions (
+        client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
+        pawn_loan TEXT, customer TEXT, customer_name TEXT,
+        tx_date TEXT, effective_date TEXT, tx_type TEXT,
+        amount REAL, principal_part REAL, interest_part REAL,
+        notes TEXT, updated_at TEXT
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE khatabook_refinances (
         client_uuid TEXT PRIMARY KEY, server_name TEXT, dirty INTEGER DEFAULT 1,
         khatabook_loan TEXT, customer TEXT, refinance_date TEXT,
@@ -212,7 +265,15 @@ class LocalDb {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE customer_id_pool (
+        id TEXT PRIMARY KEY, freed_at TEXT
+      )
+    ''');
+
     await db.execute('CREATE INDEX idx_pawn_items_loan ON pawn_items(loan_uuid)');
+    await db.execute(
+        'CREATE INDEX idx_pawn_tx_loan ON pawn_transactions(pawn_loan)');
   }
 
   // ---------------------------------------------------------------- settings
@@ -233,9 +294,14 @@ class LocalDb {
     List<Object?>? whereArgs,
     String? orderBy,
     int? limit,
+    List<String>? columns,
   }) {
     return db.query(table,
-        where: where, whereArgs: whereArgs, orderBy: orderBy, limit: limit);
+        where: where,
+        whereArgs: whereArgs,
+        orderBy: orderBy,
+        limit: limit,
+        columns: columns);
   }
 
   Future<Map<String, Object?>?> byUuid(String table, String uuid) async {

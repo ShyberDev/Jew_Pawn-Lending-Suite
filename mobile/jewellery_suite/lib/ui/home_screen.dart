@@ -3,16 +3,18 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'about_app_screen.dart';
 import 'customers_screen.dart';
 import 'history_screen.dart';
+import 'interest_calculator_screen.dart';
 import 'khata_screen.dart';
+import 'palette.dart';
 import 'pawn_screen.dart';
+import 'photo_local.dart';
 import 'reports_screen.dart';
+import 'settings_screen.dart';
 import 'sync_screen.dart';
-
-const kBg = Color(0xFFEFECE4);
-const kGold = Color(0xFFC9A227);
-const kInk = Color(0xFF2B2B2B);
+import 'user_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -47,12 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _comingSoon() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(
-        content: Text('Coming in a later release'),
-        duration: Duration(seconds: 1),
-      ));
+    comingSoon(context);
+  }
+
+  /// Coming-soon used inside the side drawer: close the drawer first so the
+  /// snackbar is actually visible.
+  void _drawerComingSoon() {
+    Navigator.pop(context);
+    comingSoon(context);
   }
 
   String get _greeting {
@@ -77,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final state = context.watch<AppState>();
     return Scaffold(
       backgroundColor: kBg,
+      drawer: _buildDrawer(state),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refresh,
@@ -93,14 +98,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: CircularProgressIndicator(color: kGold)),
                 )
               else ...[
-                _kpiStrip(state),
-                const SizedBox(height: 22),
+                _kpiStrip(),
+                const SizedBox(height: 18),
                 _sectionTitle('Core Modules'),
-                const SizedBox(height: 8),
-                _modulesGrid(state),
-                const SizedBox(height: 22),
+                const SizedBox(height: 6),
+                _modulesGrid(),
+                const SizedBox(height: 18),
                 _sectionTitle('More'),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _moreRow(state),
               ],
             ],
@@ -110,9 +115,177 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Left side-dashboard (opens from the Home button). Payments/QR first,
+  /// then User Details, Customers, Sync, Settings, appearance & system
+  /// settings, About App, Help & Support, and Logout at the bottom.
+  Widget _buildDrawer(AppState state) {
+    void go(Widget screen) {
+      Navigator.pop(context);
+      _open(screen);
+    }
+
+    Widget sec(String label) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+          child: Text(label.toUpperCase(),
+              style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                  color: Color(0xFF8A6D14))),
+        );
+
+    Widget tile(IconData icon, String title, VoidCallback onTap,
+        {String? subtitle,
+        Widget? trailing,
+        Color? color}) {
+      return ListTile(
+        dense: true,
+        leading: Icon(icon, size: 22, color: color ?? kGoldDark),
+        title: Text(title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        subtitle: subtitle == null
+            ? null
+            : Text(subtitle, style: const TextStyle(fontSize: 11)),
+        trailing: trailing ?? const Icon(Icons.chevron_right, size: 20),
+        onTap: onTap,
+      );
+    }
+
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: kGold.withValues(alpha: .16),
+                    backgroundImage: state.userPhoto.isNotEmpty
+                        ? photoProvider(state.userPhoto)
+                        : null,
+                    child: state.userPhoto.isEmpty
+                        ? const Icon(Icons.diamond_outlined,
+                            size: 22, color: kGoldDark)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Jewellery Suite',
+                            style: TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.w800)),
+                        Text(
+                          state.userName.isNotEmpty
+                              ? state.userName
+                              : 'Version 1.0.8 • user details',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: .55)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            // Payments first — QR codes (PhonePe-style), then the user's own
+            // details, then the ordered system list, and logout at the bottom.
+            sec('Payments'),
+            tile(Icons.qr_code_2, 'QR codes',
+                () => go(const QrCodesScreen()),
+                subtitle: 'Bank / UPI QR codes'),
+            sec('User Details'),
+            tile(Icons.person_outline, 'User Details',
+                () => go(const UserDetailsScreen()),
+                subtitle: 'Photo, phone, email'),
+            sec('Preferences'),
+            tile(Icons.language, 'Languages', _drawerComingSoon),
+            tile(Icons.notifications_outlined, 'Notifications',
+                _drawerComingSoon),
+            tile(Icons.alarm, 'Reminders', _drawerComingSoon),
+            SwitchListTile(
+              secondary: const Icon(Icons.brightness_6_outlined,
+                  color: kGoldDark),
+              title: const Text('Dark mode (Beta)',
+                  style: TextStyle(fontSize: 14)),
+              subtitle: const Text('Beta — not applied everywhere yet'),
+              value: state.darkMode,
+              onChanged: (v) => state.setDarkMode(v),
+            ),
+            tile(Icons.settings_outlined, 'Settings',
+                () => go(const SettingsScreen()),
+                subtitle: 'Zoom, appearance & more'),
+            sec('General'),
+            tile(Icons.people_outline, 'Customers',
+                () => go(const CustomersScreen()),
+                subtitle: '${_stats['customers'] ?? 0} saved'),
+            tile(Icons.sync, 'Sync', () => go(const SyncScreen()),
+                subtitle: state.pending > 0
+                    ? '${state.pending} change(s) waiting'
+                    : 'All changes synced'),
+            sec('Admin'),
+            SwitchListTile(
+              secondary:
+                  const Icon(Icons.admin_panel_settings_outlined, color: kGoldDark),
+              title: const Text('Ask password for delete / release',
+                  style: TextStyle(fontSize: 14)),
+              subtitle: const Text('Stop accidental deletes (admin)'),
+              value: state.adminConfirm,
+              onChanged: (v) => state.setAdminConfirm(v),
+            ),
+            sec('System'),
+            tile(Icons.fingerprint, 'Biometric & screen lock',
+                _drawerComingSoon),
+            tile(Icons.lock_outline, 'Change password', _drawerComingSoon),
+            tile(Icons.info_outline, 'About App',
+                () => go(const AboutAppScreen()),
+                subtitle: 'Version 1.0.8, size & data'),
+            tile(Icons.support_agent, 'Help & Support', _drawerComingSoon),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: kRed),
+              title: const Text('Logout',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: kRed)),
+              onTap: () => state.logout(),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _header(AppState state) {
+    // Home button: the user's profile photo if one was uploaded, else the
+    // home icon. It opens the side dashboard.
     return Row(
       children: [
+        GestureDetector(
+          onTap: () => Scaffold.of(context).openDrawer(),
+          child: CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.white,
+            backgroundImage: state.userPhoto.isNotEmpty
+                ? photoProvider(state.userPhoto)
+                : null,
+            child: state.userPhoto.isEmpty
+                ? const Icon(Icons.home, color: kInk, size: 22)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,20 +334,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 },
         ),
-        const SizedBox(width: 6),
-        _roundIcon(const Icon(Icons.logout, color: kInk),
-            onTap: () => state.logout()),
       ],
     );
   }
 
-  Widget _kpiStrip(AppState state) {
+  Widget _kpiStrip() {
     final kpi = <(IconData, String, String)>[
       (Icons.today_outlined, 'Collected today',
           '₹${moneyWhole(_stats['collected_today'] as num?)}'),
       (Icons.account_balance_outlined, 'Pawn outstanding',
           '₹${moneyWhole(_stats['pawn_out'] as num?)}'),
-      (Icons.account_balance_wallet_outlined, 'Active pawns',
+      (Icons.account_balance_wallet_outlined, 'Pawns',
           '${_stats['active_pawn'] ?? 0}'),
       (Icons.menu_book_outlined, 'Active khata',
           '${_stats['khatabook_active'] ?? 0}'),
@@ -183,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 3.1,
+      childAspectRatio: 2.4,
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
       children: [
@@ -230,70 +400,60 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Color(0xFF8A6D14)));
   }
 
-  Widget _modulesGrid(AppState state) {
-    final pawnOut = (Num.toDouble(_stats['pawn_payable'] as num?) -
-            Num.toDouble(_stats['pawn_paid'] as num?))
-        .clamp(0.0, double.infinity);
-    final modules = <(IconData, String, String, VoidCallback)>[
+  /// Core modules: logo + name only, all the SAME smaller size.
+  Widget _modulesGrid() {
+    final modules = <(IconData, String, VoidCallback)>[
       (Icons.menu_book_outlined, 'Khatabook',
-          'Investment ₹${moneyWhole(_stats['khatabook_principal'] as num?)} · '
-              'Outstanding ₹${moneyWhole(_stats['khatabook_outstanding'] as num?)}',
           () => _open(const KhataGroupsScreen())),
       (Icons.account_balance_outlined, 'Pawn Loans',
-          '${_stats['active_pawn'] ?? 0} active · '
-              'Investment ₹${moneyWhole(_stats['pawn_out'] as num?)} · '
-              'Outstanding ₹${moneyWhole(pawnOut)}',
           () => _open(const PawnScreen())),
-      (Icons.diamond_outlined, 'Jewellery', 'Coming soon', _comingSoon),
-      (Icons.history, 'History',
-          'Recent activity & deletions',
-          () => _open(const HistoryScreen())),
+      (Icons.account_balance_wallet_outlined, 'Cashbook', _comingSoon),
+      (Icons.diamond_outlined, 'Jewellery', _comingSoon),
     ];
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.25,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
+      childAspectRatio: 1.45,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
       children: [
-        for (final (icon, title, subtitle, onTap) in modules)
-          _moduleCard(icon, title, subtitle, onTap),
+        for (final (icon, title, onTap) in modules)
+          _moduleCard(icon, title, onTap),
       ],
     );
   }
 
-  Widget _moduleCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
+  Widget _moduleCard(IconData icon, String title, VoidCallback onTap) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(6),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: kGold.withValues(alpha: .14),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 20, color: const Color(0xFF9A7B10)),
+                child: Icon(icon, size: 17, color: const Color(0xFF9A7B10)),
               ),
-              const Spacer(),
+              const SizedBox(height: 4),
               Text(title,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: kInk)),
-              const SizedBox(height: 1),
-              Text(subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 10.5, color: kInk.withValues(alpha: .5))),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: kInk)),
             ],
           ),
         ),
@@ -303,16 +463,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _moreRow(AppState state) {
     final rows = <(IconData, String, String, VoidCallback)>[
-      (Icons.people_outline, 'Customers',
-          '${_stats['customers'] ?? 0} saved',
-          () => _open(const CustomersScreen())),
       (Icons.bar_chart_outlined, 'Reports',
           'Khata & Pawn reports', () => _open(const ReportsScreen())),
-      (Icons.sync, 'Sync',
-          state.pending > 0
-              ? '${state.pending} change(s) waiting'
-              : 'All changes synced',
-          () => _open(const SyncScreen())),
+      (Icons.history, 'History',
+          'Recent activity & deletions', () => _open(const HistoryScreen())),
+      (Icons.calculate_outlined, 'Interest Calculator',
+          'Quick interest & total estimate',
+          () => _open(const InterestCalculatorScreen())),
+      (Icons.settings_outlined, 'Settings',
+          'Zoom, appearance, QR codes & more',
+          () => _open(const SettingsScreen())),
     ];
     return Column(
       children: [

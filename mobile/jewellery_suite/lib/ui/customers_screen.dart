@@ -129,6 +129,7 @@ class _CustomerFormState extends State<CustomerForm> {
   late final TextEditingController _phone;
   late final TextEditingController _address;
   late final TextEditingController _idNumber;
+  late final TextEditingController _customerId;
   String _type = 'General';
   String _idType = 'Aadhaar';
   String? _village;
@@ -145,6 +146,7 @@ class _CustomerFormState extends State<CustomerForm> {
     _phone = TextEditingController(text: e?['phone']?.toString());
     _address = TextEditingController(text: e?['address']?.toString());
     _idNumber = TextEditingController(text: e?['id_proof_number']?.toString());
+    _customerId = TextEditingController(text: e?['customer_id']?.toString());
     _type = (e?['customer_type'] as String?) ?? widget.initialType ?? 'General';
     _idType = (e?['id_proof_type'] as String?) ?? 'Aadhaar';
     _village = (e?['village'] as String?) ?? widget.initialVillage;
@@ -155,7 +157,7 @@ class _CustomerFormState extends State<CustomerForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _phone, _address, _idNumber]) {
+    for (final c in [_name, _phone, _address, _idNumber, _customerId]) {
       c.dispose();
     }
     super.dispose();
@@ -177,6 +179,38 @@ class _CustomerFormState extends State<CustomerForm> {
       'id_photo_back': _idBack,
       'status': 'Active',
     };
+    if (widget.existing == null) {
+      // v1.0.8+: numeric book sequence. Typed start (e.g. 5102) used as-is and
+      // the next customer continues 5103…; blank = auto from the sequence.
+      try {
+        data['customer_id'] =
+            await state.claimCustomerId(_customerId.text);
+      } on StateError catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(e.message)));
+        }
+        return;
+      }
+    } else {
+      // Editable ID: if the number changed, free the old one (reusable) and
+      // re-seed the auto sequence from the new one.
+      final oldId = widget.existing!['customer_id']?.toString() ?? '';
+      final newId = _customerId.text.trim();
+      if (newId.isNotEmpty && newId != oldId) {
+        try {
+          data['customer_id'] =
+              await state.claimCustomerId(newId, excludeUuid: _uuid);
+        } on StateError catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(e.message)));
+          }
+          return;
+        }
+        await state.freeCustomerId(oldId);
+      }
+    }
     await state.saveEntity(
         table: 'customers', doctype: 'Pawn Customer', uuid: _uuid, data: data);
     for (final entry in {
@@ -260,6 +294,27 @@ class _CustomerFormState extends State<CustomerForm> {
                 keyboardType: TextInputType.phone,
                 decoration: fieldDecoration('Phone'),
               ),
+              const SizedBox(height: 10),
+              // v1.0.8+: customer ID — typed start continues the sequence,
+              // blank = auto next number. Editable to fix a wrong entry.
+              TextFormField(
+                controller: _customerId,
+                keyboardType: TextInputType.number,
+                decoration: fieldDecoration(
+                  'Customer ID',
+                  hint: widget.existing == null
+                      ? 'Leave blank for next number'
+                      : 'New book start number',
+                ),
+              ),
+              if (widget.existing == null) ...[
+                const SizedBox(height: 4),
+                const Text(
+                  'Type a number to start a new book (e.g. 5102) — next '
+                  'customers continue 5103, 5104…',
+                  style: TextStyle(fontSize: 10.5, color: Color(0xFF8A6D14)),
+                ),
+              ],
               const SizedBox(height: 10),
               Row(
                 children: [

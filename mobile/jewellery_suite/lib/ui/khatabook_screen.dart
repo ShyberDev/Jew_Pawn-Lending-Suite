@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
+import 'palette.dart';
 import 'widgets.dart';
 
 class KhatabookScreen extends StatefulWidget {
@@ -350,6 +351,9 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
   String? _customerName;
   String? _village;
 
+  /// When the loan was actually given — default today, back-datable.
+  DateTime _loanDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -387,7 +391,8 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
         'customer_name': _customerName,
         'village': _village,
         'status': 'Active',
-        'loan_date': todayIso(),
+        'loan_date': _loanDate.toIso8601String().substring(0, 10),
+        'start_date': _loanDate.toIso8601String().substring(0, 10),
         'principal_amount': principal,
         'interest_amount': interest,
         'total_payable': total,
@@ -445,6 +450,38 @@ class _KhatabookLoanFormState extends State<KhatabookLoanForm> {
                   ),
                 ]),
                 SectionCard(title: 'Loan terms', children: [
+                  // v1.0.8: back-datable "loan given on" date.
+                  Row(children: [
+                    const Icon(Icons.event, size: 18, color: kGoldDark),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Given on ${fmtDate(_loanDate)}',
+                        style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: kGoldDark),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _loanDate,
+                          firstDate: DateTime(2015),
+                          lastDate: DateTime(2100),
+                          helpText: 'Date the loan was given',
+                        );
+                        if (d != null) {
+                          setState(() => _loanDate =
+                              DateTime(d.year, d.month, d.day));
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_month, size: 18),
+                      label: const Text('Change'),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
                   Row(children: [
                     Expanded(
                         child: TextFormField(

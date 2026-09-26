@@ -103,6 +103,9 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
   int _totalMembers = 0;
   int _overdueToday = 0;
 
+  /// True while a khata tile is being dragged (shows the trash bin).
+  bool _dragActive = false;
+
   @override
   void initState() {
     super.initState();
@@ -207,32 +210,49 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        color: kGold,
-        onRefresh: _refresh,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: kGold))
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _summaryCard(),
-                  const SizedBox(height: 14),
-                  Text('YOUR KHATAS'.toUpperCase(),
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
-                          color: Color(0xFF8A6D14))),
-                  const SizedBox(height: 8),
-                  if (_khatas.isEmpty)
-                    const _EmptyState(
-                        icon: Icons.menu_book_outlined,
-                        message:
-                            'No khatas yet. Tap + to create one (village, personal or business).')
-                  else
-                    for (final k in _khatas) _khataRow(k),
-                ],
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            color: kGold,
+            onRefresh: _refresh,
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: kGold))
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+                    children: [
+                      _summaryCard(),
+                      const SizedBox(height: 14),
+                      Text('YOUR KHATAS'.toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: Color(0xFF8A6D14))),
+                      const SizedBox(height: 8),
+                      if (_khatas.isEmpty)
+                        const _EmptyState(
+                            icon: Icons.menu_book_outlined,
+                            message:
+                                'No khatas yet. Tap + to create one (village, personal or business).')
+                      else
+                        for (final k in _khatas) _khataRow(k),
+                    ],
+                  ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: DeleteTrashTarget(
+                visible: _dragActive,
+                onDrop: (p) async {
+                  setState(() => _dragActive = false);
+                  return p.drop();
+                },
               ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -326,7 +346,24 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
             ? Icons.storefront_outlined
             : Icons.location_on_outlined;
     final overdue = (k['overdue'] as int? ?? 0);
-    return Padding(
+    return DragToDeleteTile(
+      onDragChanged: (v) => setState(() => _dragActive = v),
+      payload: DeletePayload(
+        drop: () async {
+          var granted = true;
+          if (context.read<AppState>().adminConfirm) {
+            granted = await _adminDeleteDialog(
+                context, k['name']?.toString() ?? '');
+          }
+          if (granted != true) {
+            _toast(context, 'Delete cancelled / wrong password.');
+            return false;
+          }
+          await _performDeleteKhata(k);
+          return true;
+        },
+      ),
+      child: Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
@@ -392,18 +429,6 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    iconSize: 17,
-                    tooltip: 'Delete ${k['name']}',
-                    icon: Icon(Icons.delete_outline,
-                        color: kRed.withValues(alpha: .75)),
-                    onPressed: () => _confirmDeleteKhata(k),
-                  ),
-                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -437,18 +462,14 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 
-  /// Deletes a whole khata (village) with its customers, loans, collections,
-  /// givens and refinances — guarded by the admin password.
-  Future<void> _confirmDeleteKhata(Map<String, Object?> k) async {
+  /// Performs the khata deletion (called after the admin gate): removes its
+  /// customers, loans, collections, givens, refinances and frees member IDs.
+  Future<void> _performDeleteKhata(Map<String, Object?> k) async {
     final name = k['name']?.toString() ?? '';
-    final granted = await _adminDeleteDialog(context, name);
-    if (granted != true) {
-      _toast(context, 'Delete cancelled / wrong password.');
-      return;
-    }
     final state = context.read<AppState>();
     final db = state.db;
     // Find the khata's customers (General = customers without a village).
@@ -461,6 +482,8 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
     for (final c in customers) {
       final cn = c['customer_name']?.toString() ?? '';
       final cu = c['client_uuid'];
+      // v1.0.8: free the customer ID so the next new customer reuses it.
+      await state.freeCustomerId(c['customer_id']?.toString());
       final loans = await db.query('khatabook_loans',
           where: 'customer = ? OR customer_name = ?', whereArgs: [cu, cn]);
       for (final l in loans) {
@@ -663,6 +686,9 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   String _search = '';
   _MemberFilter _filter = _MemberFilter.all;
 
+  /// True while a member tile is being dragged (shows the trash bin).
+  bool _dragActive = false;
+
   Future<List<Map<String, Object?>>> _load() {
     final db = context.read<AppState>().db;
     if (_search.trim().isNotEmpty) {
@@ -841,19 +867,37 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                     ),
                   ),
                   Expanded(
-                    child: visible.isEmpty
-                        ? const _EmptyState(
-                            icon: Icons.people_outline,
-                            message:
-                                'No members match. Tap Add Member to start a khata.')
-                        : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
-                            itemCount: visible.length,
-                            separatorBuilder: (_, __) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) =>
-                                _rowTile(visible[index]),
+                    child: Stack(
+                      children: [
+                        visible.isEmpty
+                            ? const _EmptyState(
+                                icon: Icons.people_outline,
+                                message:
+                                    'No members match. Tap Add Member to start a khata.')
+                            : ListView.separated(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 8, 12, 140),
+                                itemCount: visible.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) =>
+                                    _rowTile(visible[index]),
+                              ),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: DeleteTrashTarget(
+                              visible: _dragActive,
+                              onDrop: (p) async {
+                                setState(() => _dragActive = false);
+                                return p.drop();
+                              },
+                            ),
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               );
@@ -952,7 +996,24 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                 ? LoanBucket.upcoming
                 : LoanBucket.onSchedule;
     final chip = _bucketChip(bucket, r.lateDays, r.nextDue);
-    return InkWell(
+    return DragToDeleteTile(
+      onDragChanged: (v) => setState(() => _dragActive = v),
+      payload: DeletePayload(
+        drop: () async {
+          var granted = true;
+          if (context.read<AppState>().adminConfirm) {
+            granted = await _adminDeleteDialog(
+                context, c['customer_name']?.toString() ?? '');
+          }
+          if (granted != true) {
+            _toast(context, 'Delete cancelled / wrong password.');
+            return false;
+          }
+          await _performDeleteMember(c);
+          return true;
+        },
+      ),
+      child: InkWell(
       onTap: () async {
         await Navigator.push(
           context,
@@ -979,6 +1040,8 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                   const SizedBox(height: 2),
                   Text(
                     [
+                      if ((c['customer_id']?.toString() ?? '').isNotEmpty)
+                        'ID ${c['customer_id']}',
                       if (_khataOf(c) != null) _khataOf(c)!,
                       if (c['phone'] != null) c['phone'].toString(),
                     ].join(' · '),
@@ -1039,36 +1102,22 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 4),
-            SizedBox(
-              width: 30,
-              height: 30,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                iconSize: 17,
-                tooltip: 'Delete ${c['customer_name'] ?? ''}',
-                icon: Icon(Icons.delete_outline,
-                    color: kRed.withValues(alpha: .75)),
-                onPressed: () => _confirmDeleteMember(c),
-              ),
-            ),
           ],
         ),
+      ),
       ),
     );
   }
 
-  /// Deletes a customer from the khata list — guarded by the admin password.
-  Future<void> _confirmDeleteMember(Map<String, Object?> c) async {
-    final name = c['customer_name']?.toString() ?? '';
-    final granted = await _adminDeleteDialog(context, name);
-    if (granted != true) {
-      _toast(context, 'Delete cancelled / wrong password.');
-      return;
-    }
+  /// Performs the member deletion (called after the admin gate): removes the
+  /// customer, their loans/collections/givens/refinances and frees the ID.
+  Future<void> _performDeleteMember(Map<String, Object?> c) async {
     final state = context.read<AppState>();
     final db = state.db;
+    final name = c['customer_name']?.toString() ?? '';
     final uuid = c['client_uuid'];
+    // v1.0.8: free the customer ID so the next new customer reuses it.
+    await state.freeCustomerId(c['customer_id']?.toString());
     final loans = await db.query('khatabook_loans',
         where: 'customer = ? OR customer_name = ?', whereArgs: [uuid, name]);
     var deleted = 0.0;
