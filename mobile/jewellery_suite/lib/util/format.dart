@@ -133,6 +133,14 @@ String weeksLateWording(int days) {
       ' $rem Week${rem == 1 ? '' : 's'} Due';
 }
 
+/// Parses an amount the way shopkeepers type it: strips ₹ and commas from
+/// Indian grouping ("10,000" -> 10000.0). Returns 0.0 when unparseable.
+/// Prevents silent save failures on pre-filled edit fields.
+double parseMoney(Object? value) {
+  final s = value?.toString().replaceAll(RegExp(r'[₹,\s]'), '');
+  return double.tryParse(s ?? '') ?? 0;
+}
+
 /// Parse ISO date ("2026-08-16") or datetime ("2026-08-16T08:03:00") strings.
 DateTime? parseIso(Object? value) {
   if (value == null) return null;

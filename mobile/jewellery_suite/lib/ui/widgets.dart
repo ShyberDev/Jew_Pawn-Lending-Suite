@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'palette.dart';
 import 'photo_local.dart';
 
 /// Returns a [FileImage] when [path] exists on disk (mobile only).
@@ -139,4 +140,122 @@ Future<bool> confirmDialog(BuildContext context, String message,
     ),
   );
   return result ?? false;
+}
+
+// ---------------------------------------------------------------------------
+// Drag-to-delete (v1.0.8): long-press a tile to lift it, drag it onto the
+// bottom trash bin and the bin runs the tile's delete action. Long-pressing
+// alone never deletes (pocket-safe).
+// ---------------------------------------------------------------------------
+
+/// What a dragged tile does when dropped on the trash bin. Each screen builds
+/// its own payload so deleting a khata / member / ledger row can show its own
+/// confirmation (admin password for khata + members, none for ledger rows).
+class DeletePayload {
+  const DeletePayload({required this.drop});
+
+  /// Performs the delete. Return true when actually deleted.
+  final Future<bool> Function() drop;
+}
+
+/// Wraps a tile so it can be lifted with a long-press and dragged to the bin.
+class DragToDeleteTile extends StatelessWidget {
+  const DragToDeleteTile({
+    super.key,
+    required this.payload,
+    required this.child,
+    this.onDragChanged,
+  });
+
+  final DeletePayload payload;
+  final Widget child;
+
+  /// Called with true when a drag starts and false when it ends, so the
+  /// screen can show/hide the trash bin.
+  final ValueChanged<bool>? onDragChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LongPressDraggable<DeletePayload>(
+      data: payload,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      onDragStarted: () => onDragChanged?.call(true),
+      onDragEnd: (_) => onDragChanged?.call(false),
+      onDraggableCanceled: (_, __) => onDragChanged?.call(false),
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      feedback: Material(
+        elevation: 10,
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.transparent,
+        child: Opacity(opacity: 0.92, child: child),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Bottom-centre trash bin. Sit it in a `Stack` (e.g. `Align(
+/// alignment: Alignment.bottomCenter, child: DeleteTrashTarget(...))`).
+/// It stays invisible until a drag starts, then slides up; hovering a dragged
+/// tile over it turns it red.
+class DeleteTrashTarget extends StatelessWidget {
+  const DeleteTrashTarget({
+    super.key,
+    required this.visible,
+    required this.onDrop,
+  });
+
+  final bool visible;
+  final Future<bool> Function(DeletePayload) onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 160),
+        child: AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, 1.2),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: DragTarget<DeletePayload>(
+            onWillAcceptWithDetails: (_) => true,
+            onAcceptWithDetails: (details) => onDrop(details.data),
+            builder: (context, candidates, _) {
+              final hot = candidates.isNotEmpty;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+                decoration: BoxDecoration(
+                  color: hot ? kRed : kGoldDark,
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: .25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(hot ? Icons.delete : Icons.delete_outline,
+                        color: Colors.white, size: 30),
+                    const SizedBox(width: 10),
+                    Text(
+                      hot ? 'Release to delete' : 'Drag here to delete',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
+import 'customers_screen.dart';
 import 'palette.dart';
 import 'pawn_dashboard_screen.dart';
 import 'reports_screen.dart';
@@ -24,6 +25,7 @@ class PawnScreen extends StatefulWidget {
 class _PawnScreenState extends State<PawnScreen> {
   String _search = '';
   late String _filter = widget.filter ?? 'All';
+  bool _dragActive = false;
 
   Future<List<Map<String, Object?>>> _load() {
     final db = context.read<AppState>().db;
@@ -128,60 +130,119 @@ class _PawnScreenState extends State<PawnScreen> {
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<Map<String, Object?>>>(
-              future: _load(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                      child: CircularProgressIndicator(color: kGold));
-                }
-                final rows = snapshot.data!;
-                if (rows.isEmpty) {
-                  return const Center(child: Text('No pawn loans here.'));
-                }
-                return ListView.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    final status = row['status']?.toString() ?? 'Active';
-                    final released = status == 'Released';
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: released
-                            ? kGreenSoft
-                            : kGold.withValues(alpha: .25),
-                        child: Icon(
-                            released ? Icons.check : Icons.lock_clock,
-                            size: 20,
-                            color: released ? kGreen : kGoldDark),
-                      ),
-                      title: Text(row['customer_name']?.toString() ?? '-'),
-                      subtitle: Text(
-                          '${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(status,
-                              style: TextStyle(
-                                  color:
-                                      released ? kGreen : kGoldDark,
-                                  fontWeight: FontWeight.w600)),
-                          if (row['server_name'] == null)
-                            const Icon(Icons.cloud_upload_outlined, size: 16),
-                        ],
-                      ),
-                      onTap: () => _openDetail(row),
+            child: Stack(
+              children: [
+                FutureBuilder<List<Map<String, Object?>>>(
+                  future: _load(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(
+                          child: CircularProgressIndicator(color: kGold));
+                    }
+                    final rows = snapshot.data!;
+                    if (rows.isEmpty) {
+                      return const Center(child: Text('No pawn loans here.'));
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 120),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final status = row['status']?.toString() ?? 'Active';
+                        final released = status == 'Released';
+                        return DragToDeleteTile(
+                          onDragChanged: (v) =>
+                              setState(() => _dragActive = v),
+                          payload: DeletePayload(
+                            drop: () => _deleteLoan(row),
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: released
+                                  ? kGreenSoft
+                                  : kGold.withValues(alpha: .25),
+                              child: Icon(
+                                  released ? Icons.check : Icons.lock_clock,
+                                  size: 20,
+                                  color: released ? kGreen : kGoldDark),
+                            ),
+                            title:
+                                Text(row['customer_name']?.toString() ?? '-'),
+                            subtitle: Text(
+                                '${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(status,
+                                    style: TextStyle(
+                                        color:
+                                            released ? kGreen : kGoldDark,
+                                        fontWeight: FontWeight.w600)),
+                                if (row['server_name'] == null)
+                                  const Icon(Icons.cloud_upload_outlined,
+                                      size: 16),
+                              ],
+                            ),
+                            onTap: () => _openDetail(row),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: DeleteTrashTarget(
+                      visible: _dragActive,
+                      onDrop: (p) async {
+                        setState(() => _dragActive = false);
+                        return p.drop();
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Whole pawn loan deletion (admin-gated when the Admin setting is on).
+  /// Removes the loan plus its items, transactions, releases and payment rows.
+  Future<bool> _deleteLoan(Map<String, Object?> row) async {
+    final state = context.read<AppState>();
+    var granted = true;
+    if (state.adminConfirm) {
+      granted = await _adminDeleteDialog(
+          context, row['customer_name']?.toString() ?? 'pawn loan');
+      if (granted != true) {
+        _toast(context, 'Delete cancelled / wrong password.');
+        return false;
+      }
+    }
+    final db = state.db;
+    final uuid = row['client_uuid'] as String?;
+    final ref = (row['server_name'] as String?) ?? uuid;
+    if (uuid == null) return false;
+    await db.delete('pawn_loans',
+        where: 'client_uuid = ?', whereArgs: [uuid]);
+    await db.delete('pawn_items',
+        where: 'loan_uuid = ?', whereArgs: [uuid]);
+    await db.delete('pawn_transactions',
+        where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+    await db.delete('pawn_releases',
+        where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+    await state.logEvent('pawn', 'delete',
+        'Pawn loan deleted — ${row['customer_name'] ?? ''}',
+        amount: Num.toDouble(row['loan_amount']));
+    if (mounted) setState(() {});
+    return true;
   }
 
   Widget _summaryStrip() {
@@ -257,7 +318,7 @@ class _PawnScreenState extends State<PawnScreen> {
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                             color: Colors.white)),
-                    Text('Active pawns',
+                    Text('Pawns',
                         style: TextStyle(
                             fontSize: 10,
                             color: Colors.white.withValues(alpha: .75))),
@@ -323,11 +384,16 @@ class _PawnDetail extends StatefulWidget {
 
 class _PawnDetailState extends State<_PawnDetail> {
   List<Map<String, Object?>> _items = [];
+  List<Map<String, Object?>> _transactions = [];
+  late Map<String, Object?> _loan;
+  bool _dragActive = false;
 
   @override
   void initState() {
     super.initState();
+    _loan = widget.loan;
     _loadItems();
+    _loadTransactions();
   }
 
   Future<void> _loadItems() async {
@@ -337,8 +403,440 @@ class _PawnDetailState extends State<_PawnDetail> {
     if (mounted) setState(() => _items = items);
   }
 
+  /// Latest transaction's effective date anchors future interest accrual
+  /// ("new calculations start from that date").
+  DateTime? get _anchorDate {
+    for (final t in _transactions) {
+      final d = DateTime.tryParse(t['effective_date']?.toString() ?? '');
+      if (d != null) return d;
+    }
+    return null;
+  }
+
+  Future<void> _loadTransactions() async {
+    final state = context.read<AppState>();
+    final db = state.db;
+    final ref = (_loan['server_name'] as String?) ?? _loan['client_uuid'];
+    final tx = await db.query('pawn_transactions',
+        where: 'pawn_loan = ?', whereArgs: [ref]);
+    final releases = await db.query('pawn_releases',
+        where: 'pawn_loan = ?', whereArgs: [ref]);
+    final combined = <Map<String, Object?>>[
+      ...tx,
+      for (final r in releases)
+        {
+          'tx_type': 'release',
+          'tx_date': r['release_date'],
+          'effective_date': r['release_date'],
+          'amount': r['total_paid'],
+          'principal_part': r['principal_paid'],
+          'interest_part': r['interest_paid'],
+        },
+    ];
+    combined.sort((a, b) {
+      final da = DateTime.tryParse(a['effective_date']?.toString() ?? '');
+      final dbd = DateTime.tryParse(b['effective_date']?.toString() ?? '');
+      return (dbd ?? DateTime(0)).compareTo(da ?? DateTime(0));
+    });
+    if (mounted) setState(() => _transactions = combined);
+  }
+
+  String _dateOnly(DateTime d) {
+    final m = d.month.toString().padLeft(2, '0');
+    final dd = d.day.toString().padLeft(2, '0');
+    return '${d.year}-$m-$dd';
+  }
+
+  /// Local-only ledger row (no server DocType): records when the change was
+  /// entered (`tx_date`) AND the date it applies from (`effective_date`).
+  Future<void> _recordTransaction({
+    required String type,
+    required double amount,
+    required double principalPart,
+    required double interestPart,
+    required DateTime effective,
+  }) async {
+    final state = context.read<AppState>();
+    await state.db.upsert('pawn_transactions', {
+      'client_uuid': newUuid(),
+      'server_name': null,
+      'dirty': 0,
+      'pawn_loan':
+          (_loan['server_name'] as String?) ?? _loan['client_uuid'],
+      'customer': _loan['client_uuid'],
+      'customer_name': _loan['customer_name'],
+      'tx_date': todayIso(),
+      'effective_date': _dateOnly(effective),
+      'tx_type': type,
+      'amount': Num.money(amount),
+      'principal_part': Num.money(principalPart),
+      'interest_part': Num.money(interestPart),
+      'notes': null,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+    await _loadTransactions();
+  }
+
+  /// Persists the loan change locally and queues a Pawn Loan update so the
+  /// server keeps the same numbers (pull would otherwise overwrite us).
+  Future<void> _applyToLoan(
+    Map<String, Object?> overrides, {
+    required String logKind,
+    required String logTitle,
+    double logAmount = 0,
+  }) async {
+    final state = context.read<AppState>();
+    final uuid = _loan['client_uuid'] as String;
+    final serverName = _loan['server_name'] as String?;
+    final updated = <String, Object?>{
+      ..._loan,
+      ...overrides,
+      'dirty': 1,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    await state.db.upsert('pawn_loans', updated);
+    await state.db.enqueue(
+      op: 'update',
+      doctype: 'Pawn Loan',
+      clientUuid: uuid,
+      data: {
+        ...updated,
+        if (serverName != null) 'name': serverName,
+      },
+    );
+    await state.refreshCounts();
+    await state.logEvent('pawn', logKind, logTitle,
+        amount: logAmount,
+        village: _loan['village']?.toString(),
+        ref: _loan['server_name']?.toString());
+    if (mounted) setState(() => _loan = updated);
+  }
+
+  /// Drag-to-delete for a pawn ITEM: removes the item row and recomputes the
+  /// loan's weight / market value / LTV totals from the remaining items.
+  Future<bool> _deleteItem(Map<String, Object?> item) async {
+    final ok = await confirmDialog(
+      context,
+      'Remove this item from the pawn? Removing it lowers the collateral.',
+      title: 'Remove item',
+    );
+    if (!ok) return false;
+    final state = context.read<AppState>();
+    final id = item['id'] as int?;
+    if (id == null) return false;
+    await state.db.deleteWhere('pawn_items', 'id = ?', [id]);
+    final items =
+        await state.itemsFor(widget.loan['client_uuid'] as String);
+    var tg = 0.0, tn = 0.0, hm = 0.0, mv = 0.0;
+    for (final i in items) {
+      tg += Num.toDouble(i['gross_weight']);
+      tn += Num.toDouble(i['net_weight']);
+      if (i['hallmarked'] == 1) hm += Num.toDouble(i['net_weight']);
+      mv += Num.toDouble(i['market_value']);
+    }
+    final loanAmount = Num.toDouble(_loan['loan_amount']);
+    await _applyToLoan(
+      {
+        'total_gross_weight': Num.round3(tg),
+        'total_net_weight': Num.round3(tn),
+        'hallmarked_weight': Num.round3(hm),
+        'non_hallmarked_weight': Num.round3(tn - hm),
+        'total_market_value': Num.money(mv),
+        'ltv': mv > 0 ? Num.money(loanAmount / mv * 100) : 0,
+      },
+      logKind: 'delete-item',
+      logTitle: 'Pawn item removed — ${item['item_description'] ?? ''}',
+    );
+    if (mounted) setState(() => _items = items);
+    return true;
+  }
+
+  /// Drag-to-delete for a pawn LEDGER entry: removes the row and undoes its
+  /// effect on the loan (payments restore principal/interest, requests reduce
+  /// the principal, releases reopen the loan).
+  Future<bool> _deleteTransaction(Map<String, Object?> t) async {
+    final type = t['tx_type']?.toString() ?? '';
+    final ok = await confirmDialog(
+      context,
+      'Remove this ledger entry and undo its effect on the loan?',
+      title: 'Remove entry',
+    );
+    if (!ok) return false;
+    final state = context.read<AppState>();
+    final db = state.db;
+    final ref = (_loan['server_name'] as String?) ?? _loan['client_uuid'];
+
+    var np = Num.toDouble(_loan['loan_amount']);
+    var ni = Num.toDouble(_loan['interest_accrued']);
+    var nPaid = Num.toDouble(_loan['amount_paid']);
+
+    if (type == 'release') {
+      await db.delete('pawn_releases',
+          where: 'pawn_loan = ?', whereArgs: [ref]);
+      np = Num.money(np + Num.toDouble(t['principal_part']));
+      ni = Num.money(ni + Num.toDouble(t['interest_part']));
+      nPaid = Num.money(nPaid - Num.toDouble(t['amount']));
+    } else {
+      final cu = t['client_uuid'] as String?;
+      if (cu != null) {
+        await db.delete('pawn_transactions',
+            where: 'client_uuid = ?', whereArgs: [cu]);
+      }
+      if (type == 'paying' || type == 'interest_paid') {
+        np = Num.money(np + Num.toDouble(t['principal_part']));
+        ni = Num.money(ni + Num.toDouble(t['interest_part']));
+        nPaid = Num.money(nPaid - Num.toDouble(t['amount']));
+      } else if (type == 'requesting') {
+        np = Num.money((np - Num.toDouble(t['principal_part']))
+            .clamp(0.0, double.infinity));
+        ni = Num.money((ni - Num.toDouble(t['interest_part']))
+            .clamp(0.0, double.infinity));
+      }
+    }
+    if (nPaid < 0) nPaid = 0;
+    final total = Num.money(np + ni);
+    final balance = Num.money(total - nPaid);
+    final overrides = <String, Object?>{
+      'loan_amount': np,
+      'interest_accrued': ni,
+      'total_payable': total,
+      'amount_paid': nPaid,
+      'balance': balance < 0 ? 0 : balance,
+    };
+    if (_loan['status']?.toString() == 'Released') {
+      if (balance > 0.005) {
+        overrides['status'] = 'Active';
+        overrides['release_date'] = null;
+      } else {
+        overrides['status'] = 'Released';
+      }
+    }
+    await _applyToLoan(overrides,
+        logKind: 'undo',
+        logTitle: 'Pawn ledger entry removed — $type',
+        logAmount: Num.toDouble(t['amount']));
+    await _loadTransactions();
+    return true;
+  }
+
+  /// Single amount + date dialog shared by the pawn ops (v1.0.8). Returns
+  /// (amount, effectiveDate) or null when cancelled.
+  Future<(double, DateTime)?> _amountDialog(
+      String title, String label, double suggest) async {
+    final controller = TextEditingController(text: moneyWhole(suggest));
+    var picked = _anchorDate ?? DateTime.now();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: Text(title)),
+              IconButton(
+                tooltip: 'Date (past or future)',
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Date the change applies from',
+                  );
+                  if (d != null) {
+                    setDlg(
+                        () => picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                icon: const Icon(Icons.calendar_month),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: fieldDecoration(label)),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Date the change applies from',
+                  );
+                  if (d != null) {
+                    setDlg(
+                        () => picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16, color: kGoldDark),
+                    const SizedBox(width: 6),
+                    Text('Applies from ${fmtDate(picked)}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: kGoldDark)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return null;
+    final amount = Num.money(parseMoney(controller.text));
+    if (amount <= 0) return null;
+    return (amount, picked);
+  }
+
+  /// Amount Paying — the payment clears interest FIRST, then principal
+  /// (e.g. ₹4,000 on an ₹10,300 balance). Writes a dated ledger row and
+  /// restarts interest accrual from the chosen date.
+  Future<void> _amountPaying() async {
+    final loan = _loan;
+    final out = Num.toDouble(loan['loan_amount']) +
+        Num.toDouble(loan['interest_accrued']);
+    final res = await _amountDialog('Amount Paying', 'Amount received', out);
+    if (res == null) return;
+    final (pay, effective) = res;
+    final interestPart = Num.money(
+        (Num.toDouble(loan['interest_accrued']) < pay)
+            ? Num.toDouble(loan['interest_accrued'])
+            : pay);
+    final principalPart = Num.money(pay - interestPart);
+    final newPrincipal =
+        Num.money(Num.toDouble(loan['loan_amount']) - principalPart);
+    final newInterest =
+        Num.money(Num.toDouble(loan['interest_accrued']) - interestPart);
+    final newPaid = Num.money(Num.toDouble(loan['amount_paid']) + pay);
+    final total = Num.money(newPrincipal + newInterest);
+    final newBalance = Num.money(total - newPaid);
+    final overrides = <String, Object?>{
+      'loan_amount': newPrincipal,
+      'interest_accrued': newInterest,
+      'total_payable': total,
+      'amount_paid': newPaid,
+      'balance': newBalance < 0 ? 0 : newBalance,
+      if (newBalance <= 0.005) ...{
+        'status': 'Released',
+        'release_date': _dateOnly(effective),
+      },
+    };
+    await _recordTransaction(
+      type: 'paying',
+      amount: pay,
+      principalPart: principalPart,
+      interestPart: interestPart,
+      effective: effective,
+    );
+    await _applyToLoan(overrides,
+        logKind: 'pay',
+        logTitle: 'Amount paying — ${loan['customer_name'] ?? ''}',
+        logAmount: pay);
+  }
+
+  /// Amount Requesting — the borrower takes more on the item: adds to the
+  /// principal (outstanding + pawn investment) and accrues interest on the
+  /// fresh amount from the chosen date.
+  Future<void> _amountRequesting() async {
+    final loan = _loan;
+    final res = await _amountDialog(
+        'Amount Requesting', 'New amount given', 0);
+    if (res == null) return;
+    final (more, effective) = res;
+    final rate = Num.toDouble(loan['interest_rate']);
+    final anchor = _anchorDate ?? DateTime.now();
+    final days = DateTime.now().difference(anchor).inDays;
+    final freshInterest = Num.simpleInterest(
+        principal: more, ratePerMonth: rate, days: days < 0 ? 0 : days);
+    final newPrincipal = Num.money(Num.toDouble(loan['loan_amount']) + more);
+    final newInterest = Num.money(
+        Num.toDouble(loan['interest_accrued']) + freshInterest);
+    final total = Num.money(newPrincipal + newInterest);
+    final newBalance =
+        Num.money(total - Num.toDouble(loan['amount_paid']));
+    await _recordTransaction(
+      type: 'requesting',
+      amount: more,
+      principalPart: more,
+      interestPart: freshInterest,
+      effective: effective,
+    );
+    await _applyToLoan({
+      'loan_amount': newPrincipal,
+      'interest_accrued': newInterest,
+      'total_payable': total,
+      'balance': newBalance,
+    },
+        logKind: 'request',
+        logTitle: 'Amount requesting — ${loan['customer_name'] ?? ''}',
+        logAmount: more);
+  }
+
+  /// Interest Paid — the entered amount clears interest first; any excess
+  /// reduces principal, exactly like Amount Paying.
+  Future<void> _interestPaid() async {
+    final loan = _loan;
+    final res = await _amountDialog(
+        'Interest Paid', 'Interest amount paid', 0);
+    if (res == null) return;
+    final (amt, effective) = res;
+    final accrued = Num.toDouble(loan['interest_accrued']);
+    final interestPart = Num.money(accrued < amt ? accrued : amt);
+    final principalPart = Num.money(amt - interestPart);
+    final newInterest = Num.money(accrued - interestPart);
+    final newPrincipal =
+        Num.money(Num.toDouble(loan['loan_amount']) - principalPart);
+    final newPaid = Num.money(Num.toDouble(loan['amount_paid']) + amt);
+    final total = Num.money(newPrincipal + newInterest);
+    final newBalance = Num.money(total - newPaid);
+    final overrides = <String, Object?>{
+      'interest_accrued': newInterest,
+      'loan_amount': newPrincipal,
+      'total_payable': total,
+      'amount_paid': newPaid,
+      'balance': newBalance < 0 ? 0 : newBalance,
+      if (newBalance <= 0.005) ...{
+        'status': 'Released',
+        'release_date': _dateOnly(effective),
+      },
+    };
+    await _recordTransaction(
+      type: 'interest_paid',
+      amount: amt,
+      principalPart: principalPart,
+      interestPart: interestPart,
+      effective: effective,
+    );
+    await _applyToLoan(overrides,
+        logKind: 'interest',
+        logTitle: 'Interest paid — ${loan['customer_name'] ?? ''}',
+        logAmount: amt);
+  }
+
+  /// Full release: settles interest first, then principal, marks the loan
+  /// Released and records the event in the pawn ledger.
   Future<void> _release() async {
-    final loan = widget.loan;
+    final loan = _loan;
     final loanAmount = Num.toDouble(loan['loan_amount']);
     final paid = Num.toDouble(loan['amount_paid']);
     final balance = Num.toDouble(loan['balance']);
@@ -446,8 +944,16 @@ class _PawnDetailState extends State<_PawnDetail> {
     if (ok != true) return;
 
     final state = context.read<AppState>();
-    final pp = Num.money(double.tryParse(principalController.text) ?? 0);
-    final ip = Num.money(double.tryParse(interestController.text) ?? 0);
+    if (state.adminConfirm) {
+      final granted = await _adminDeleteDialog(
+          context, 'this pawn loan', verb: 'release');
+      if (granted != true) {
+        _toast(context, 'Release cancelled / wrong password.');
+        return;
+      }
+    }
+    final pp = Num.money(parseMoney(principalController.text));
+    final ip = Num.money(parseMoney(interestController.text));
     final total = Num.money(pp + ip);
 
     // Blueprint §10: interest clears first, remaining payment clears
@@ -492,12 +998,25 @@ class _PawnDetailState extends State<_PawnDetail> {
       'balance': 0,
       'dirty': 0,
     });
+    // v1.0.8: the release also lands in the pawn ledger with both dates.
+    await _recordTransaction(
+      type: 'release',
+      amount: total,
+      principalPart: pp,
+      interestPart: ip,
+      effective: DateTime.now(),
+    );
+    await state.logEvent('pawn', 'release',
+        'Released — ${loan['customer_name'] ?? ''}',
+        amount: total,
+        village: loan['village']?.toString(),
+        ref: loan['server_name']?.toString());
     if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final loan = widget.loan;
+    final loan = _loan;
     final released = (loan['status']?.toString() ?? 'Active') == 'Released';
     return Padding(
       padding: EdgeInsets.only(
@@ -505,52 +1024,178 @@ class _PawnDetailState extends State<_PawnDetail> {
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.75,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.all(16),
+        builder: (context, controller) => Stack(
           children: [
-            Text(loan['customer_name']?.toString() ?? '-',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text('${loan['phone'] ?? ''}  ${loan['village'] ?? ''}'),
-            const Divider(height: 24),
-            _kv('Loan amount', '₹${moneyText(loan['loan_amount'] as num?)}'),
-            _kv('Interest basis', loan['interest_basis']?.toString() ?? '-'),
-            _kv('Rate', '${loan['interest_rate'] ?? '-'} %/month'),
-            _kv('Loan date', fmtDate(loan['loan_date'])),
-            _kv('Due date', fmtDate(loan['due_date'])),
-            _kv('Status', loan['status']?.toString() ?? 'Active'),
-            _kv('Total payable',
-                '₹${moneyText(loan['total_payable'] as num?)}'),
-            _kv('Amount paid', '₹${moneyText(loan['amount_paid'] as num?)}'),
-            _kv('Balance', '₹${moneyText(loan['balance'] as num?)}'),
-            const Divider(height: 24),
-            Text('Items', style: Theme.of(context).textTheme.titleMedium),
-            for (final item in _items)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: (item['photo_path'] != null &&
-                        File(item['photo_path'] as String).existsSync())
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.file(File(item['photo_path'] as String),
-                            width: 44, height: 44, fit: BoxFit.cover))
-                    : const Icon(Icons.diamond_outlined),
-                title: Text(item['item_description']?.toString() ?? '-'),
-                subtitle: Text(
-                    '${item['metal_type'] ?? ''} · ${item['net_weight'] ?? 0} g · '
-                    '${(item['hallmarked'] == 1) ? 'Hallmarked' : 'Non-hallmarked'}'),
+            ListView(
+              controller: controller,
+              padding: const EdgeInsets.all(16).copyWith(bottom: 96),
+              children: [
+                Text(loan['customer_name']?.toString() ?? '-',
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Text('${loan['phone'] ?? ''}  ${loan['village'] ?? ''}'),
+                const Divider(height: 24),
+                _kv('Loan amount', '₹${moneyText(loan['loan_amount'] as num?)}'),
+                _kv('Interest basis', loan['interest_basis']?.toString() ?? '-'),
+                _kv('Rate', '${loan['interest_rate'] ?? '-'} %/month'),
+                _kv('Loan date', fmtDate(loan['loan_date'])),
+                _kv('Due date', fmtDate(loan['due_date'])),
+                _kv('Status', loan['status']?.toString() ?? 'Active'),
+                _kv('Total payable',
+                    '₹${moneyText(loan['total_payable'] as num?)}'),
+                _kv('Amount paid', '₹${moneyText(loan['amount_paid'] as num?)}'),
+                _kv('Balance', '₹${moneyText(loan['balance'] as num?)}'),
+                const Divider(height: 24),
+                Text('Items', style: Theme.of(context).textTheme.titleMedium),
+                // v1.0.8: every pawn entry is deletable by dragging it to the
+                // trash (the trash is hidden during normal use).
+                for (final item in _items)
+                  DragToDeleteTile(
+                    onDragChanged: (v) => setState(() => _dragActive = v),
+                    payload: DeletePayload(drop: () => _deleteItem(item)),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: (item['photo_path'] != null &&
+                              File(item['photo_path'] as String).existsSync())
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.file(
+                                  File(item['photo_path'] as String),
+                                  width: 44,
+                                  height: 44,
+                                  fit: BoxFit.cover))
+                          : const Icon(Icons.diamond_outlined),
+                      title:
+                          Text(item['item_description']?.toString() ?? '-'),
+                      subtitle: Text(
+                          '${item['metal_type'] ?? ''} · ${item['net_weight'] ?? 0} g · '
+                          '${(item['hallmarked'] == 1) ? 'Hallmarked' : 'Non-hallmarked'}'),
+                    ),
+                  ),
+                if (!released) ...[
+              const SizedBox(height: 16),
+              // v1.0.8: pawn operations — "Amount Paying" / "Amount Requesting"
+              // / "Interest Paid", each with a single amount box + a past or
+              // future date. Every action also logs a row in the pawn ledger.
+              FilledButton.icon(
+                onPressed: _amountPaying,
+                icon: const Icon(Icons.currency_rupee),
+                label: const Text('Amount Paying'),
               ),
-            const SizedBox(height: 16),
-            if (!released)
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _amountRequesting,
+                icon: const Icon(Icons.add_card),
+                label: const Text('Amount Requesting'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _interestPaid,
+                icon: const Icon(Icons.percent),
+                label: const Text('Interest Paid'),
+              ),
+              const SizedBox(height: 8),
               FilledButton.icon(
                 onPressed: _release,
                 icon: const Icon(Icons.lock_open),
                 label: const Text('Release (principal + interest)'),
               ),
+            ],
+            const Divider(height: 28),
+            Text('Ledger', style: Theme.of(context).textTheme.titleMedium),
+            if (_transactions.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('No entries yet.'),
+              )
+            else
+              for (final t in _transactions)
+                DragToDeleteTile(
+                  onDragChanged: (v) => setState(() => _dragActive = v),
+                  payload: DeletePayload(drop: () => _deleteTransaction(t)),
+                  child: _txRow(t),
+                ),
             const SizedBox(height: 24),
           ],
         ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: DeleteTrashTarget(
+                  visible: _dragActive,
+                  onDrop: (p) async {
+                    setState(() => _dragActive = false);
+                    return p.drop();
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A pawn ledger row: type, amount and BOTH dates — when the change was
+  /// entered (tx_date) and the date it applies from (effective_date).
+  Widget _txRow(Map<String, Object?> t) {
+    final type = t['tx_type']?.toString() ?? '-';
+    final label = switch (type) {
+      'paying' => 'Amount Paying',
+      'requesting' => 'Amount Requesting',
+      'interest_paid' => 'Interest Paid',
+      'release' => 'Release',
+      _ => type,
+    };
+    final isOut = type == 'paying' || type == 'interest_paid' || type == 'release';
+    final amount = Num.toDouble(t['amount']);
+    final icon = switch (type) {
+      'paying' => Icons.south_west,
+      'requesting' => Icons.north_east,
+      'interest_paid' => Icons.percent,
+      'release' => Icons.lock_open,
+      _ => Icons.sync,
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: isOut ? kGreen : kRed),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  '${fmtDate(t['effective_date'])} applies · '
+                  'entered ${fmtDate(t['tx_date'])}',
+                  style: TextStyle(
+                      fontSize: 10.5, color: kInk.withValues(alpha: .55)),
+                ),
+                if (Num.toDouble(t['interest_part']) > 0 ||
+                    Num.toDouble(t['principal_part']) > 0)
+                  Text(
+                    'P ₹${moneyWhole(Num.toDouble(t['principal_part']))} · '
+                    'I ₹${moneyWhole(Num.toDouble(t['interest_part']))}',
+                    style: TextStyle(
+                        fontSize: 10.5, color: kInk.withValues(alpha: .6)),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            isOut ? '-₹${moneyWhole(amount)}' : '+₹${moneyWhole(amount)}',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: isOut ? kGreen : kRed),
+          ),
+        ],
       ),
     );
   }
@@ -598,14 +1243,14 @@ class _ItemEntry {
   }
 
   Map<String, Object?> toMap() {
-    final netWeight = Num.round3(double.tryParse(net.text) ?? 0);
-    final valuationRate = double.tryParse(rate.text) ?? 0;
+    final netWeight = Num.round3(parseMoney(net.text));
+    final valuationRate = parseMoney(rate.text);
     return {
       'item_description': description.text.trim(),
       'metal_type': metalType,
       'purity': purity.text.trim().isEmpty ? null : purity.text.trim(),
       'quantity': int.tryParse(quantity.text) ?? 1,
-      'gross_weight': Num.round3(double.tryParse(gross.text) ?? 0),
+      'gross_weight': Num.round3(parseMoney(gross.text)),
       'net_weight': netWeight,
       'hallmarked': hallmarked ? 1 : 0,
       'valuation_rate': valuationRate,
@@ -631,7 +1276,43 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   DateTime? _dueDate;
   String? _customerUuid;
   String? _customerName;
+  List<Map<String, Object?>> _customers = [];
   final List<_ItemEntry> _items = [_ItemEntry()];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    final list = await context
+        .read<AppState>()
+        .db
+        .query('customers', orderBy: 'customer_name asc');
+    if (mounted) setState(() => _customers = list);
+  }
+
+  /// The "+" beside the customer picker opens the full customer form (photo,
+  /// ID proof type/number/front/back), then re-selects the new customer.
+  Future<void> _addCustomer() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CustomerForm(initialType: 'General')),
+    );
+    await _loadCustomers();
+    final newest = await context
+        .read<AppState>()
+        .db
+        .query('customers', orderBy: 'updated_at desc', limit: 1);
+    if (newest.isNotEmpty && mounted) {
+      setState(() {
+        _customerUuid = newest.first['client_uuid'] as String?;
+        _customerName = newest.first['customer_name']?.toString();
+        _setBasis(_basis, _customers);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -697,8 +1378,9 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       if (item['hallmarked'] == 1) hallmarked += net;
       marketValue += Num.toDouble(item['market_value']);
     }
-    final loanAmount = Num.money(double.tryParse(_amount.text) ?? 0);
-    final rate = double.tryParse(_rate.text) ?? 3;
+    final loanAmount = Num.money(parseMoney(_amount.text));
+    final parsedRate = parseMoney(_rate.text);
+    final rate = parsedRate == 0 ? 3.0 : parsedRate;
     final loanUuid = newUuid();
     final due = _dueDate ?? _loanDate.add(const Duration(days: 90));
     final days = due.difference(_loanDate).inDays;
@@ -731,23 +1413,14 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       items: items,
     );
 
-    // Queue each item photo against the loan document.
-    for (final item in items) {
-      final photo = item['photo_path'] as String?;
-      if (photo != null && photo.isNotEmpty) {
-        await state.savePhoto(
-            table: 'pawn_loans',
-            doctype: 'Pawn Loan',
-            uuid: loanUuid,
-            path: photo);
-      }
-    }
+    // Item photos are stored on the pawn_items rows inside savePawnLoan —
+    // no separate photo write needed. (Previously this loop wrote to a
+    // non-existent pawn_loans.photo_path column and aborted the whole save.)
     if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final db = context.read<AppState>().db;
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Pawn Loan'),
@@ -755,43 +1428,60 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
           TextButton(onPressed: _save, child: const Text('SAVE')),
         ],
       ),
-      body: FutureBuilder<List<Map<String, Object?>>>(
-        future: db.query('customers', orderBy: 'customer_name asc'),
-        builder: (context, snapshot) {
-          final customers = snapshot.data ?? const [];
-          return Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                SectionCard(title: 'Customer', children: [
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    decoration: fieldDecoration('Customer *'),
-                    initialValue: _customerUuid,
-                    items: customers
-                        .map((c) => DropdownMenuItem(
-                              value: c['client_uuid'] as String,
-                              child: Text(c['customer_name']?.toString() ?? '-'),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      final customer = customers.firstWhere(
-                          (c) => c['client_uuid'] == value,
-                          orElse: () => {});
-                      setState(() {
-                        _customerUuid = value;
-                        _customerName = customer['customer_name']?.toString();
-                        final override = _basis == 'Gold'
-                            ? customer['gold_interest_rate']
-                            : customer['silver_interest_rate'];
-                        final v = Num.toDouble(override);
-                        _rate.text =
-                            (v > 0 ? v : (_basis == 'Gold' ? 3 : 4)).toString();
-                      });
-                    },
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            SectionCard(title: 'Customer', children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: fieldDecoration('Customer *'),
+                      initialValue: _customerUuid,
+                      items: _customers
+                          .map((c) => DropdownMenuItem(
+                                value: c['client_uuid'] as String,
+                                child:
+                                    Text(c['customer_name']?.toString() ?? '-'),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        final customer = _customers.firstWhere(
+                            (c) => c['client_uuid'] == value,
+                            orElse: () => {});
+                        setState(() {
+                          _customerUuid = value;
+                          _customerName = customer['customer_name']?.toString();
+                          final override = _basis == 'Gold'
+                              ? customer['gold_interest_rate']
+                              : customer['silver_interest_rate'];
+                          final v = Num.toDouble(override);
+                          _rate.text = (v > 0 ? v : (_basis == 'Gold' ? 3 : 4))
+                              .toString();
+                        });
+                      },
+                    ),
                   ),
-                ]),
+                  const SizedBox(width: 6),
+                  // v1.0.8: add a new customer right here (+).
+                  IconButton(
+                    tooltip: 'Add new customer',
+                    icon: const Icon(Icons.add_circle_outline,
+                        color: kGoldDark, size: 26),
+                    onPressed: _addCustomer,
+                  ),
+                ],
+              ),
+              if (_customers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('No customers yet — tap + to add one.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF8A6D14))),
+                ),
+            ]),
                 SectionCard(title: 'Loan', children: [
                   DropdownButtonFormField<String>(
                     initialValue: _basis,
@@ -799,7 +1489,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                     items: const ['Gold', 'Silver']
                         .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                         .toList(),
-                    onChanged: (v) => _setBasis(v ?? 'Gold', customers),
+                    onChanged: (v) => _setBasis(v ?? 'Gold', _customers),
                   ),
                   const SizedBox(height: 10),
                   Row(children: [
@@ -809,7 +1499,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                         keyboardType: TextInputType.number,
                         decoration: fieldDecoration('Loan amount *'),
                         validator: (v) =>
-                            (double.tryParse(v ?? '') ?? 0) <= 0
+                            (parseMoney(v) <= 0)
                                 ? 'Enter amount'
                                 : null,
                       ),
@@ -853,10 +1543,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 const SizedBox(height: 60),
               ],
             ),
-          );
-        },
-      ),
-    );
+          ),
+        );
   }
 
   Widget _itemCard(int index) {
@@ -936,4 +1624,48 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       ],
     );
   }
+}
+
+// ---------------------------------------------------------------- helpers
+/// Admin-password gate for delete / release. [verb] lets the same dialog ask
+/// "Are you sure to release …?" for pawn releases.
+Future<bool> _adminDeleteDialog(BuildContext context, String message,
+    {String verb = 'delete'}) async {
+  final pw = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Are you sure to $verb $message?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: pw,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Type admin password',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, pw.text.trim().toLowerCase() == 'admin'),
+            child: Text(verb == 'release' ? 'Release' : 'Delete')),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }

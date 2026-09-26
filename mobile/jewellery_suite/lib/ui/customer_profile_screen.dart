@@ -34,8 +34,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   List<Map<String, Object?>> _refinances = [];
   bool _loading = true;
 
-  /// Ledger row armed for long-press delete (identity = kind|uuid).
-  String? _armDelete;
+  /// True while a ledger tile is being dragged so the trash bin shows.
+  bool _dragActive = false;
 
   String get _name => _customer['customer_name']?.toString() ?? '-';
   String get _phone => _customer['phone']?.toString() ?? '';
@@ -168,36 +168,94 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final loan = targets.first.loan;
     final suggested = (loan['installment_amount'] as num?)?.toDouble() ?? 0;
     final controller = TextEditingController(text: moneyWhole(suggested));
+    var picked = DateTime.now();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Collect (You Got)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Against: ${loan['customer_name']} · '
-                'balance ₹${moneyWhole(loan['outstanding'] as num?)}'),
-            const SizedBox(height: 12),
-            TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                autofocus: true,
-                decoration: fieldDecoration('Amount')),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Collect (You Got)'),
+              // v1.0.8: mini calendar in the top-right corner — pick any
+              // received date (past or future) to drive on-time/late.
+              IconButton(
+                tooltip: 'Received date',
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Received date (past or future)',
+                  );
+                  if (d != null) {
+                    setDlg(() =>
+                        picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                icon: const Icon(Icons.calendar_month),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Against: ${loan['customer_name']} · '
+                  'balance ₹${moneyWhole(loan['outstanding'] as num?)}'),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: fieldDecoration('Amount')),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Received date (past or future)',
+                  );
+                  if (d != null) {
+                    setDlg(() =>
+                        picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16, color: kGoldDark),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Received on ${fmtDate(picked)}'
+                      '${picked.toIso8601String().substring(0, 10) == todayIso() ? ' (today)' : ''}',
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: kGoldDark),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save')),
-        ],
       ),
     );
     if (ok != true) return;
-    final value = Num.money(double.tryParse(controller.text) ?? 0);
+    final value = Num.money(parseMoney(controller.text));
     if (value <= 0) return;
     final state = context.read<AppState>();
     await state.saveEntity(
@@ -208,7 +266,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         'khatabook_loan': loan['server_name'] ?? loan['client_uuid'],
         'customer': loan['customer_name'],
         'village': loan['village'],
-        'collection_date': todayIso(),
+        'collection_date': picked.toIso8601String().substring(0, 10),
         'amount': value,
         'payment_mode': 'Cash',
         'is_irregular': 1,
@@ -264,6 +322,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final interestCtl = TextEditingController();
     final noteCtl = TextEditingController();
     String type = 'late_fee';
+    var givenOn = DateTime.now();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -282,6 +341,35 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   keyboardType: TextInputType.number,
                   autofocus: true,
                   decoration: fieldDecoration('Amount')),
+              const SizedBox(height: 10),
+              // v1.0.8: back-datable "given on" date.
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: givenOn,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Date the amount was given',
+                  );
+                  if (d != null) {
+                    setDlg(() =>
+                        givenOn = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16, color: kGoldDark),
+                    const SizedBox(width: 6),
+                    Text('Given on ${fmtDate(givenOn)}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: kGoldDark)),
+                  ],
+                ),
+              ),
               const SizedBox(height: 10),
               Text('Type',
                   style: TextStyle(
@@ -338,7 +426,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       await _refinanceLoan(loan, amountCtl, interestCtl, noteCtl);
       return;
     }
-    final amount = Num.money(double.tryParse(amountCtl.text) ?? 0);
+    final amount = Num.money(parseMoney(amountCtl.text));
     if (amount <= 0) return;
     final state = context.read<AppState>();
     await state.saveEntity(
@@ -350,7 +438,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         'customer_name': loan['customer_name'],
         'village': loan['village'],
         'khatabook_loan': loan['server_name'] ?? loan['client_uuid'],
-        'given_date': todayIso(),
+        'given_date': givenOn.toIso8601String().substring(0, 10),
         'amount': amount,
         'given_type': type,
         'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
@@ -381,8 +469,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       TextEditingController interestCtl,
       TextEditingController noteCtl) async {
     final state = context.read<AppState>();
-    final fresh = Num.money(double.tryParse(amountCtl.text) ?? 0);
-    final interest = Num.money(double.tryParse(interestCtl.text) ?? 0);
+    final fresh = Num.money(parseMoney(amountCtl.text));
+    final interest = Num.money(parseMoney(interestCtl.text));
     final note = noteCtl.text.trim();
     if (fresh <= 0 && interest <= 0) {
       _toast('Enter a refinance amount or new interest.');
@@ -529,7 +617,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             const SizedBox(height: 8),
             Text(
                 'Total: '
-                '₹${moneyWhole(Num.toDouble(double.tryParse(pCtl.text) ?? 0) + Num.toDouble(double.tryParse(iCtl.text) ?? 0))}',
+                '₹${moneyWhole(Num.toDouble(parseMoney(pCtl.text)) + Num.toDouble(parseMoney(iCtl.text)))}',
                 style: TextStyle(
                     fontSize: 12, color: kInk.withValues(alpha: .6))),
           ],
@@ -545,8 +633,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       ),
     );
     if (ok != true) return;
-    final np = Num.money(double.tryParse(pCtl.text) ?? 0);
-    final ni = Num.money(double.tryParse(iCtl.text) ?? 0);
+    final np = Num.money(parseMoney(pCtl.text));
+    final ni = Num.money(parseMoney(iCtl.text));
     if (np <= 0 || ni < 0) return;
     // Keep the fee/You-Gave part of total_payable intact, replace P + I.
     final fees = Num.toDouble(loan['total_payable']) -
@@ -572,31 +660,91 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final controller =
         TextEditingController(text: moneyWhole(Num.toDouble(c['amount'])));
     final state = context.read<AppState>();
+    var picked = parseIso(c['collection_date']) ?? DateTime.now();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit collection'),
-        content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            decoration: fieldDecoration('Amount received')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Edit collection'),
+              IconButton(
+                tooltip: 'Received date',
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Received date (past or future)',
+                  );
+                  if (d != null) {
+                    setDlg(() =>
+                        picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                icon: const Icon(Icons.calendar_month),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: fieldDecoration('Amount received')),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: picked,
+                    firstDate: DateTime(2015),
+                    lastDate: DateTime(2100),
+                    helpText: 'Received date (past or future)',
+                  );
+                  if (d != null) {
+                    setDlg(() =>
+                        picked = DateTime(d.year, d.month, d.day));
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16, color: kGoldDark),
+                    const SizedBox(width: 6),
+                    Text('Received on ${fmtDate(picked)}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: kGoldDark)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
+          ],
+        ),
       ),
     );
     if (ok != true) return;
-    final amount = Num.money(double.tryParse(controller.text) ?? 0);
+    final amount = Num.money(parseMoney(controller.text));
     if (amount <= 0) return;
     await state.db.upsert('khatabook_collections', {
       ...c,
       'amount': amount,
+      'collection_date': picked.toIso8601String().substring(0, 10),
       'dirty': 1,
     });
     final loan = _loanForRef(c['khatabook_loan']);
@@ -615,6 +763,18 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         TextEditingController(text: (g['note']?.toString() ?? '').trim());
     String type = (g['given_type']?.toString() ?? 'late_fee');
     final state = context.read<AppState>();
+    // v1.0.8 fix: the refinance edit dialog was missing its Interest box.
+    // Find the matching refinance record so it opens pre-filled.
+    Map<String, Object?>? refi;
+    for (final r in _refinances) {
+      if (r['khatabook_loan'] == g['khatabook_loan'] &&
+          r['refinance_date'] == g['given_date']) {
+        refi = r;
+        break;
+      }
+    }
+    final interestCtl = TextEditingController(
+        text: moneyWhole(Num.toDouble(refi?['new_interest_amount'])));
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -649,6 +809,13 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ),
                 ],
               ),
+              if (type == 'refinance') ...[
+                const SizedBox(height: 8),
+                TextField(
+                    controller: interestCtl,
+                    keyboardType: TextInputType.number,
+                    decoration: fieldDecoration('New interest')),
+              ],
               const SizedBox(height: 8),
               TextField(
                   controller: noteCtl,
@@ -667,27 +834,50 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       ),
     );
     if (ok != true) return;
-    final amount = Num.money(double.tryParse(amountCtl.text) ?? 0);
-    if (amount <= 0) return;
+    final amount = Num.money(parseMoney(amountCtl.text));
+    final interest = Num.money(parseMoney(interestCtl.text));
+    if (amount <= 0 && !(type == 'refinance' && interest > 0)) return;
     final loan = _loanForRef(g['khatabook_loan']);
     final old = Num.toDouble(g['amount']);
     final oldType = g['given_type']?.toString() ?? 'late_fee';
     if (loan != null) {
-      // Undo the old effect, then apply the corrected one.
       var updated = Map<String, Object?>.from(loan);
-      updated['total_payable'] =
-          Num.money(Num.toDouble(updated['total_payable']) - old);
-      if (oldType == 'principal') {
+      if (type == 'refinance') {
+        // Refinance rows store fresh cash in `amount` and the new interest in
+        // the refinance record — correct both together.
         updated['principal_amount'] = Num.money(
-            Num.toDouble(updated['principal_amount']) - old);
+            Num.toDouble(updated['principal_amount']) + (amount - old));
+        updated['interest_amount'] = interest;
+        updated['total_payable'] = Num.money(
+            Num.toDouble(updated['principal_amount']) + interest);
+        final count = (updated['installment_count'] as num?)?.toInt() ?? 12;
+        updated['installment_amount'] =
+            Num.money(Num.toDouble(updated['total_payable']) / count);
+        await _syncLoan(updated);
+        if (refi != null) {
+          await state.db.upsert('khatabook_refinances', {
+            ...refi,
+            'new_principal': updated['principal_amount'],
+            'new_interest_amount': interest,
+            'dirty': 1,
+          });
+        }
+      } else {
+        // Undo the old effect, then apply the corrected one.
+        updated['total_payable'] =
+            Num.money(Num.toDouble(updated['total_payable']) - old);
+        if (oldType == 'principal') {
+          updated['principal_amount'] = Num.money(
+              Num.toDouble(updated['principal_amount']) - old);
+        }
+        updated['total_payable'] =
+            Num.money(Num.toDouble(updated['total_payable']) + amount);
+        if (type == 'principal') {
+          updated['principal_amount'] = Num.money(
+              Num.toDouble(updated['principal_amount']) + amount);
+        }
+        await _syncLoan(updated);
       }
-      updated['total_payable'] =
-          Num.money(Num.toDouble(updated['total_payable']) + amount);
-      if (type == 'principal') {
-        updated['principal_amount'] = Num.money(
-            Num.toDouble(updated['principal_amount']) + amount);
-      }
-      await _syncLoan(updated);
     }
     await state.db.upsert('khatabook_given', {
       ...g,
@@ -972,11 +1162,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               if (mounted) _refresh();
             },
           ),
-          IconButton(
-            tooltip: 'Delete customer',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: _confirmDeleteCustomer,
-          ),
         ],
       ),
       // Sticky bottom bar: You Gave / Collect are always visible.
@@ -1016,25 +1201,42 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kGold))
-          : RefreshIndicator(
-              color: kGold,
-              onRefresh: _refresh,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                children: [
-                  _headerCard(),
-                  const SizedBox(height: 12),
-                  _outstandingCard(),
-                  const SizedBox(height: 12),
-                  _ledgerCard(),
-                  const SizedBox(height: 14),
-                  _tile(Icons.calendar_month_outlined,
-                      'Payment schedule',
-                      _scheduleSummary(),
-                      () => _openSheet(_scheduleSheet())),
-                  const SizedBox(height: 40),
-                ],
-              ),
+          : Stack(
+              children: [
+                RefreshIndicator(
+                  color: kGold,
+                  onRefresh: _refresh,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+                    children: [
+                      _headerCard(),
+                      const SizedBox(height: 12),
+                      _outstandingCard(),
+                      const SizedBox(height: 12),
+                      _ledgerCard(),
+                      const SizedBox(height: 14),
+                      _tile(Icons.calendar_month_outlined,
+                          'Payment schedule',
+                          _scheduleSummary(),
+                          () => _openSheet(_scheduleSheet())),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: DeleteTrashTarget(
+                      visible: _dragActive,
+                      onDrop: (p) async {
+                        setState(() => _dragActive = false);
+                        return p.drop();
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -1071,11 +1273,42 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_name,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: kInk)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(_name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: kInk)),
+                    ),
+                    if ((_customer['customer_id']?.toString() ?? '')
+                        .isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      // v1.0.8: khata customer ID (order-wise A-01…).
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: kGold.withValues(alpha: .22),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: kGold.withValues(alpha: .5)),
+                        ),
+                        child: Text(
+                          _customer['customer_id'].toString(),
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: kGoldDark),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 3),
                 Text(
                   _phone.isEmpty ? 'No phone saved' : _phone,
@@ -1286,7 +1519,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     // Loans: red "You Gave" shows the FULL amount to recover handed over
     // (principal + interest); the running balance jumps by the same total.
     for (final l in _loans) {
-      final raw = l['updated_at']?.toString() ?? l['loan_date']?.toString();
+      final raw = l['loan_date']?.toString() ?? l['updated_at']?.toString();
       final when = parseIso(raw) ?? DateTime.now();
       final principal = Num.toDouble(l['principal_amount']);
       final interest = Num.toDouble(l['interest_amount']);
@@ -1303,8 +1536,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     }
 
     // "You Gave" fee / late-interest additions: red, add their amount only.
+    // The stamp is the GIVEN date (v1.0.8 back-datable picker).
     for (final g in _given) {
-      final graw = g['updated_at']?.toString() ?? g['given_date']?.toString();
+      final graw = g['given_date']?.toString() ?? g['updated_at']?.toString();
       final amount = Num.toDouble(g['amount']);
       entries.add((
         when: parseIso(graw) ?? DateTime.now(),
@@ -1318,9 +1552,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       ));
     }
 
-    // Collections: green, subtract their amount.
+    // Collections: green, subtract their amount. The stamp is the RECEIVED
+    // date (v1.0.8 date picker), so back-dated payments sit truthfully.
     for (final c in _collections) {
-      final raw = c['updated_at']?.toString() ?? c['collection_date']?.toString();
+      final raw = c['collection_date']?.toString() ?? c['updated_at']?.toString();
       entries.add((
         when: parseIso(raw) ?? DateTime.now(),
         stamp: fmtDateTime(raw),
@@ -1359,11 +1594,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final isGave = r.isGave;
     final isRefinance = r.kind == 'given' &&
         r.source['given_type']?.toString() == 'refinance';
-    final color = isRefinance
-        ? const Color(0xFFB26A00)
-        : isGave
-            ? kRed
-            : kGreen;
+    final color = isGave ? kRed : kGreen;
     // You-Gave rows show why: "Late fee — Hello". The note always shows;
     // for type "Other" only the note is shown (no type word).
     String? note;
@@ -1376,110 +1607,117 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               ? typeLabel
               : '$typeLabel — $noteText';
     }
-    final rowKey = '${r.kind}|${r.source['client_uuid']}';
-    final armed = _armDelete == rowKey;
-    return GestureDetector(
-      onLongPress: () => setState(() => _armDelete = armed ? null : rowKey),
-      onTap: () {
-        if (armed) {
-          setState(() => _armDelete = null);
-          _deleteLedgerRow(r);
-        } else {
-          _editRow(r);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: armed
-              ? kRedSoft.withValues(alpha: .45)
-              : color.withValues(alpha: .05),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: armed ? kRed : color.withValues(alpha: .18),
-              width: armed ? 1.5 : 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isRefinance) ...[
-                        const Icon(Icons.change_history,
-                            size: 15, color: Color(0xFFB26A00)),
-                        const SizedBox(width: 4),
-                      ],
-                      Flexible(
-                        child: Text(r.stamp,
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: kInk.withValues(alpha: .7))),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 94,
-                  child: Text(
-                    isGave ? '₹${moneyWhole(r.gave)}' : '',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: isGave ? color : Colors.transparent),
-                  ),
-                ),
-                SizedBox(
-                  width: 94,
-                  child: Text(
-                    !isGave ? '₹${moneyWhole(r.got)}' : '',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: !isGave ? color : Colors.transparent),
-                  ),
-                ),
-              ],
+    final tile = AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      // v1.0.8: refinance is a full gold rectangle tile for fast spotting —
+      // identical in shape to the payment-schedule refinance rectangle.
+      decoration: isRefinance
+          ? BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3A2E0E), Color(0xFF6B5417)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            )
+          : BoxDecoration(
+              color: color.withValues(alpha: .05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: color.withValues(alpha: .18), width: 1),
             ),
-            const SizedBox(height: 3),
-            // Daily outstanding balance — money lent out, always red, left.
-            Text('bal ₹${moneyWhole(r.balance)}',
-                style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: kRed)),
-            if (note != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(note,
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontStyle: FontStyle.italic,
-                        color: color.withValues(alpha: .85))),
-              ),
-            if (armed)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () {
-                    setState(() => _armDelete = null);
-                    _deleteLedgerRow(r);
-                  },
-                  icon: const Icon(Icons.delete_outline, size: 16, color: kRed),
-                  label: const Text('Delete this entry',
-                      style:
-                          TextStyle(fontSize: 11.5, color: kRed)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    if (isRefinance) ...[
+                      const Icon(Icons.change_history,
+                          size: 15, color: Colors.white),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(r.stamp,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: isRefinance
+                                  ? Colors.white.withValues(alpha: .9)
+                                  : kInk.withValues(alpha: .7))),
+                    ),
+                  ],
                 ),
               ),
-          ],
-        ),
+              SizedBox(
+                width: 94,
+                child: Text(
+                  isGave ? '₹${moneyWhole(r.gave)}' : '',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: isRefinance ? 15.5 : 15,
+                      fontWeight: FontWeight.w800,
+                      color: isRefinance
+                          ? Colors.white
+                          : isGave
+                              ? color
+                              : Colors.transparent),
+                ),
+              ),
+              SizedBox(
+                width: 94,
+                child: Text(
+                  !isGave ? '₹${moneyWhole(r.got)}' : '',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: isGave ? Colors.transparent : color),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          // Daily outstanding balance — money lent out, always red, left.
+          Text('bal ₹${moneyWhole(r.balance)}',
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: isRefinance
+                      ? const Color(0xFFFFE082)
+                      : kRed)),
+          if (note != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(note,
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontStyle: FontStyle.italic,
+                      color: isRefinance
+                          ? Colors.white.withValues(alpha: .85)
+                          : color.withValues(alpha: .85))),
+            ),
+        ],
+      ),
+    );
+    // v1.0.8 drag-to-delete: long-press lifts the tile; dropping it on the
+    // bottom bin removes the entry (no confirm for ledger rows). A long-press
+    // alone never deletes.
+    return DragToDeleteTile(
+      onDragChanged: (v) => setState(() => _dragActive = v),
+      payload: DeletePayload(
+        drop: () async {
+          await _deleteLedgerRow(r);
+          return true;
+        },
+      ),
+      child: GestureDetector(
+        onTap: () => _editRow(r),
+        child: tile,
       ),
     );
   }
@@ -1496,15 +1734,33 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           final old = Num.toDouble(r.source['amount']);
           final oldType = r.source['given_type']?.toString() ?? 'late_fee';
           final upd = Map<String, Object?>.from(loan);
-          upd['total_payable'] = Num.money(Num.toDouble(upd['total_payable']) - old);
-          if (oldType == 'principal') {
-            upd['principal_amount'] =
-                Num.money(Num.toDouble(upd['principal_amount']) - old);
+          if (oldType == 'refinance') {
+            // Roll the fresh cash back out of the principal and rebuild
+            // total_payable so the loan stays consistent.
+            upd['principal_amount'] = Num.money(
+                Num.toDouble(upd['principal_amount']) - old);
+            upd['total_payable'] = Num.money(Num.toDouble(upd['principal_amount']) +
+                Num.toDouble(upd['interest_amount']));
+          } else {
+            upd['total_payable'] =
+                Num.money(Num.toDouble(upd['total_payable']) - old);
+            if (oldType == 'principal') {
+              upd['principal_amount'] =
+                  Num.money(Num.toDouble(upd['principal_amount']) - old);
+            }
           }
           await _syncLoan(upd);
         }
         await db.delete('khatabook_given',
             where: 'client_uuid = ?', whereArgs: [r.source['client_uuid']]);
+        if (r.source['given_type']?.toString() == 'refinance') {
+          await db.delete('khatabook_refinances',
+              where: 'khatabook_loan = ? AND refinance_date = ?',
+              whereArgs: [
+                r.source['khatabook_loan'],
+                r.source['given_date']
+              ]);
+        }
         await state.logEvent('khata', 'given_delete',
             'Given removed — $_name',
             amount: Num.toDouble(r.source['amount']),
@@ -1537,67 +1793,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       debugPrint('delete ledger row failed: $error');
     }
     if (mounted) _refresh();
-  }
-
-  /// Admin-gated confirmation ("Are you sure to delete X?" + admin password).
-  Future<bool> _adminPasswordDialog(String message) async {
-    final pw = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Are you sure to delete $message?'),
-        content: TextField(
-          controller: pw,
-          obscureText: true,
-          autofocus: true,
-          decoration: fieldDecoration('Type admin password'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, pw.text.trim().toLowerCase() == 'admin'),
-              child: const Text('Delete')),
-        ],
-      ),
-    );
-    return ok ?? false;
-  }
-
-  /// Deletes the whole customer: loans, collections, givens, refinances.
-  Future<void> _confirmDeleteCustomer() async {
-    final granted = await _adminPasswordDialog(_name);
-    if (!granted) {
-      if (mounted) _toast('Delete cancelled / wrong password.');
-      return;
-    }
-    final state = context.read<AppState>();
-    final db = state.db;
-    final uuid = _customer['client_uuid'];
-    var deleted = 0.0;
-    for (final l in _loans) {
-      final ref = (l['server_name'] as String?) ?? l['client_uuid'];
-      await db.delete('khatabook_given',
-          where: 'khatabook_loan = ?', whereArgs: [ref]);
-      await db.delete('khatabook_collections',
-          where: 'khatabook_loan = ?', whereArgs: [ref]);
-      await db.delete('khatabook_refinances',
-          where: 'khatabook_loan = ?', whereArgs: [ref]);
-      deleted += Num.toDouble(l['total_payable']);
-    }
-    await db.delete('khatabook_loans',
-        where: 'customer = ? OR customer = ?', whereArgs: [uuid, _name]);
-    await db.delete('khatabook_given',
-        where: 'customer = ? OR customer_name = ? OR customer = ?',
-        whereArgs: [uuid, _name, uuid]);
-    await db.delete('customers',
-        where: 'client_uuid = ?', whereArgs: [uuid]);
-    await state.logEvent('khata', 'customer_delete',
-        'Customer deleted — $_name',
-        amount: deleted, village: _customer['village']?.toString());
-    if (mounted) Navigator.pop(context);
   }
 
   Widget _tile(
@@ -1692,6 +1887,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     }
     final paidCount = rows.where((r) => r.paid != null).length;
     final onTime = rows.where((r) => r.paid != null && r.lateDays <= 0).length;
+    // v1.0.8: label the settlement tiles by the chosen frequency — a monthly
+    // loan shows "Month 1/12", biweekly "Fortnight 1/12", weekly "Week 1/12".
+    final f = (loan['collection_frequency']?.toString() ?? '').toLowerCase();
+    final unit =
+        f.contains('month') ? 'Month' : f.contains('bi') ? 'Fortnight' : 'Week';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1745,7 +1945,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             ],
           ),
         ),
-        for (final r in rows) _schedTile(r, rows.length),
+        for (final r in rows) _schedTile(r, rows.length, unit),
         const SizedBox(height: 12),
       ],
     );
@@ -1855,7 +2055,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     return rows;
   }
 
-  Widget _schedTile(_SchedRow r, int total) {
+  Widget _schedTile(_SchedRow r, int total, String unit) {
     if (r.refinance) return _refinanceTile(r);
     final today = _dayD(DateTime.now());
     // Share of the instalment actually received — drives the green/red split.
@@ -1867,7 +2067,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 ? (kGreenSoft, kGreen, 'ON TIME')
                 : (const Color(0xFFFDEBD2), const Color(0xFFB26A00), 'PARTIAL'))
             : (const Color(0xFFFDEBD2), const Color(0xFFB26A00),
-                weeksLateWording(r.lateDays).toUpperCase()))
+                unit == 'Week'
+                    ? weeksLateWording(r.lateDays).toUpperCase()
+                    : '${r.lateDays} DAY${r.lateDays == 1 ? '' : 'S'} LATE'))
         : r.due.isAfter(today)
             ? (kBlueSoft, kBlue,
                 r.due.difference(today).inDays <= 7 ? 'NEXT WEEK' : 'UPCOMING')
@@ -1890,7 +2092,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Week ${r.index + 1}/$total',
+                Text('$unit ${r.index + 1}/$total',
                     style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
