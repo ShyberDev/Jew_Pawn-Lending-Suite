@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../data/doc_scanner.dart';
 import '../data/slip_ocr.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
@@ -326,15 +327,25 @@ class _PawnScreenState extends State<PawnScreen> {
                   l['interest_basis']?.toString() ?? '', metal))
               .toList();
         }
-        double out = 0, intDue = 0;
+        double out = 0, intDue = 0, outstanding = 0;
         for (final l in filtered) {
           out += Num.toDouble(l['loan_amount']);
           intDue += Num.toDouble(l['interest_accrued']);
+          // Outstanding must match the Pawn Dashboard's "Total receivable",
+          // which is the loan balance (principal + interest still to be
+          // collected). Fall back to principal + interest − paid when the
+          // balance has not been computed yet.
+          final bal = Num.toDouble(l['balance']);
+          outstanding += bal > 0
+              ? bal
+              : Num.toDouble(l['loan_amount']) +
+                  Num.toDouble(l['interest_accrued']) -
+                  Num.toDouble(l['amount_paid']);
         }
         return {
           'out': Num.money(out),
           'int': Num.money(intDue),
-          'total': Num.money(out + intDue),
+          'total': Num.money(outstanding),
           'metal': metal,
         };
       }(),
@@ -377,9 +388,9 @@ class _PawnScreenState extends State<PawnScreen> {
             children: [
               Row(
                 children: [
-                  stat('₹${r['out'] ?? 0}', 'Investment'),
-                  stat('₹${r['int'] ?? 0}', 'Interest due'),
-                  stat('₹${r['total'] ?? 0}', 'Outstanding'),
+                  stat('₹${moneyWhole(r['out'] as num?)}', 'Investment'),
+                  stat('₹${moneyWhole(r['int'] as num?)}', 'Interest due'),
+                  stat('₹${moneyWhole(r['total'] as num?)}', 'Outstanding'),
                 ],
               ),
               if (caption != null)
@@ -1415,6 +1426,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   String? _idBack;
   // v1.0.9: scanned customer address / village from the slip.
   final _address = TextEditingController();
+  final _phone = TextEditingController();
+  final _customerId = TextEditingController();
   bool _scanning = false;
 
   @override
@@ -1457,46 +1470,49 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   /// Customer Name, Item, Loan amount, Date, Item details and Address.
   Future<void> _scanSlip() async {
     if (_scanning) return;
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined,
-                  color: kGoldDark),
-              title: const Text('Take a photo of the slip'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.photo_library_outlined, color: kGoldDark),
-              title: const Text('Choose an existing slip photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: Icon(Icons.close, color: inkOf(context)),
-              title: const Text('Cancel'),
-              onTap: () => Navigator.pop(ctx),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
-
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 2000,
-    );
-    if (picked == null || !mounted) return;
-
     setState(() => _scanning = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final fields = await scanSlipImage(picked.path);
+      // 1) Google's document scanner (Drive-style auto crop + straighten).
+      var path = await captureDocument();
+      // 2) Fallback: a normal camera shot or an existing photo.
+      if (path == null) {
+        if (!mounted) return;
+        final source = await showModalBottomSheet<ImageSource>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined,
+                      color: kGoldDark),
+                  title: const Text('Take a photo of the slip'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined,
+                      color: kGoldDark),
+                  title: const Text('Choose an existing slip photo'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                ),
+                ListTile(
+                  leading: Icon(Icons.close, color: inkOf(context)),
+                  title: const Text('Cancel'),
+                  onTap: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (source == null || !mounted) return;
+        final picked = await ImagePicker()
+            .pickImage(source: source, imageQuality: 80, maxWidth: 2000);
+        if (picked == null || !mounted) return;
+        path = picked.path;
+      }
+      if (!mounted) return;
+      final fields = await scanSlipImage(path);
       if (!mounted) return;
       _applyScannedSlip(fields);
       final found = fields.found;
@@ -1580,84 +1596,36 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
         ),
       ]),
       const SizedBox(height: 10),
-      Row(children: [
-        Expanded(
-          child: PhotoField(
-            path: _idFront,
-            label: 'ID front',
-            onPicked: (p) => setState(() => _idFront = p),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: PhotoField(
-            path: _idBack,
-            label: 'ID back',
-            onPicked: (p) => setState(() => _idBack = p),
-          ),
-        ),
-      ]),
-    ]);
-  }
-
-  /// v1.0.9: rate per gram is NOT typed — it is derived automatically from the
-  /// loan amount ÷ the item weight (net weight, else gross weight). Example:
-  /// 10 g of gold given against ₹1,00,000 shows ₹10,000 per gram.
-  Widget _autoRatePerGram() {
-    final amount = parseMoney(_amount.text);
-    double net = 0, gross = 0;
-    for (final e in _items) {
-      net += parseMoney(e.net.text);
-      gross += parseMoney(e.gross.text);
-    }
-    final useNet = net > 0;
-    final weight = useNet ? net : gross;
-    final perGram = (weight > 0 && amount > 0) ? amount / weight : null;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: kGold.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kGold.withValues(alpha: .4)),
-      ),
-      child: Row(
+      // ID front / back — camera + gallery symbols only (no text labels).
+      Wrap(
+        spacing: 14,
+        runSpacing: 6,
         children: [
-          const Icon(Icons.calculate_outlined, size: 20, color: kGoldDark),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Rate / gram (auto)',
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: kGoldDark)),
-                Text(
-                  perGram == null
-                      ? 'Enter loan amount + item weight'
-                      : '₹${moneyWhole(perGram)} per gram  '
-                          '(${useNet ? 'net' : 'gross'} weight '
-                          '${weight.toStringAsFixed(3)} g)',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: perGram == null
-                          ? const Color(0xFF8A6D14)
-                          : kInk.withValues(alpha: .8)),
-                ),
-              ],
-            ),
+          PhotoIconPicker(
+            path: _idFront,
+            onPicked: (p) => setState(() => _idFront = p),
+            onCleared: () => setState(() => _idFront = null),
+            size: 52,
+          ),
+          PhotoIconPicker(
+            path: _idBack,
+            onPicked: (p) => setState(() => _idBack = p),
+            onCleared: () => setState(() => _idBack = null),
+            size: 52,
           ),
         ],
       ),
-    );
+    ]);
   }
+
 
   @override
   void dispose() {
     _amount.dispose();
     _idNumber.dispose();
     _address.dispose();
+    _phone.dispose();
+    _customerId.dispose();
     _rate.dispose();
     for (final item in _items) {
       item.dispose();
@@ -1728,6 +1696,35 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     final interest = Num.simpleInterest(
         principal: loanAmount, ratePerMonth: rate, days: days);
 
+    // v1.0.9: the Customer ID typed here is the customer's book number — keep
+    // the customer's record in step (duplicate IDs are rejected).
+    if (_customerUuid != null && _customerId.text.trim().isNotEmpty) {
+      final current = _customers
+          .where((c) => c['client_uuid'] == _customerUuid)
+          .map((c) => c['customer_id']?.toString() ?? '')
+          .firstOrNull ??
+          '';
+      final typed = _customerId.text.trim();
+      if (typed.isNotEmpty && typed != current) {
+        try {
+          final claimed = await state.claimCustomerId(typed,
+              excludeUuid: _customerUuid);
+          await state.db.upsert('customers', {
+            ..._customers.firstWhere((c) => c['client_uuid'] == _customerUuid,
+                orElse: () => {}),
+            'customer_id': claimed,
+            'dirty': 1,
+          });
+        } on StateError catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(e.message)));
+          }
+          return;
+        }
+      }
+    }
+
     await state.savePawnLoan(
       uuid: loanUuid,
       data: {
@@ -1750,10 +1747,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
         'total_payable': Num.money(loanAmount + interest),
         'amount_paid': 0,
         'balance': Num.money(loanAmount + interest),
-        // v1.0.9: auto rate/gram + ID proof captured on the loan itself.
-        'rate_per_gram': (totalNet > 0 || totalGross > 0)
-            ? Num.money(loanAmount / (totalNet > 0 ? totalNet : totalGross))
-            : 0,
+        'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        // v1.0.9: ID proof captured on the loan itself.
         'id_proof_type': _idProofType,
         'id_proof_number': _idNumber.text.trim().isEmpty
             ? null
@@ -1776,17 +1771,17 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       appBar: AppBar(
         title: const Text('New Pawn Loan'),
         actions: [
-          // v1.0.9: scan the pawn slip — the form fills itself in.
-          TextButton.icon(
-            onPressed: _scanning ? null : _scanSlip,
+          // v1.0.9: slip scanning — symbol only, so the app-bar title stays
+          // readable on big-font phones.
+          IconButton(
+            tooltip: 'Scan slip',
             icon: _scanning
                 ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child:
-                        CircularProgressIndicator(strokeWidth: 2, color: kGold))
-                : const Icon(Icons.document_scanner_outlined, size: 18),
-            label: const Text('SCAN'),
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kGold))
+                : const Icon(Icons.document_scanner_outlined, color: kGoldDark),
+            onPressed: _scanning ? null : _scanSlip,
           ),
           TextButton(onPressed: _save, child: const Text('SAVE')),
         ],
@@ -1818,6 +1813,9 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                         setState(() {
                           _customerUuid = value;
                           _customerName = customer['customer_name']?.toString();
+                          _customerId.text =
+                              customer['customer_id']?.toString() ?? '';
+                          _phone.text = customer['phone']?.toString() ?? '';
                           final override = _basis == 'Gold'
                               ? customer['gold_interest_rate']
                               : customer['silver_interest_rate'];
@@ -1845,9 +1843,30 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                       style: TextStyle(fontSize: 12, color: Color(0xFF8A6D14))),
                 ),
               const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: fieldDecoration('Mobile no'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _customerId,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: fieldDecoration(
+                      'Customer ID',
+                      hint: 'A-01',
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
               TextFormField(
                 controller: _address,
-                decoration: fieldDecoration('Customer address / village'),
+                decoration: fieldDecoration('Address'),
               ),
             ]),
                 SectionCard(title: 'Loan', children: [
@@ -1882,8 +1901,6 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 10),
-                  _autoRatePerGram(),
                   const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
@@ -1981,9 +1998,10 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
           value: item.hallmarked,
           onChanged: (v) => setState(() => item.hallmarked = v),
         ),
-        PhotoField(
+        PhotoIconPicker(
           path: item.photoPath,
           onPicked: (path) => setState(() => item.photoPath = path),
+          onCleared: () => setState(() => item.photoPath = null),
         ),
         if (_items.length > 1)
           Align(

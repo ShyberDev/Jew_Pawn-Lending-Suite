@@ -408,8 +408,9 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                                   fontWeight: FontWeight.w700,
                                   color: inkOf(context))),
                         ),
-                        const SizedBox(width: 6),
-                        _typeTag(type),
+                        // v1.0.9: the "Village Location" tag is gone — it
+                        // squeezed the village name on big-font phones. The
+                        // icon above still shows the khata type.
                       ]),
                       const SizedBox(height: 2),
                       Text(
@@ -514,19 +515,6 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
         amount: deleted);
     _toast(context, '$name deleted.');
     await _refresh();
-  }
-
-  Widget _typeTag(String type) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-          color: kBg, borderRadius: BorderRadius.circular(6)),
-      child: Text(type,
-          style: TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
-              color: mutedOf(context))),
-    );
   }
 }
 

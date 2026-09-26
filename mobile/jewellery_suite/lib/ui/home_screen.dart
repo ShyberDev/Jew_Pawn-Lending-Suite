@@ -197,55 +197,27 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Divider(),
-            // Payments first — QR codes (PhonePe-style), then the user's own
-            // details, then the ordered system list, and logout at the bottom.
+            // v1.0.9 order requested by the shop: Payments → General (User
+            // details, Customers) → System → Logout. Languages, Notifications,
+            // Reminders and Dark mode live in Settings only (no duplicates).
             sec('Payments'),
             tile(Icons.qr_code_2, 'QR codes',
                 () => go(const QrCodesScreen()),
                 subtitle: 'Bank / UPI QR codes'),
-            sec('User Details'),
+            sec('General'),
             tile(Icons.person_outline, 'User Details',
                 () => go(const UserDetailsScreen()),
                 subtitle: 'Photo, phone, email'),
-            sec('Preferences'),
-            tile(Icons.language, 'Languages', _drawerComingSoon),
-            tile(Icons.notifications_outlined, 'Notifications',
-                _drawerComingSoon),
-            tile(Icons.alarm, 'Reminders', _drawerComingSoon),
-            SwitchListTile(
-              secondary: const Icon(Icons.brightness_6_outlined,
-                  color: kGoldDark),
-              title: const Text('Dark mode (Beta)',
-                  style: TextStyle(fontSize: 14)),
-              subtitle: const Text('Beta — not applied everywhere yet'),
-              value: state.darkMode,
-              onChanged: (v) => state.setDarkMode(v),
-            ),
-            tile(Icons.settings_outlined, 'Settings',
-                () => go(const SettingsScreen()),
-                subtitle: 'Zoom, appearance & more'),
-            sec('General'),
             tile(Icons.people_outline, 'Customers',
                 () => go(const CustomersScreen()),
                 subtitle: '${_stats['customers'] ?? 0} saved'),
-            tile(Icons.sync, 'Sync', () => go(const SyncScreen()),
-                subtitle: state.pending > 0
-                    ? '${state.pending} change(s) waiting'
-                    : 'All changes synced'),
-            sec('Admin'),
-            SwitchListTile(
-              secondary:
-                  const Icon(Icons.admin_panel_settings_outlined, color: kGoldDark),
-              title: const Text('Ask password for delete / release',
-                  style: TextStyle(fontSize: 14)),
-              subtitle: const Text('Stop accidental deletes (admin)'),
-              value: state.adminConfirm,
-              onChanged: (v) => state.setAdminConfirm(v),
-            ),
             sec('System'),
             tile(Icons.fingerprint, 'Biometric & screen lock',
                 _drawerComingSoon),
             tile(Icons.lock_outline, 'Change password', _drawerComingSoon),
+            tile(Icons.settings_outlined, 'Settings',
+                () => go(const SettingsScreen()),
+                subtitle: 'Zoom, dark mode, languages & more'),
             tile(Icons.info_outline, 'About App',
                 () => go(const AboutAppScreen()),
                 subtitle: 'Version 1.0.9, size & data'),
@@ -476,11 +448,13 @@ class _HomeScreenState extends State<HomeScreen> {
       (Icons.history, 'History',
           'Recent activity & deletions', () => _open(const HistoryScreen())),
       (Icons.calculate_outlined, 'Interest Calculator',
-          'Quick interest & total estimate',
+          'Normal & compound interest, date range',
           () => _open(const InterestCalculatorScreen())),
-      (Icons.settings_outlined, 'Settings',
-          'Zoom, appearance, QR codes & more',
-          () => _open(const SettingsScreen())),
+      (Icons.sync, 'Sync',
+          state.pending > 0
+              ? '${state.pending} change(s) waiting'
+              : 'All changes synced',
+          () => _open(const SyncScreen())),
     ];
     return Column(
       children: [

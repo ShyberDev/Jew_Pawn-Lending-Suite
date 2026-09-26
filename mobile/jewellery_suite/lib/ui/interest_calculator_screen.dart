@@ -38,8 +38,18 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
     return diff.inDays < 0 ? 0 : diff.inDays;
   }
 
-  /// Period count for the selected basis (fractional allowed).
-  double get _periods => _basis == 'Monthly' ? _days / 30.0 : _days / 365.0;
+  /// Whole calendar months between From and To (27-08-2026 → 27-08-2027 is
+  /// exactly 12 months, never 12.1). Real calendar maths, not days ÷ 30.
+  int get _months {
+    if (_to.isBefore(_from)) return 0;
+    var m = (_to.year - _from.year) * 12 + (_to.month - _from.month);
+    if (_to.day < _from.day) m -= 1;
+    return m < 0 ? 0 : m;
+  }
+
+  /// Periods used for the maths, in the selected basis.
+  double get _periods =>
+      _basis == 'Monthly' ? _months.toDouble() : (_months / 12.0);
 
   Future<void> _pickDate(bool isFrom) async {
     final current = isFrom ? _from : _to;
@@ -73,7 +83,7 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
     }
     final interest = _compound
         ? Num.compoundInterest(principal: p, rate: r, periods: periods)
-        : Num.simpleInterest(principal: p, ratePerMonth: r, days: _days);
+        : Num.money(p * r / 100.0 * periods);
     setState(() {
       _interest = interest;
       _total = p + interest;
@@ -189,7 +199,7 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
                 ),
                 child: Text(
                   '${Num.diffYmd(_from, _to)}   |   $_days Days   |   '
-                  '${_basis == 'Monthly' ? '${(_days / 30).toStringAsFixed(1)} Months' : '${(_days / 365).toStringAsFixed(2)} Years'}',
+                  '${_basis == 'Monthly' ? '$_months Months' : '${(_months / 12).toStringAsFixed(2)} Years'}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 13.5,
@@ -199,8 +209,8 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Period is counted automatically from the From → To dates. '
-                'The rate above is applied ${_basis == 'Monthly' ? 'every month' : 'every year'}.',
+                'Real calendar count: $_days day(s) = $_months month(s). '
+                'Rate is applied ${_basis == 'Monthly' ? 'every month' : 'every year'}.',
                 style: const TextStyle(fontSize: 11.5, color: Color(0xFF8A6D14)),
               ),
             ],
