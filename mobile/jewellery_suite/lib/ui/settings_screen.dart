@@ -27,7 +27,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(12),
@@ -271,7 +271,7 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(title: const Text('QR codes')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
@@ -304,7 +304,7 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: surfaceOf(context),
                                 borderRadius: BorderRadius.circular(18),
                                 boxShadow: [
                                   BoxShadow(

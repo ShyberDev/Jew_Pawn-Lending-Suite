@@ -49,6 +49,41 @@ class Num {
     return money(principal * ratePerMonth / 100.0 * months);
   }
 
+  /// Compound interest: principal × ((1 + rate/100)^periods − 1), money ceil.
+  /// [periods] may be fractional (e.g. days/30 for monthly compounding).
+  static double compoundInterest({
+    required double principal,
+    required double rate,
+    required double periods,
+  }) {
+    if (periods <= 0) return 0;
+    return money(
+        principal * (math.pow(1 + rate / 100.0, periods) - 1));
+  }
+
+  /// Calendar difference between [from] and [to] as (years, months, days).
+  static (int, int, int) diffYmdParts(DateTime from, DateTime to) {
+    if (to.isBefore(from)) return (0, 0, 0);
+    var years = to.year - from.year;
+    var months = to.month - from.month;
+    var days = to.day - from.day;
+    if (days < 0) {
+      months -= 1;
+      days += DateTime(to.year, to.month, 0).day;
+    }
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+    return (years, months, days);
+  }
+
+  /// "1 Y - 2 M - 3 D" — always shows all three units, zeros included.
+  static String diffYmd(DateTime from, DateTime to) {
+    final (years, months, days) = diffYmdParts(from, to);
+    return '$years Y - $months M - $days D';
+  }
+
   /// Whole months between two dates (used to mirror the server's monthly basis).
   static int monthsBetween(DateTime from, DateTime to) {
     var months = (to.year - from.year) * 12 + (to.month - from.month);

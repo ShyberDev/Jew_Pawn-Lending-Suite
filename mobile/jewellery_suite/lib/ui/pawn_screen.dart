@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../data/slip_ocr.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
@@ -25,9 +27,45 @@ class PawnScreen extends StatefulWidget {
 class _PawnScreenState extends State<PawnScreen> {
   String _search = '';
   late String _filter = widget.filter ?? 'All';
+  String _metal = 'all'; // all | gold | silver | mixed
   bool _dragActive = false;
+  /// Loan uuid -> customer book ID, for display only. Kept OUT of the row map
+  /// so it can never leak into a db.upsert() of pawn_loans.
+  final Map<String, String> _customerIdByLoan = {};
 
-  Future<List<Map<String, Object?>>> _load() {
+  /// loan_uuid -> list of normalised metals found on its items.
+  Future<Map<String, List<String>>> _metalIndex() async {
+    final items = await context.read<AppState>().db.query('pawn_items',
+        columns: ['loan_uuid', 'metal_type']);
+    final idx = <String, List<String>>{};
+    for (final it in items) {
+      final uuid = it['loan_uuid']?.toString() ?? '';
+      if (uuid.isEmpty) continue;
+      final m = (it['metal_type']?.toString() ?? '').toLowerCase();
+      final list = idx.putIfAbsent(uuid, () => []);
+      if (m.contains('gold') && !list.contains('gold')) list.add('gold');
+      if (m.contains('silver') && !list.contains('silver')) list.add('silver');
+    }
+    return idx;
+  }
+
+  bool _matchesMetal(Map<String, List<String>> idx, String uuid,
+      String basis, String metal) {
+    final metals = idx[uuid] ?? const [];
+    switch (metal) {
+      case 'gold':
+        return metals.contains('gold') ||
+            (metals.isEmpty && basis.toLowerCase().contains('gold'));
+      case 'silver':
+        return metals.contains('silver') ||
+            (metals.isEmpty && basis.toLowerCase().contains('silver'));
+      case 'mixed':
+        return metals.contains('gold') && metals.contains('silver');
+    }
+    return true;
+  }
+
+  Future<List<Map<String, Object?>>> _load() async {
     final db = context.read<AppState>().db;
     String? where;
     List<Object?> args = [];
@@ -64,17 +102,39 @@ class _PawnScreenState extends State<PawnScreen> {
           : '($where) AND (customer_name LIKE ? OR phone LIKE ?)';
       args.addAll([term, term]);
     }
-    if (_filter == 'recent') {
-      return db.query('pawn_loans',
-          where: where,
-          whereArgs: args,
-          orderBy: 'loan_date desc',
-          limit: 10);
+    final order = _filter == 'interest'
+        ? 'interest_accrued desc'
+        : 'loan_date desc';
+    var rows = await db.query('pawn_loans',
+        where: where,
+        whereArgs: args,
+        orderBy: order,
+        limit: _filter == 'recent' ? 10 : null);
+    // Metal filter (Gold / Silver / Mixed) based on the loan's pawn items.
+    if (_metal != 'all') {
+      final idx = await _metalIndex();
+      rows = rows
+          .where((r) => _matchesMetal(idx,
+              r['client_uuid']?.toString() ?? '',
+              r['interest_basis']?.toString() ?? '', _metal))
+          .toList();
     }
-    final order =
-        _filter == 'interest' ? 'interest_accrued desc' : 'loan_date desc';
-    return db.query('pawn_loans',
-        where: where, whereArgs: args, orderBy: order);
+    // Attach the customer's book ID for display (kept in a side map, never in
+    // the row itself — the row is spread into db.upsert('pawn_loans') by the
+    // release / edit flows, and an unknown column would abort the write).
+    final customers =
+        await db.query('customers', columns: ['customer_name', 'customer_id']);
+    final idByName = <String, String>{
+      for (final c in customers)
+        (c['customer_name']?.toString() ?? ''):
+            (c['customer_id']?.toString() ?? '')
+    };
+    _customerIdByLoan.clear();
+    for (final r in rows) {
+      _customerIdByLoan[r['client_uuid']?.toString() ?? ''] =
+          idByName[r['customer_name']?.toString() ?? ''] ?? '';
+    }
+    return rows;
   }
 
   Future<void> _openForm() async {
@@ -87,7 +147,11 @@ class _PawnScreenState extends State<PawnScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _PawnDetail(loan: loan),
+      builder: (_) => _PawnDetail(
+        loan: loan,
+        customerId:
+            _customerIdByLoan[loan['client_uuid']?.toString() ?? ''] ?? '',
+      ),
     );
     if (mounted) setState(() {});
   }
@@ -95,7 +159,7 @@ class _PawnScreenState extends State<PawnScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('Pawn Loans'),
         actions: [
@@ -122,6 +186,7 @@ class _PawnScreenState extends State<PawnScreen> {
         children: [
           _summaryStrip(),
           _chipRow(),
+          _metalRow(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
@@ -170,7 +235,7 @@ class _PawnScreenState extends State<PawnScreen> {
                             title:
                                 Text(row['customer_name']?.toString() ?? '-'),
                             subtitle: Text(
-                                '${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
+                                '${_customerIdByLoan[row['client_uuid']?.toString() ?? '']?.isNotEmpty == true ? 'ID ${_customerIdByLoan[row['client_uuid']?.toString() ?? '']} · ' : ''}${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
                             trailing: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.end,
@@ -247,23 +312,56 @@ class _PawnScreenState extends State<PawnScreen> {
 
   Widget _summaryStrip() {
     final db = context.read<AppState>().db;
+    final metal = _metal;
     return FutureBuilder<Map<String, Object?>>(
       future: () async {
         final loans = await db.query('pawn_loans',
             where: 'status = ? OR status IS NULL', whereArgs: ['Active']);
+        var filtered = loans;
+        if (metal != 'all') {
+          final idx = await _metalIndex();
+          filtered = loans
+              .where((l) => _matchesMetal(idx,
+                  l['client_uuid']?.toString() ?? '',
+                  l['interest_basis']?.toString() ?? '', metal))
+              .toList();
+        }
         double out = 0, intDue = 0;
-        for (final l in loans) {
+        for (final l in filtered) {
           out += Num.toDouble(l['loan_amount']);
           intDue += Num.toDouble(l['interest_accrued']);
         }
         return {
           'out': Num.money(out),
           'int': Num.money(intDue),
-          'n': loans.length,
+          'total': Num.money(out + intDue),
+          'metal': metal,
         };
       }(),
       builder: (context, snap) {
         final r = snap.data ?? const {};
+        final caption = switch (r['metal']) {
+          'gold' => 'Gold pawns only',
+          'silver' => 'Silver pawns only',
+          'mixed' => 'Gold + Silver pawns (mixed)',
+          _ => null,
+        };
+        Widget stat(String value, String label) => Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white.withValues(alpha: .75))),
+                ],
+              ),
+            );
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -275,56 +373,29 @@ class _PawnScreenState extends State<PawnScreen> {
             ),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('₹${r['out'] ?? 0}',
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                    Text('Principal out',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: .75))),
-                  ],
-                ),
+              Row(
+                children: [
+                  stat('₹${r['out'] ?? 0}', 'Investment'),
+                  stat('₹${r['int'] ?? 0}', 'Interest due'),
+                  stat('₹${r['total'] ?? 0}', 'Outstanding'),
+                ],
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('₹${r['int'] ?? 0}',
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                    Text('Interest due',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: .75))),
-                  ],
+              if (caption != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.filter_alt_outlined,
+                          size: 13, color: Colors.white70),
+                      const SizedBox(width: 4),
+                      Text(caption,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.white70)),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${r['n'] ?? 0}',
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                    Text('Pawns',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: .75))),
-                  ],
-                ),
-              ),
             ],
           ),
         );
@@ -371,12 +442,51 @@ class _PawnScreenState extends State<PawnScreen> {
       ),
     );
   }
+/// Gold / Silver / Mixed item filter — the summary strip and the loan list
+  /// both respect it (Mixed = loans holding both gold AND silver pawn items).
+  Widget _metalRow() {
+    final tags = <(String, String, IconData)>[
+      ('Gold', 'gold', Icons.diamond_outlined),
+      ('Silver', 'silver', Icons.circle_outlined),
+      ('Mixed', 'mixed', Icons.join_inner),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (label, value, icon) in tags)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: ChoiceChip(
+                  avatar: Icon(icon,
+                      size: 15,
+                      color: _metal == value ? kGoldDark : mutedOf(context)),
+                  label: Text(label),
+                  selected: _metal == value,
+                  selectedColor: kGold.withValues(alpha: .3),
+                  labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: _metal == value
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: _metal == value ? kGoldDark : kInk.withValues(alpha: .7)),
+                  onSelected: (_) => setState(() => _metal = value),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PawnDetail extends StatefulWidget {
-  const _PawnDetail({required this.loan});
+  const _PawnDetail({required this.loan, this.customerId = ''});
 
   final Map<String, Object?> loan;
+  final String customerId;
 
   @override
   State<_PawnDetail> createState() => _PawnDetailState();
@@ -973,44 +1083,55 @@ class _PawnDetailState extends State<_PawnDetail> {
       return;
     }
 
-    await state.saveEntity(
-      table: 'pawn_releases',
-      doctype: 'Pawn Release',
-      uuid: newUuid(),
-      data: {
-        'pawn_loan': loan['server_name'] ?? loan['client_uuid'],
-        'customer': loan['customer_name'],
+    try {
+      await state.saveEntity(
+        table: 'pawn_releases',
+        doctype: 'Pawn Release',
+        uuid: newUuid(),
+        data: {
+          'pawn_loan': loan['server_name'] ?? loan['client_uuid'],
+          'customer': loan['customer_name'],
+          'release_date': todayIso(),
+          'payment_mode': 'Cash',
+          'principal_paid': pp,
+          'interest_paid': ip,
+          'other_charges': 0,
+          'total_paid': total,
+        },
+      );
+      // The server updates the loan when the release is submitted; reflect
+      // that locally without queueing a second push.
+      await state.db.upsert('pawn_loans', {
+        ...loan,
+        'status': 'Released',
         'release_date': todayIso(),
-        'payment_mode': 'Cash',
-        'principal_paid': pp,
-        'interest_paid': ip,
-        'other_charges': 0,
-        'total_paid': total,
-      },
-    );
-    // The server updates the loan when the release is submitted; reflect that
-    // locally without queueing a second push.
-    await state.db.upsert('pawn_loans', {
-      ...loan,
-      'status': 'Released',
-      'release_date': todayIso(),
-      'amount_paid': total,
-      'balance': 0,
-      'dirty': 0,
-    });
-    // v1.0.8: the release also lands in the pawn ledger with both dates.
-    await _recordTransaction(
-      type: 'release',
-      amount: total,
-      principalPart: pp,
-      interestPart: ip,
-      effective: DateTime.now(),
-    );
-    await state.logEvent('pawn', 'release',
-        'Released — ${loan['customer_name'] ?? ''}',
+        'amount_paid': total,
+        'balance': 0,
+        'dirty': 0,
+      });
+      // v1.0.8: the release also lands in the pawn ledger with both dates.
+      await _recordTransaction(
+        type: 'release',
         amount: total,
-        village: loan['village']?.toString(),
-        ref: loan['server_name']?.toString());
+        principalPart: pp,
+        interestPart: ip,
+        effective: DateTime.now(),
+      );
+      await state.logEvent('pawn', 'release',
+          'Released — ${loan['customer_name'] ?? ''}',
+          amount: total,
+          village: loan['village']?.toString(),
+          ref: loan['server_name']?.toString());
+    } catch (error) {
+      // Never fail silently — the shop owner must see why nothing happened.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Release failed: $error'),
+          backgroundColor: kRed,
+        ));
+      }
+      return;
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -1033,7 +1154,16 @@ class _PawnDetailState extends State<_PawnDetail> {
                 Text(loan['customer_name']?.toString() ?? '-',
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
-                Text('${loan['phone'] ?? ''}  ${loan['village'] ?? ''}'),
+                Text((() {
+                  final id = widget.customerId;
+                  final phone = (loan['phone'] ?? '') as String;
+                  final village = (loan['village'] ?? '') as String;
+                  return [
+                    if (id.isNotEmpty) 'ID $id',
+                    if (phone.isNotEmpty) phone,
+                    if (village.isNotEmpty) village,
+                  ].join('  ');
+                })()),
                 const Divider(height: 24),
                 _kv('Loan amount', '₹${moneyText(loan['loan_amount'] as num?)}'),
                 _kv('Interest basis', loan['interest_basis']?.toString() ?? '-'),
@@ -1175,7 +1305,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                   '${fmtDate(t['effective_date'])} applies · '
                   'entered ${fmtDate(t['tx_date'])}',
                   style: TextStyle(
-                      fontSize: 10.5, color: kInk.withValues(alpha: .55)),
+                      fontSize: 10.5, color: mutedOf(context)),
                 ),
                 if (Num.toDouble(t['interest_part']) > 0 ||
                     Num.toDouble(t['principal_part']) > 0)
@@ -1183,7 +1313,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                     'P ₹${moneyWhole(Num.toDouble(t['principal_part']))} · '
                     'I ₹${moneyWhole(Num.toDouble(t['interest_part']))}',
                     style: TextStyle(
-                        fontSize: 10.5, color: kInk.withValues(alpha: .6)),
+                        fontSize: 10.5, color: mutedOf(context)),
                   ),
               ],
             ),
@@ -1278,6 +1408,14 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   String? _customerName;
   List<Map<String, Object?>> _customers = [];
   final List<_ItemEntry> _items = [_ItemEntry()];
+  // v1.0.9: ID proof captured on the pawn loan itself.
+  String _idProofType = 'Aadhaar';
+  final _idNumber = TextEditingController();
+  String? _idFront;
+  String? _idBack;
+  // v1.0.9: scanned customer address / village from the slip.
+  final _address = TextEditingController();
+  bool _scanning = false;
 
   @override
   void initState() {
@@ -1314,9 +1452,212 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     }
   }
 
+  /// v1.0.9: Scan the pawn slip. The camera image is read on-device (ML Kit)
+  /// and the form is filled in with whatever the slip carries: ID Number,
+  /// Customer Name, Item, Loan amount, Date, Item details and Address.
+  Future<void> _scanSlip() async {
+    if (_scanning) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined,
+                  color: kGoldDark),
+              title: const Text('Take a photo of the slip'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.photo_library_outlined, color: kGoldDark),
+              title: const Text('Choose an existing slip photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: Icon(Icons.close, color: inkOf(context)),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 2000,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _scanning = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final fields = await scanSlipImage(picked.path);
+      if (!mounted) return;
+      _applyScannedSlip(fields);
+      final found = fields.found;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(found.isEmpty
+              ? 'Could not read the slip — please fill the form by hand.'
+              : 'Slip read: ${found.join(', ')} — please check them.'),
+          duration: const Duration(seconds: 4),
+        ));
+    } catch (error) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('Scan failed: $error'),
+          backgroundColor: kRed,
+        ));
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  void _applyScannedSlip(SlipFields f) {
+    setState(() {
+      if (f.amount.isNotEmpty) _amount.text = parseMoney(f.amount).toString();
+      if (f.date != null) _loanDate = f.date!;
+      if (f.idNumber.isNotEmpty) _idNumber.text = f.idNumber;
+      if (f.address.isNotEmpty) _address.text = f.address;
+      if ((f.item.isNotEmpty || f.itemDetails.isNotEmpty) &&
+          _items.length == 1) {
+        final first = _items.first;
+        first.description.text =
+            f.item.isNotEmpty ? f.item : f.itemDetails;
+        if (f.itemDetails.isNotEmpty && f.itemDetails != f.item) {
+          first.purity.text = f.itemDetails;
+        }
+      }
+      // If the slip's customer already exists, select them in the picker.
+      if (f.customerName.isNotEmpty) {
+        final name = f.customerName.trim().toLowerCase();
+        final match = _customers.where((c) =>
+            (c['customer_name']?.toString() ?? '').trim().toLowerCase() == name);
+        if (match.isNotEmpty) {
+          _customerUuid = match.first['client_uuid'] as String?;
+          _customerName = match.first['customer_name']?.toString();
+          _setBasis(_basis, _customers);
+        }
+      }
+    });
+  }
+
+  /// v1.0.9: ID proof on the pawn loan — type, number and front/back images.
+  Widget _idProofSection() {
+    const types = [
+      'Aadhaar',
+      'PAN',
+      'Voter ID',
+      'Driving Licence',
+      'Passport',
+      'Other',
+    ];
+    return SectionCard(title: 'ID proof', children: [
+      Row(children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _idProofType,
+            decoration: fieldDecoration('ID proof type'),
+            items: types
+                .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                .toList(),
+            onChanged: (v) => setState(() => _idProofType = v ?? 'Aadhaar'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextFormField(
+            controller: _idNumber,
+            decoration: fieldDecoration('ID number'),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(
+          child: PhotoField(
+            path: _idFront,
+            label: 'ID front',
+            onPicked: (p) => setState(() => _idFront = p),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: PhotoField(
+            path: _idBack,
+            label: 'ID back',
+            onPicked: (p) => setState(() => _idBack = p),
+          ),
+        ),
+      ]),
+    ]);
+  }
+
+  /// v1.0.9: rate per gram is NOT typed — it is derived automatically from the
+  /// loan amount ÷ the item weight (net weight, else gross weight). Example:
+  /// 10 g of gold given against ₹1,00,000 shows ₹10,000 per gram.
+  Widget _autoRatePerGram() {
+    final amount = parseMoney(_amount.text);
+    double net = 0, gross = 0;
+    for (final e in _items) {
+      net += parseMoney(e.net.text);
+      gross += parseMoney(e.gross.text);
+    }
+    final useNet = net > 0;
+    final weight = useNet ? net : gross;
+    final perGram = (weight > 0 && amount > 0) ? amount / weight : null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: kGold.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kGold.withValues(alpha: .4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calculate_outlined, size: 20, color: kGoldDark),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Rate / gram (auto)',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: kGoldDark)),
+                Text(
+                  perGram == null
+                      ? 'Enter loan amount + item weight'
+                      : '₹${moneyWhole(perGram)} per gram  '
+                          '(${useNet ? 'net' : 'gross'} weight '
+                          '${weight.toStringAsFixed(3)} g)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: perGram == null
+                          ? const Color(0xFF8A6D14)
+                          : kInk.withValues(alpha: .8)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _amount.dispose();
+    _idNumber.dispose();
+    _address.dispose();
     _rate.dispose();
     for (final item in _items) {
       item.dispose();
@@ -1392,7 +1733,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       data: {
         'customer': _customerName,
         'customer_name': _customerName,
-        'village': null,
+        'village': _address.text.trim().isEmpty ? null : _address.text.trim(),
         'status': 'Active',
         'loan_date': _loanDate.toIso8601String().substring(0, 10),
         'interest_basis': _basis,
@@ -1409,6 +1750,16 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
         'total_payable': Num.money(loanAmount + interest),
         'amount_paid': 0,
         'balance': Num.money(loanAmount + interest),
+        // v1.0.9: auto rate/gram + ID proof captured on the loan itself.
+        'rate_per_gram': (totalNet > 0 || totalGross > 0)
+            ? Num.money(loanAmount / (totalNet > 0 ? totalNet : totalGross))
+            : 0,
+        'id_proof_type': _idProofType,
+        'id_proof_number': _idNumber.text.trim().isEmpty
+            ? null
+            : _idNumber.text.trim(),
+        'id_front': _idFront,
+        'id_back': _idBack,
       },
       items: items,
     );
@@ -1425,6 +1776,18 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       appBar: AppBar(
         title: const Text('New Pawn Loan'),
         actions: [
+          // v1.0.9: scan the pawn slip — the form fills itself in.
+          TextButton.icon(
+            onPressed: _scanning ? null : _scanSlip,
+            icon: _scanning
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child:
+                        CircularProgressIndicator(strokeWidth: 2, color: kGold))
+                : const Icon(Icons.document_scanner_outlined, size: 18),
+            label: const Text('SCAN'),
+          ),
           TextButton(onPressed: _save, child: const Text('SAVE')),
         ],
       ),
@@ -1481,6 +1844,11 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                   child: Text('No customers yet — tap + to add one.',
                       style: TextStyle(fontSize: 12, color: Color(0xFF8A6D14))),
                 ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _address,
+                decoration: fieldDecoration('Customer address / village'),
+              ),
             ]),
                 SectionCard(title: 'Loan', children: [
                   DropdownButtonFormField<String>(
@@ -1498,6 +1866,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                         controller: _amount,
                         keyboardType: TextInputType.number,
                         decoration: fieldDecoration('Loan amount *'),
+                        onChanged: (_) => setState(() {}),
                         validator: (v) =>
                             (parseMoney(v) <= 0)
                                 ? 'Enter amount'
@@ -1513,6 +1882,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                       ),
                     ),
                   ]),
+                  const SizedBox(height: 10),
+                  _autoRatePerGram(),
                   const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
@@ -1540,6 +1911,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                   label: const Text('Add item'),
                   onPressed: () => setState(() => _items.add(_ItemEntry())),
                 ),
+                const SizedBox(height: 12),
+                _idProofSection(),
                 const SizedBox(height: 60),
               ],
             ),
@@ -1582,6 +1955,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               child: TextFormField(
             controller: item.gross,
             keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
             decoration: fieldDecoration('Gross g'),
           )),
           const SizedBox(width: 8),
@@ -1589,6 +1963,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               child: TextFormField(
             controller: item.net,
             keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
             decoration: fieldDecoration('Net g'),
           )),
           const SizedBox(width: 8),

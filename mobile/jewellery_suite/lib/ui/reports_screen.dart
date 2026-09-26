@@ -24,7 +24,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       initialIndex: widget.initialTab,
       length: 2,
       child: Scaffold(
-        backgroundColor: kBg,
+        backgroundColor: bgOf(context),
         appBar: AppBar(
           title: const Text('Reports'),
           bottom: const TabBar(
@@ -361,7 +361,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       itemBuilder: (context, index) {
         final (icon, label, value, onTap) = rows[index];
         return Material(
-          color: Colors.white,
+          color: surfaceOf(context),
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
@@ -375,10 +375,10 @@ class _KhataReportsViewState extends State<KhataReportsView> {
               child: Icon(icon, size: 19, color: kGoldDark),
             ),
             title: Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
-                    color: kInk)),
+                    color: inkOf(context))),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -592,7 +592,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
                 style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w700,
-                    color: kInk.withValues(alpha: .5))),
+                    color: mutedOf(context))),
           ),
         ),
         Expanded(
@@ -610,7 +610,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -624,7 +624,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
           const SizedBox(height: 3),
           Text(label,
               style: TextStyle(
-                  fontSize: 10.5, color: kInk.withValues(alpha: .55))),
+                  fontSize: 10.5, color: mutedOf(context))),
         ],
       ),
     );
@@ -691,15 +691,15 @@ class _PawnReportsViewState extends State<PawnReportsView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(l['customer_name']?.toString() ?? '-',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: kInk)),
+                        color: inkOf(context))),
                 Text(
                     '${l['loan_date']}  ·  ${released ? 'Released' : 'Active'}'
                     '${l['release_date'] != null ? ' · ${l['release_date']}' : ''}',
                     style: TextStyle(
-                        fontSize: 11, color: kInk.withValues(alpha: .55))),
+                        fontSize: 11, color: mutedOf(context))),
               ],
             ),
           ),
@@ -714,7 +714,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
                   : 'Bal ₹${moneyText(l['balance'] as num?)}',
                   style: TextStyle(
                       fontSize: 10.5,
-                      color: released ? kGreen : kInk.withValues(alpha: .55))),
+                      color: released ? kGreen : mutedOf(context))),
             ],
           ),
         ],
@@ -732,18 +732,19 @@ class _PawnReportsViewState extends State<PawnReportsView> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kInk,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: lineOf(context)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('${rows.length} loans',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                  color: inkOf(context), fontWeight: FontWeight.w700)),
           Text('₹${moneyText(principal)} · ₹${moneyText(receivable)} bal',
               style: TextStyle(
-                  color: Colors.white.withValues(alpha: .85), fontSize: 12)),
+                  color: mutedOf(context), fontSize: 12)),
         ],
       ),
     );

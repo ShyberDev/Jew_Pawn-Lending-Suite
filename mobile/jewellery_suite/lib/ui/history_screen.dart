@@ -103,7 +103,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('History'),
         actions: [
@@ -180,7 +180,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           children: [
             Text('Auto-clear:',
                 style: TextStyle(
-                    fontSize: 12, color: kInk.withValues(alpha: .6))),
+                    fontSize: 12, color: mutedOf(context))),
             const SizedBox(width: 8),
             for (final m in _retentionOptions)
               Padding(
@@ -227,7 +227,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaceOf(context),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -243,8 +243,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: kInk)),
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: inkOf(context))),
                 const SizedBox(height: 2),
                 Text(
                   [
@@ -253,7 +253,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     at,
                   ].join(' · '),
                   style: TextStyle(
-                      fontSize: 11, color: kInk.withValues(alpha: .55)),
+                      fontSize: 11, color: mutedOf(context)),
                 ),
               ],
             ),
@@ -280,9 +280,9 @@ class _EmptyHistory extends StatelessWidget {
       child: Column(
         children: [
           const Icon(Icons.history, size: 48, color: kGold),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text('No history yet',
-              style: TextStyle(color: kInk.withValues(alpha: .6))),
+              style: TextStyle(color: mutedOf(context))),
         ],
       ),
     );
