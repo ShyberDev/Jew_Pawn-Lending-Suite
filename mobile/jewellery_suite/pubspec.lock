@@ -256,6 +256,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  google_mlkit_document_scanner:
+    dependency: "direct main"
+    description:
+      name: google_mlkit_document_scanner
+      sha256: "8cc17a7f62d4285298f7970867d24c030d42840068d8b680b988655d50b196ec"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.1"
   google_mlkit_text_recognition:
     dependency: "direct main"
     description:

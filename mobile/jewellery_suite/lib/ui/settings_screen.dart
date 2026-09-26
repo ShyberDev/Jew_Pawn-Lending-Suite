@@ -3,7 +3,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
-import 'about_app_screen.dart';
 import 'palette.dart';
 import 'photo_local.dart';
 import 'widgets.dart';
@@ -47,29 +46,18 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           SectionCard(
-            title: 'Payments',
-            children: [
-              _tile(context,
-                  icon: Icons.qr_code_2,
-                  title: 'QR codes',
-                  subtitle: 'Bank / UPI QR codes for the shop',
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const QrCodesScreen()))),
-            ],
-          ),
-          SectionCard(
             title: 'App',
             children: [
+              // v1.0.9: QR codes, About App, Help & Support, Biometric and
+              // Change password now live ONLY in the home side dashboard, so
+              // they are not repeated here.
               _tile(context, icon: Icons.language, title: 'Languages',
                   onTap: () => comingSoon(context)),
               _tile(context, icon: Icons.notifications_outlined,
                   title: 'Notifications', onTap: () => comingSoon(context)),
               _tile(context, icon: Icons.alarm, title: 'Reminders',
                   onTap: () => comingSoon(context)),
-              _tile(context, icon: Icons.fingerprint, title: 'Biometric & screen lock',
-                  onTap: () => comingSoon(context)),
-              _tile(context, icon: Icons.lock_outline, title: 'Change password',
-                  onTap: () => comingSoon(context)),
+              const Divider(height: 24),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.admin_panel_settings_outlined,
@@ -80,14 +68,6 @@ class SettingsScreen extends StatelessWidget {
                 value: state.adminConfirm,
                 onChanged: (v) => state.setAdminConfirm(v),
               ),
-              _tile(context,
-                  icon: Icons.info_outline,
-                  title: 'About App',
-                  subtitle: 'Version, app size & app data',
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AboutAppScreen()))),
-              _tile(context, icon: Icons.support_agent, title: 'Help & support',
-                  onTap: () => comingSoon(context)),
             ],
           ),
           const SizedBox(height: 60),

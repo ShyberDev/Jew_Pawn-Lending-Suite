@@ -81,6 +81,73 @@ class PhotoField extends StatelessWidget {
   }
 }
 
+/// v1.0.9: compact photo picker — a thumbnail plus **camera and gallery
+/// symbols only** (no "Camera"/"Gallery" text), so forms stay narrow on
+/// big-font phones.
+class PhotoIconPicker extends StatelessWidget {
+  const PhotoIconPicker({
+    super.key,
+    this.path,
+    required this.onPicked,
+    this.onCleared,
+    this.size = 58,
+  });
+
+  final String? path;
+  final ValueChanged<String> onPicked;
+  final VoidCallback? onCleared;
+  final double size;
+
+  Future<void> _choose(ImageSource source) async {
+    final saved = await pickAndStoreImage(source);
+    if (saved != null) onPicked(saved);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            border: Border.all(color: lineOf(context)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: photoThumb(path,
+              width: size, height: size, fit: BoxFit.cover,
+              fallback: Icon(Icons.image_outlined,
+                  size: 22, color: mutedOf(context))),
+        ),
+        const SizedBox(width: 6),
+        // Camera symbol
+        IconButton(
+          tooltip: 'Camera',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.photo_camera_outlined, color: kGoldDark),
+          onPressed: () => _choose(ImageSource.camera),
+        ),
+        // Gallery symbol
+        IconButton(
+          tooltip: 'Gallery',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.photo_library_outlined, color: kGoldDark),
+          onPressed: () => _choose(ImageSource.gallery),
+        ),
+        if (path != null && onCleared != null)
+          IconButton(
+            tooltip: 'Remove',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onCleared,
+          ),
+      ],
+    );
+  }
+}
+
 InputDecoration fieldDecoration(String label, {String? hint}) => InputDecoration(
       labelText: label,
       hintText: hint,
