@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/migration_v12.dart';
 import '../state/app_state.dart';
 import '../util/ids.dart';
 import 'widgets.dart';
@@ -166,6 +167,10 @@ class _CustomerFormState extends State<CustomerForm> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final state = context.read<AppState>();
+    // Only the fields this form actually owns. Columns the form never shows —
+    // customer_id (handled below), rating, the gold/silver/khatabook interest
+    // overrides, reminder_date, notes and the photo paths — are left as they
+    // are in the stored row. A column is cleared only by an explicit null.
     final data = <String, Object?>{
       'customer_name': _name.text.trim(),
       'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
@@ -180,7 +185,7 @@ class _CustomerFormState extends State<CustomerForm> {
       'status': 'Active',
     };
     if (widget.existing == null) {
-      // v1.0.9+: book scheme (A-01 … Z-99 → A-001 …). A typed ID is used
+      // Book scheme (A01 … Z99 → A001 …). A typed ID is used
       // as-is and the next customer continues from it; blank = next in the book.
       try {
         data['customer_id'] =
@@ -194,21 +199,28 @@ class _CustomerFormState extends State<CustomerForm> {
       }
     } else {
       // Editable ID: if the number changed, free the old one (reusable) and
-      // re-seed the auto sequence from the new one.
+      // re-seed the auto sequence from the new one. Clearing the box must
+      // clear the stored number (an explicit null) rather than silently
+      // leaving the old one in place.
       final oldId = widget.existing!['customer_id']?.toString() ?? '';
       final newId = _customerId.text.trim();
-      if (newId.isNotEmpty && newId != oldId) {
-        try {
-          data['customer_id'] =
-              await state.claimCustomerId(newId, excludeUuid: _uuid);
-        } on StateError catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(e.message)));
+      if (newId != oldId) {
+        if (newId.isEmpty) {
+          data['customer_id'] = null;
+          await state.freeCustomerId(oldId);
+        } else {
+          try {
+            data['customer_id'] =
+                await state.claimCustomerId(newId, excludeUuid: _uuid);
+          } on StateError catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(e.message)));
+            }
+            return;
           }
-          return;
+          await state.freeCustomerId(oldId);
         }
-        await state.freeCustomerId(oldId);
       }
     }
     await state.saveEntity(
@@ -234,6 +246,9 @@ class _CustomerFormState extends State<CustomerForm> {
 
   Future<void> _addVillage() async {
     final controller = TextEditingController();
+    // Read above the dialog await: the village write must not be lost to a
+    // screen that was closed while the dialog was open.
+    final state = context.read<AppState>();
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -253,7 +268,13 @@ class _CustomerFormState extends State<CustomerForm> {
       ),
     );
     if (name == null || name.isEmpty) return;
-    final state = context.read<AppState>();
+    if (MigrationV12.isLossVillageName(name)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('“Loss” is reserved for the Loss Khata.')));
+      }
+      return;
+    }
     await state.saveEntity(
       table: 'villages',
       doctype: 'Village',
@@ -295,24 +316,23 @@ class _CustomerFormState extends State<CustomerForm> {
                 decoration: fieldDecoration('Phone'),
               ),
               const SizedBox(height: 10),
-              // v1.0.9+: customer ID — book scheme A-01, A-02 … Z-99, then
-              // A-001 … Typed ID is used as-is and the sequence continues from
-              // it; blank = next ID in the book.
+              // Book scheme A01, A02 … Z99, then A001 … Typed ID is used
+              // as-is and the sequence continues from it; blank = next ID.
               TextFormField(
                 controller: _customerId,
                 textCapitalization: TextCapitalization.characters,
                 decoration: fieldDecoration(
                   'Customer ID',
                   hint: widget.existing == null
-                      ? 'Leave blank for next ID (A-01)'
+                      ? 'Leave blank for next ID (A01)'
                       : 'Change ID',
                 ),
               ),
               if (widget.existing == null) ...[
                 const SizedBox(height: 4),
                 const Text(
-                  'Book numbers: A-01, A-02 … A-99, B-01 … Z-99, then A-001… '
-                  'Type an ID to start from it (e.g. C-07 → next C-08).',
+                  'Book numbers: A01, A02 … A99, B01 … Z99, then A001… '
+                  'Type an ID to start from it (e.g. C07 → next C08).',
                   style: TextStyle(fontSize: 10.5, color: Color(0xFF8A6D14)),
                 ),
               ],

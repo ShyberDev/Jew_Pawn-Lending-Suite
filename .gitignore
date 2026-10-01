@@ -25,3 +25,10 @@ config/
 .idea/
 .vscode/
 *.swp
+
+# Local-only build archive (not pushed until the project is finished)
+local-apks/
+
+# Generated locally by the IDE / by `flutter create .` for a desktop target.
+devtools_options.yaml
+linux/

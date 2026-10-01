@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,7 +10,9 @@ import '../data/slip_ocr.dart';
 import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
+import '../util/pawn_math.dart';
 import 'customers_screen.dart';
+import 'admin_guard.dart';
 import 'palette.dart';
 import 'pawn_dashboard_screen.dart';
 import 'reports_screen.dart';
@@ -30,14 +33,17 @@ class _PawnScreenState extends State<PawnScreen> {
   late String _filter = widget.filter ?? 'All';
   String _metal = 'all'; // all | gold | silver | mixed
   bool _dragActive = false;
+
   /// Loan uuid -> customer book ID, for display only. Kept OUT of the row map
   /// so it can never leak into a db.upsert() of pawn_loans.
   final Map<String, String> _customerIdByLoan = {};
 
   /// loan_uuid -> list of normalised metals found on its items.
   Future<Map<String, List<String>>> _metalIndex() async {
-    final items = await context.read<AppState>().db.query('pawn_items',
-        columns: ['loan_uuid', 'metal_type']);
+    final items = await context
+        .read<AppState>()
+        .db
+        .query('pawn_items', columns: ['loan_uuid', 'metal_type']);
     final idx = <String, List<String>>{};
     for (final it in items) {
       final uuid = it['loan_uuid']?.toString() ?? '';
@@ -50,8 +56,8 @@ class _PawnScreenState extends State<PawnScreen> {
     return idx;
   }
 
-  bool _matchesMetal(Map<String, List<String>> idx, String uuid,
-      String basis, String metal) {
+  bool _matchesMetal(
+      Map<String, List<String>> idx, String uuid, String basis, String metal) {
     final metals = idx[uuid] ?? const [];
     switch (metal) {
       case 'gold':
@@ -103,9 +109,8 @@ class _PawnScreenState extends State<PawnScreen> {
           : '($where) AND (customer_name LIKE ? OR phone LIKE ?)';
       args.addAll([term, term]);
     }
-    final order = _filter == 'interest'
-        ? 'interest_accrued desc'
-        : 'loan_date desc';
+    final order =
+        _filter == 'interest' ? 'interest_accrued desc' : 'loan_date desc';
     var rows = await db.query('pawn_loans',
         where: where,
         whereArgs: args,
@@ -115,8 +120,7 @@ class _PawnScreenState extends State<PawnScreen> {
     if (_metal != 'all') {
       final idx = await _metalIndex();
       rows = rows
-          .where((r) => _matchesMetal(idx,
-              r['client_uuid']?.toString() ?? '',
+          .where((r) => _matchesMetal(idx, r['client_uuid']?.toString() ?? '',
               r['interest_basis']?.toString() ?? '', _metal))
           .toList();
     }
@@ -173,8 +177,10 @@ class _PawnScreenState extends State<PawnScreen> {
           IconButton(
             tooltip: 'Reports',
             icon: const Icon(Icons.bar_chart_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ReportsScreen(initialTab: 1))),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ReportsScreen(initialTab: 1))),
           ),
         ],
       ),
@@ -218,8 +224,7 @@ class _PawnScreenState extends State<PawnScreen> {
                         final status = row['status']?.toString() ?? 'Active';
                         final released = status == 'Released';
                         return DragToDeleteTile(
-                          onDragChanged: (v) =>
-                              setState(() => _dragActive = v),
+                          onDragChanged: (v) => setState(() => _dragActive = v),
                           payload: DeletePayload(
                             drop: () => _deleteLoan(row),
                           ),
@@ -243,8 +248,7 @@ class _PawnScreenState extends State<PawnScreen> {
                               children: [
                                 Text(status,
                                     style: TextStyle(
-                                        color:
-                                            released ? kGreen : kGoldDark,
+                                        color: released ? kGreen : kGoldDark,
                                         fontWeight: FontWeight.w600)),
                                 if (row['server_name'] == null)
                                   const Icon(Icons.cloud_upload_outlined,
@@ -283,29 +287,28 @@ class _PawnScreenState extends State<PawnScreen> {
   /// Removes the loan plus its items, transactions, releases and payment rows.
   Future<bool> _deleteLoan(Map<String, Object?> row) async {
     final state = context.read<AppState>();
-    var granted = true;
-    if (state.adminConfirm) {
-      granted = await _adminDeleteDialog(
-          context, row['customer_name']?.toString() ?? 'pawn loan');
-      if (granted != true) {
-        _toast(context, 'Delete cancelled / wrong password.');
-        return false;
-      }
+    final granted = await askPasswordIfEnabled(context, state,
+        actionId: 'pawn_delete',
+        action: 'delete',
+        detail: row['customer_name']?.toString() ?? 'pawn loan');
+    // The password dialog was async - the loan sheet may be closed by now.
+    if (!mounted) return false;
+    if (granted != true) {
+      _toast(context, 'Delete cancelled / wrong password.');
+      return false;
     }
     final db = state.db;
     final uuid = row['client_uuid'] as String?;
     final ref = (row['server_name'] as String?) ?? uuid;
     if (uuid == null) return false;
-    await db.delete('pawn_loans',
-        where: 'client_uuid = ?', whereArgs: [uuid]);
-    await db.delete('pawn_items',
-        where: 'loan_uuid = ?', whereArgs: [uuid]);
+    await db.delete('pawn_loans', where: 'client_uuid = ?', whereArgs: [uuid]);
+    await db.delete('pawn_items', where: 'loan_uuid = ?', whereArgs: [uuid]);
     await db.delete('pawn_transactions',
         where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
     await db.delete('pawn_releases',
         where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
-    await state.logEvent('pawn', 'delete',
-        'Pawn loan deleted — ${row['customer_name'] ?? ''}',
+    await state.logEvent(
+        'pawn', 'delete', 'Pawn loan deleted — ${row['customer_name'] ?? ''}',
         amount: Num.toDouble(row['loan_amount']));
     if (mounted) setState(() {});
     return true;
@@ -322,30 +325,22 @@ class _PawnScreenState extends State<PawnScreen> {
         if (metal != 'all') {
           final idx = await _metalIndex();
           filtered = loans
-              .where((l) => _matchesMetal(idx,
+              .where((l) => _matchesMetal(
+                  idx,
                   l['client_uuid']?.toString() ?? '',
-                  l['interest_basis']?.toString() ?? '', metal))
+                  l['interest_basis']?.toString() ?? '',
+                  metal))
               .toList();
         }
         double out = 0, intDue = 0, outstanding = 0;
-        for (final l in filtered) {
-          out += Num.toDouble(l['loan_amount']);
-          intDue += Num.toDouble(l['interest_accrued']);
-          // Outstanding must match the Pawn Dashboard's "Total receivable",
-          // which is the loan balance (principal + interest still to be
-          // collected). Fall back to principal + interest − paid when the
-          // balance has not been computed yet.
-          final bal = Num.toDouble(l['balance']);
-          outstanding += bal > 0
-              ? bal
-              : Num.toDouble(l['loan_amount']) +
-                  Num.toDouble(l['interest_accrued']) -
-                  Num.toDouble(l['amount_paid']);
-        }
+        final totals = PawnMath.totals(filtered);
+        out = totals.investment;
+        intDue = totals.interest;
+        outstanding = totals.outstanding;
         return {
-          'out': Num.money(out),
-          'int': Num.money(intDue),
-          'total': Num.money(outstanding),
+          'out': out,
+          'int': intDue,
+          'total': outstanding,
           'metal': metal,
         };
       }(),
@@ -438,14 +433,12 @@ class _PawnScreenState extends State<PawnScreen> {
                   selectedColor: kGold.withValues(alpha: .3),
                   labelStyle: TextStyle(
                       fontSize: 12,
-                      fontWeight: _filter == value
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      fontWeight:
+                          _filter == value ? FontWeight.w700 : FontWeight.w500,
                       color: _filter == value
                           ? kGoldDark
                           : kInk.withValues(alpha: .7)),
-                  onSelected: (_) =>
-                      setState(() => _filter = value),
+                  onSelected: (_) => setState(() => _filter = value),
                 ),
               ),
           ],
@@ -453,7 +446,8 @@ class _PawnScreenState extends State<PawnScreen> {
       ),
     );
   }
-/// Gold / Silver / Mixed item filter — the summary strip and the loan list
+
+  /// Gold / Silver / Mixed item filter — the summary strip and the loan list
   /// both respect it (Mixed = loans holding both gold AND silver pawn items).
   Widget _metalRow() {
     final tags = <(String, String, IconData)>[
@@ -479,10 +473,11 @@ class _PawnScreenState extends State<PawnScreen> {
                   selectedColor: kGold.withValues(alpha: .3),
                   labelStyle: TextStyle(
                       fontSize: 12,
-                      fontWeight: _metal == value
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: _metal == value ? kGoldDark : kInk.withValues(alpha: .7)),
+                      fontWeight:
+                          _metal == value ? FontWeight.w700 : FontWeight.w500,
+                      color: _metal == value
+                          ? kGoldDark
+                          : kInk.withValues(alpha: .7)),
                   onSelected: (_) => setState(() => _metal = value),
                 ),
               ),
@@ -538,10 +533,10 @@ class _PawnDetailState extends State<_PawnDetail> {
     final state = context.read<AppState>();
     final db = state.db;
     final ref = (_loan['server_name'] as String?) ?? _loan['client_uuid'];
-    final tx = await db.query('pawn_transactions',
-        where: 'pawn_loan = ?', whereArgs: [ref]);
-    final releases = await db.query('pawn_releases',
-        where: 'pawn_loan = ?', whereArgs: [ref]);
+    final tx = await db
+        .query('pawn_transactions', where: 'pawn_loan = ?', whereArgs: [ref]);
+    final releases = await db
+        .query('pawn_releases', where: 'pawn_loan = ?', whereArgs: [ref]);
     final combined = <Map<String, Object?>>[
       ...tx,
       for (final r in releases)
@@ -582,10 +577,10 @@ class _PawnDetailState extends State<_PawnDetail> {
       'client_uuid': newUuid(),
       'server_name': null,
       'dirty': 0,
-      'pawn_loan':
-          (_loan['server_name'] as String?) ?? _loan['client_uuid'],
+      'pawn_loan': (_loan['server_name'] as String?) ?? _loan['client_uuid'],
       'customer': _loan['client_uuid'],
       'customer_name': _loan['customer_name'],
+      'customer_uuid': _loan['customer_uuid'],
       'tx_date': todayIso(),
       'effective_date': _dateOnly(effective),
       'tx_type': type,
@@ -636,18 +631,17 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// Drag-to-delete for a pawn ITEM: removes the item row and recomputes the
   /// loan's weight / market value / LTV totals from the remaining items.
   Future<bool> _deleteItem(Map<String, Object?> item) async {
+    final state = context.read<AppState>();
     final ok = await confirmDialog(
       context,
       'Remove this item from the pawn? Removing it lowers the collateral.',
       title: 'Remove item',
     );
     if (!ok) return false;
-    final state = context.read<AppState>();
     final id = item['id'] as int?;
     if (id == null) return false;
     await state.db.deleteWhere('pawn_items', 'id = ?', [id]);
-    final items =
-        await state.itemsFor(widget.loan['client_uuid'] as String);
+    final items = await state.itemsFor(widget.loan['client_uuid'] as String);
     var tg = 0.0, tn = 0.0, hm = 0.0, mv = 0.0;
     for (final i in items) {
       tg += Num.toDouble(i['gross_weight']);
@@ -663,7 +657,7 @@ class _PawnDetailState extends State<_PawnDetail> {
         'hallmarked_weight': Num.round3(hm),
         'non_hallmarked_weight': Num.round3(tn - hm),
         'total_market_value': Num.money(mv),
-        'ltv': mv > 0 ? Num.money(loanAmount / mv * 100) : 0,
+        'ltv': mv > 0 ? Num.roundPct(loanAmount / mv * 100) : 0,
       },
       logKind: 'delete-item',
       logTitle: 'Pawn item removed — ${item['item_description'] ?? ''}',
@@ -677,13 +671,13 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// the principal, releases reopen the loan).
   Future<bool> _deleteTransaction(Map<String, Object?> t) async {
     final type = t['tx_type']?.toString() ?? '';
+    final state = context.read<AppState>();
     final ok = await confirmDialog(
       context,
       'Remove this ledger entry and undo its effect on the loan?',
       title: 'Remove entry',
     );
     if (!ok) return false;
-    final state = context.read<AppState>();
     final db = state.db;
     final ref = (_loan['server_name'] as String?) ?? _loan['client_uuid'];
 
@@ -692,8 +686,8 @@ class _PawnDetailState extends State<_PawnDetail> {
     var nPaid = Num.toDouble(_loan['amount_paid']);
 
     if (type == 'release') {
-      await db.delete('pawn_releases',
-          where: 'pawn_loan = ?', whereArgs: [ref]);
+      await db
+          .delete('pawn_releases', where: 'pawn_loan = ?', whereArgs: [ref]);
       np = Num.money(np + Num.toDouble(t['principal_part']));
       ni = Num.money(ni + Num.toDouble(t['interest_part']));
       nPaid = Num.money(nPaid - Num.toDouble(t['amount']));
@@ -765,8 +759,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                     helpText: 'Date the change applies from',
                   );
                   if (d != null) {
-                    setDlg(
-                        () => picked = DateTime(d.year, d.month, d.day));
+                    setDlg(() => picked = DateTime(d.year, d.month, d.day));
                   }
                 },
                 icon: const Icon(Icons.calendar_month),
@@ -793,8 +786,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                     helpText: 'Date the change applies from',
                   );
                   if (d != null) {
-                    setDlg(
-                        () => picked = DateTime(d.year, d.month, d.day));
+                    setDlg(() => picked = DateTime(d.year, d.month, d.day));
                   }
                 },
                 child: Row(
@@ -834,20 +826,23 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// restarts interest accrual from the chosen date.
   Future<void> _amountPaying() async {
     final loan = _loan;
-    final out = Num.toDouble(loan['loan_amount']) +
-        Num.toDouble(loan['interest_accrued']);
+    // Interest runs with the calendar, so settle everything up to the chosen
+    // effective date BEFORE splitting the payment. Without this the app would
+    // clear only the interest it happened to have stored.
+    final out = PawnMath.outstanding(loan);
     final res = await _amountDialog('Amount Paying', 'Amount received', out);
     if (res == null) return;
     final (pay, effective) = res;
-    final interestPart = Num.money(
-        (Num.toDouble(loan['interest_accrued']) < pay)
-            ? Num.toDouble(loan['interest_accrued'])
-            : pay);
+    final asOf = effective;
+    final dueInterest = PawnMath.interestDue(loan, asOf);
+    final interestPart = Num.money(dueInterest < pay ? dueInterest : pay);
     final principalPart = Num.money(pay - interestPart);
+    // Principal can never go below zero — a large "interest paid" on a small
+    // loan must not write a negative principal (which the server would then
+    // multiply by the rate to make negative interest).
     final newPrincipal =
-        Num.money(Num.toDouble(loan['loan_amount']) - principalPart);
-    final newInterest =
-        Num.money(Num.toDouble(loan['interest_accrued']) - interestPart);
+        Num.money(math.max(0, PawnMath.principalOut(loan) - principalPart));
+    final newInterest = Num.money(dueInterest - interestPart);
     final newPaid = Num.money(Num.toDouble(loan['amount_paid']) + pay);
     final total = Num.money(newPrincipal + newInterest);
     final newBalance = Num.money(total - newPaid);
@@ -857,6 +852,7 @@ class _PawnDetailState extends State<_PawnDetail> {
       'total_payable': total,
       'amount_paid': newPaid,
       'balance': newBalance < 0 ? 0 : newBalance,
+      'last_interest_date': PawnMath.isoDate(asOf),
       if (newBalance <= 0.005) ...{
         'status': 'Released',
         'release_date': _dateOnly(effective),
@@ -880,33 +876,35 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// fresh amount from the chosen date.
   Future<void> _amountRequesting() async {
     final loan = _loan;
-    final res = await _amountDialog(
-        'Amount Requesting', 'New amount given', 0);
+    final res = await _amountDialog('Amount Requesting', 'New amount given', 0);
     if (res == null) return;
     final (more, effective) = res;
     final rate = Num.toDouble(loan['interest_rate']);
-    final anchor = _anchorDate ?? DateTime.now();
-    final days = DateTime.now().difference(anchor).inDays;
+    final asOf = effective;
+    // Settle the elapsed interest on the OLD principal first, then add the new
+    // principal and start its own accrual from the same date.
+    final days = DateTime.now().difference(asOf).inDays;
     final freshInterest = Num.simpleInterest(
         principal: more, ratePerMonth: rate, days: days < 0 ? 0 : days);
-    final newPrincipal = Num.money(Num.toDouble(loan['loan_amount']) + more);
-    final newInterest = Num.money(
-        Num.toDouble(loan['interest_accrued']) + freshInterest);
+    final newPrincipal = Num.money(PawnMath.principalOut(loan) + more);
+    final newInterest =
+        Num.money(PawnMath.interestDue(loan, asOf) + freshInterest);
+    final newPaid = Num.toDouble(loan['amount_paid']);
     final total = Num.money(newPrincipal + newInterest);
-    final newBalance =
-        Num.money(total - Num.toDouble(loan['amount_paid']));
+    final newBalance = Num.money(total - newPaid);
     await _recordTransaction(
       type: 'requesting',
       amount: more,
       principalPart: more,
       interestPart: freshInterest,
-      effective: effective,
+      effective: asOf,
     );
     await _applyToLoan({
       'loan_amount': newPrincipal,
       'interest_accrued': newInterest,
       'total_payable': total,
-      'balance': newBalance,
+      'balance': newBalance < 0 ? 0 : newBalance,
+      'last_interest_date': PawnMath.isoDate(asOf),
     },
         logKind: 'request',
         logTitle: 'Amount requesting — ${loan['customer_name'] ?? ''}',
@@ -917,16 +915,17 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// reduces principal, exactly like Amount Paying.
   Future<void> _interestPaid() async {
     final loan = _loan;
-    final res = await _amountDialog(
-        'Interest Paid', 'Interest amount paid', 0);
+    final res = await _amountDialog('Interest Paid', 'Interest amount paid', 0);
     if (res == null) return;
     final (amt, effective) = res;
-    final accrued = Num.toDouble(loan['interest_accrued']);
+    final asOf = effective;
+    final accrued = PawnMath.interestDue(loan, asOf);
     final interestPart = Num.money(accrued < amt ? accrued : amt);
     final principalPart = Num.money(amt - interestPart);
     final newInterest = Num.money(accrued - interestPart);
+    // Principal can never go below zero.
     final newPrincipal =
-        Num.money(Num.toDouble(loan['loan_amount']) - principalPart);
+        Num.money(math.max(0, PawnMath.principalOut(loan) - principalPart));
     final newPaid = Num.money(Num.toDouble(loan['amount_paid']) + amt);
     final total = Num.money(newPrincipal + newInterest);
     final newBalance = Num.money(total - newPaid);
@@ -935,6 +934,7 @@ class _PawnDetailState extends State<_PawnDetail> {
       'loan_amount': newPrincipal,
       'total_payable': total,
       'amount_paid': newPaid,
+      'last_interest_date': PawnMath.isoDate(asOf),
       'balance': newBalance < 0 ? 0 : newBalance,
       if (newBalance <= 0.005) ...{
         'status': 'Released',
@@ -957,24 +957,17 @@ class _PawnDetailState extends State<_PawnDetail> {
   /// Full release: settles interest first, then principal, marks the loan
   /// Released and records the event in the pawn ledger.
   Future<void> _release() async {
+    // Hoisted above the two dialogs below: releasing a pawn hands over gold and
+    // takes cash, so it must never be abandoned on a UI-timing technicality.
+    final state = context.read<AppState>();
     final loan = _loan;
-    final loanAmount = Num.toDouble(loan['loan_amount']);
-    final paid = Num.toDouble(loan['amount_paid']);
-    final balance = Num.toDouble(loan['balance']);
-    final loanDate =
-        DateTime.tryParse(loan['loan_date']?.toString() ?? '') ?? DateTime.now();
-    final days = DateTime.now().difference(loanDate).inDays;
+    final asOf = DateTime.now();
     final rate = Num.toDouble(loan['interest_rate']);
-    // Prefer the server's accrued interest/balance so the settlement matches.
-    double interestDue = Num.toDouble(loan['interest_accrued']);
-    if (interestDue <= 0) {
-      interestDue = Num.simpleInterest(
-          principal: loanAmount, ratePerMonth: rate, days: days);
-    }
-    if (balance > 0 && interestDue > balance) interestDue = balance;
-    final principalDue = balance > 0
-        ? Num.money(balance - interestDue)
-        : Num.money(loanAmount - paid);
+    // Settlement comes from PawnMath: the interest owed TODAY (stored + earned
+    // since the last anchor), never a stale stored figure — releasing a loan
+    // for less than the customer owes loses the shop real money.
+    final interestDue = PawnMath.interestDue(loan, asOf);
+    final principalDue = PawnMath.principalOut(loan);
     final totalToReceive = Num.money(interestDue + principalDue);
 
     final principalController =
@@ -1012,7 +1005,9 @@ class _PawnDetailState extends State<_PawnDetail> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Days: $days  ·  Rate: $rate%/month'),
+            Text('Days since last settlement: '
+                '${asOf.difference(PawnMath.anchorOf(loan)).inDays}'
+                '  ·  Rate: $rate%/month'),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -1022,7 +1017,8 @@ class _PawnDetailState extends State<_PawnDetail> {
               ),
               child: Column(
                 children: [
-                  sumRow('Principal outstanding', '₹${moneyText(principalDue)}'),
+                  sumRow(
+                      'Principal outstanding', '₹${moneyText(principalDue)}'),
                   sumRow('Interest outstanding', '₹${moneyText(interestDue)}'),
                   const Divider(height: 14),
                   sumRow('Total to receive', '₹${moneyText(totalToReceive)}',
@@ -1047,8 +1043,10 @@ class _PawnDetailState extends State<_PawnDetail> {
               'release.',
               style: TextStyle(
                   fontSize: 11,
-                  color:
-                      Theme.of(ctx).colorScheme.onSurface.withValues(alpha: .6)),
+                  color: Theme.of(ctx)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: .6)),
             ),
           ],
         ),
@@ -1064,14 +1062,13 @@ class _PawnDetailState extends State<_PawnDetail> {
     );
     if (ok != true) return;
 
-    final state = context.read<AppState>();
-    if (state.adminConfirm) {
-      final granted = await _adminDeleteDialog(
-          context, 'this pawn loan', verb: 'release');
-      if (granted != true) {
-        _toast(context, 'Release cancelled / wrong password.');
-        return;
-      }
+    if (!mounted) return;
+    final granted = await askPasswordIfEnabled(context, state,
+        actionId: 'pawn_release', action: 'release', detail: 'this pawn loan');
+    if (!mounted) return;
+    if (granted != true) {
+      _toast(context, 'Release cancelled / wrong password.');
+      return;
     }
     final pp = Num.money(parseMoney(principalController.text));
     final ip = Num.money(parseMoney(interestController.text));
@@ -1102,6 +1099,7 @@ class _PawnDetailState extends State<_PawnDetail> {
         data: {
           'pawn_loan': loan['server_name'] ?? loan['client_uuid'],
           'customer': loan['customer_name'],
+          'customer_uuid': loan['customer_uuid'],
           'release_date': todayIso(),
           'payment_mode': 'Cash',
           'principal_paid': pp,
@@ -1110,15 +1108,21 @@ class _PawnDetailState extends State<_PawnDetail> {
           'total_paid': total,
         },
       );
-      // The server updates the loan when the release is submitted; reflect
-      // that locally without queueing a second push.
+      // The release settles the loan. CRITICAL: amount_paid is the running
+      // total received over the life of the loan, so the settlement is ADDED
+      // to it — overwriting it threw away every earlier payment and left a
+      // "Amount paid" figure smaller than the money actually taken.
+      final paidTotal = Num.money(Num.toDouble(loan['amount_paid']) + total);
       await state.db.upsert('pawn_loans', {
         ...loan,
         'status': 'Released',
         'release_date': todayIso(),
-        'amount_paid': total,
+        'amount_paid': paidTotal,
+        'interest_accrued': interestDue,
+        'total_payable': paidTotal,
         'balance': 0,
-        'dirty': 0,
+        'last_interest_date': PawnMath.isoDate(asOf),
+        'dirty': 1,
       });
       // v1.0.8: the release also lands in the pawn ledger with both dates.
       await _recordTransaction(
@@ -1128,8 +1132,8 @@ class _PawnDetailState extends State<_PawnDetail> {
         interestPart: ip,
         effective: DateTime.now(),
       );
-      await state.logEvent('pawn', 'release',
-          'Released — ${loan['customer_name'] ?? ''}',
+      await state.logEvent(
+          'pawn', 'release', 'Released — ${loan['customer_name'] ?? ''}',
           amount: total,
           village: loan['village']?.toString(),
           ref: loan['server_name']?.toString());
@@ -1151,8 +1155,8 @@ class _PawnDetailState extends State<_PawnDetail> {
     final loan = _loan;
     final released = (loan['status']?.toString() ?? 'Active') == 'Released';
     return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.75,
@@ -1176,16 +1180,21 @@ class _PawnDetailState extends State<_PawnDetail> {
                   ].join('  ');
                 })()),
                 const Divider(height: 24),
-                _kv('Loan amount', '₹${moneyText(loan['loan_amount'] as num?)}'),
-                _kv('Interest basis', loan['interest_basis']?.toString() ?? '-'),
+                _kv('Principal (investment)',
+                    '₹${moneyText(PawnMath.principalOut(loan))}'),
+                _kv('Interest basis',
+                    loan['interest_basis']?.toString() ?? '-'),
                 _kv('Rate', '${loan['interest_rate'] ?? '-'} %/month'),
                 _kv('Loan date', fmtDate(loan['loan_date'])),
                 _kv('Due date', fmtDate(loan['due_date'])),
                 _kv('Status', loan['status']?.toString() ?? 'Active'),
+                _kv('Interest due (today)',
+                    '₹${moneyText(PawnMath.interestDue(loan))}'),
                 _kv('Total payable',
-                    '₹${moneyText(loan['total_payable'] as num?)}'),
-                _kv('Amount paid', '₹${moneyText(loan['amount_paid'] as num?)}'),
-                _kv('Balance', '₹${moneyText(loan['balance'] as num?)}'),
+                    '₹${moneyText(PawnMath.principalOut(loan) + PawnMath.interestDue(loan))}'),
+                _kv('Amount paid',
+                    '₹${moneyText(loan['amount_paid'] as num?)}'),
+                _kv('Outstanding', '₹${moneyText(PawnMath.outstanding(loan))}'),
                 const Divider(height: 24),
                 Text('Items', style: Theme.of(context).textTheme.titleMedium),
                 // v1.0.8: every pawn entry is deletable by dragging it to the
@@ -1206,59 +1215,58 @@ class _PawnDetailState extends State<_PawnDetail> {
                                   height: 44,
                                   fit: BoxFit.cover))
                           : const Icon(Icons.diamond_outlined),
-                      title:
-                          Text(item['item_description']?.toString() ?? '-'),
+                      title: Text(item['item_description']?.toString() ?? '-'),
                       subtitle: Text(
                           '${item['metal_type'] ?? ''} · ${item['net_weight'] ?? 0} g · '
                           '${(item['hallmarked'] == 1) ? 'Hallmarked' : 'Non-hallmarked'}'),
                     ),
                   ),
                 if (!released) ...[
-              const SizedBox(height: 16),
-              // v1.0.8: pawn operations — "Amount Paying" / "Amount Requesting"
-              // / "Interest Paid", each with a single amount box + a past or
-              // future date. Every action also logs a row in the pawn ledger.
-              FilledButton.icon(
-                onPressed: _amountPaying,
-                icon: const Icon(Icons.currency_rupee),
-                label: const Text('Amount Paying'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _amountRequesting,
-                icon: const Icon(Icons.add_card),
-                label: const Text('Amount Requesting'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _interestPaid,
-                icon: const Icon(Icons.percent),
-                label: const Text('Interest Paid'),
-              ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                onPressed: _release,
-                icon: const Icon(Icons.lock_open),
-                label: const Text('Release (principal + interest)'),
-              ),
-            ],
-            const Divider(height: 28),
-            Text('Ledger', style: Theme.of(context).textTheme.titleMedium),
-            if (_transactions.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('No entries yet.'),
-              )
-            else
-              for (final t in _transactions)
-                DragToDeleteTile(
-                  onDragChanged: (v) => setState(() => _dragActive = v),
-                  payload: DeletePayload(drop: () => _deleteTransaction(t)),
-                  child: _txRow(t),
-                ),
-            const SizedBox(height: 24),
-          ],
-        ),
+                  const SizedBox(height: 16),
+                  // v1.0.8: pawn operations — "Amount Paying" / "Amount Requesting"
+                  // / "Interest Paid", each with a single amount box + a past or
+                  // future date. Every action also logs a row in the pawn ledger.
+                  FilledButton.icon(
+                    onPressed: _amountPaying,
+                    icon: const Icon(Icons.currency_rupee),
+                    label: const Text('Amount Paying'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _amountRequesting,
+                    icon: const Icon(Icons.add_card),
+                    label: const Text('Amount Requesting'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _interestPaid,
+                    icon: const Icon(Icons.percent),
+                    label: const Text('Interest Paid'),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _release,
+                    icon: const Icon(Icons.lock_open),
+                    label: const Text('Release (principal + interest)'),
+                  ),
+                ],
+                const Divider(height: 28),
+                Text('Ledger', style: Theme.of(context).textTheme.titleMedium),
+                if (_transactions.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No entries yet.'),
+                  )
+                else
+                  for (final t in _transactions)
+                    DragToDeleteTile(
+                      onDragChanged: (v) => setState(() => _dragActive = v),
+                      payload: DeletePayload(drop: () => _deleteTransaction(t)),
+                      child: _txRow(t),
+                    ),
+                const SizedBox(height: 24),
+              ],
+            ),
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -1289,7 +1297,8 @@ class _PawnDetailState extends State<_PawnDetail> {
       'release' => 'Release',
       _ => type,
     };
-    final isOut = type == 'paying' || type == 'interest_paid' || type == 'release';
+    final isOut =
+        type == 'paying' || type == 'interest_paid' || type == 'release';
     final amount = Num.toDouble(t['amount']);
     final icon = switch (type) {
       'paying' => Icons.south_west,
@@ -1315,16 +1324,14 @@ class _PawnDetailState extends State<_PawnDetail> {
                 Text(
                   '${fmtDate(t['effective_date'])} applies · '
                   'entered ${fmtDate(t['tx_date'])}',
-                  style: TextStyle(
-                      fontSize: 10.5, color: mutedOf(context)),
+                  style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
                 ),
                 if (Num.toDouble(t['interest_part']) > 0 ||
                     Num.toDouble(t['principal_part']) > 0)
                   Text(
                     'P ₹${moneyWhole(Num.toDouble(t['principal_part']))} · '
                     'I ₹${moneyWhole(Num.toDouble(t['interest_part']))}',
-                    style: TextStyle(
-                        fontSize: 10.5, color: mutedOf(context)),
+                    style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
                   ),
               ],
             ),
@@ -1447,15 +1454,16 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   /// The "+" beside the customer picker opens the full customer form (photo,
   /// ID proof type/number/front/back), then re-selects the new customer.
   Future<void> _addCustomer() async {
+    // Read before the push: the push awaits a whole screen.
+    final state = context.read<AppState>();
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CustomerForm(initialType: 'General')),
+      MaterialPageRoute(
+          builder: (_) => const CustomerForm(initialType: 'General')),
     );
     await _loadCustomers();
-    final newest = await context
-        .read<AppState>()
-        .db
-        .query('customers', orderBy: 'updated_at desc', limit: 1);
+    final newest =
+        await state.db.query('customers', orderBy: 'updated_at desc', limit: 1);
     if (newest.isNotEmpty && mounted) {
       setState(() {
         _customerUuid = newest.first['client_uuid'] as String?;
@@ -1485,8 +1493,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined,
-                      color: kGoldDark),
+                  leading:
+                      const Icon(Icons.photo_camera_outlined, color: kGoldDark),
                   title: const Text('Take a photo of the slip'),
                   onTap: () => Navigator.pop(ctx, ImageSource.camera),
                 ),
@@ -1545,8 +1553,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       if ((f.item.isNotEmpty || f.itemDetails.isNotEmpty) &&
           _items.length == 1) {
         final first = _items.first;
-        first.description.text =
-            f.item.isNotEmpty ? f.item : f.itemDetails;
+        first.description.text = f.item.isNotEmpty ? f.item : f.itemDetails;
         if (f.itemDetails.isNotEmpty && f.itemDetails != f.item) {
           first.purity.text = f.itemDetails;
         }
@@ -1555,7 +1562,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       if (f.customerName.isNotEmpty) {
         final name = f.customerName.trim().toLowerCase();
         final match = _customers.where((c) =>
-            (c['customer_name']?.toString() ?? '').trim().toLowerCase() == name);
+            (c['customer_name']?.toString() ?? '').trim().toLowerCase() ==
+            name);
         if (match.isNotEmpty) {
           _customerUuid = match.first['client_uuid'] as String?;
           _customerName = match.first['customer_name']?.toString();
@@ -1617,7 +1625,6 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       ),
     ]);
   }
-
 
   @override
   void dispose() {
@@ -1700,15 +1707,15 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     // the customer's record in step (duplicate IDs are rejected).
     if (_customerUuid != null && _customerId.text.trim().isNotEmpty) {
       final current = _customers
-          .where((c) => c['client_uuid'] == _customerUuid)
-          .map((c) => c['customer_id']?.toString() ?? '')
-          .firstOrNull ??
+              .where((c) => c['client_uuid'] == _customerUuid)
+              .map((c) => c['customer_id']?.toString() ?? '')
+              .firstOrNull ??
           '';
       final typed = _customerId.text.trim();
       if (typed.isNotEmpty && typed != current) {
         try {
-          final claimed = await state.claimCustomerId(typed,
-              excludeUuid: _customerUuid);
+          final claimed =
+              await state.claimCustomerId(typed, excludeUuid: _customerUuid);
           await state.db.upsert('customers', {
             ..._customers.firstWhere((c) => c['client_uuid'] == _customerUuid,
                 orElse: () => {}),
@@ -1730,6 +1737,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       data: {
         'customer': _customerName,
         'customer_name': _customerName,
+        // v9: identity is the uuid; the name is only a display cache.
+        'customer_uuid': _customerUuid,
         'village': _address.text.trim().isEmpty ? null : _address.text.trim(),
         'status': 'Active',
         'loan_date': _loanDate.toIso8601String().substring(0, 10),
@@ -1742,17 +1751,22 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
         'hallmarked_weight': Num.round3(hallmarked),
         'non_hallmarked_weight': Num.round3(totalNet - hallmarked),
         'total_market_value': Num.money(marketValue),
-        'ltv': marketValue > 0 ? (loanAmount / marketValue * 100) : 0,
+        // LTV always uses the same 2-decimal rounding (Num.roundPct), so the
+        // create screen, an item edit and the server can never disagree.
+        'ltv':
+            marketValue > 0 ? Num.roundPct(loanAmount / marketValue * 100) : 0,
         'interest_accrued': interest,
+        // v1.0.9: the stored interest runs UP TO the due date, so the accrual
+        // anchor starts at the due date. PawnMath adds interest from here on.
+        'last_interest_date': due.toIso8601String().substring(0, 10),
         'total_payable': Num.money(loanAmount + interest),
         'amount_paid': 0,
         'balance': Num.money(loanAmount + interest),
         'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         // v1.0.9: ID proof captured on the loan itself.
         'id_proof_type': _idProofType,
-        'id_proof_number': _idNumber.text.trim().isEmpty
-            ? null
-            : _idNumber.text.trim(),
+        'id_proof_number':
+            _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
         'id_front': _idFront,
         'id_back': _idBack,
       },
@@ -1779,7 +1793,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: kGold))
+                    child:
+                        CircularProgressIndicator(strokeWidth: 2, color: kGold))
                 : const Icon(Icons.document_scanner_outlined, color: kGoldDark),
             onPressed: _scanning ? null : _scanSlip,
           ),
@@ -1858,7 +1873,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                     textCapitalization: TextCapitalization.characters,
                     decoration: fieldDecoration(
                       'Customer ID',
-                      hint: 'A-01',
+                      hint: 'A01',
                     ),
                   ),
                 ),
@@ -1869,72 +1884,69 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 decoration: fieldDecoration('Address'),
               ),
             ]),
-                SectionCard(title: 'Loan', children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: _basis,
-                    decoration: fieldDecoration('Interest basis'),
-                    items: const ['Gold', 'Silver']
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: (v) => _setBasis(v ?? 'Gold', _customers),
+            SectionCard(title: 'Loan', children: [
+              DropdownButtonFormField<String>(
+                initialValue: _basis,
+                decoration: fieldDecoration('Interest basis'),
+                items: const ['Gold', 'Silver']
+                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                    .toList(),
+                onChanged: (v) => _setBasis(v ?? 'Gold', _customers),
+              ),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _amount,
+                    keyboardType: TextInputType.number,
+                    decoration: fieldDecoration('Loan amount *'),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) =>
+                        (parseMoney(v) <= 0) ? 'Enter amount' : null,
                   ),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _amount,
-                        keyboardType: TextInputType.number,
-                        decoration: fieldDecoration('Loan amount *'),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) =>
-                            (parseMoney(v) <= 0)
-                                ? 'Enter amount'
-                                : null,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _rate,
-                        keyboardType: TextInputType.number,
-                        decoration: fieldDecoration('% / month'),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 16),
-                        label: Text(fmtDate(_loanDate)),
-                        onPressed: () => _pickDate(false),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.event, size: 16),
-                        label: Text(_dueDate == null
-                            ? 'Due date'
-                            : fmtDate(_dueDate)),
-                        onPressed: () => _pickDate(true),
-                      ),
-                    ),
-                  ]),
-                ]),
-                for (var i = 0; i < _items.length; i++) _itemCard(i),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add item'),
-                  onPressed: () => setState(() => _items.add(_ItemEntry())),
                 ),
-                const SizedBox(height: 12),
-                _idProofSection(),
-                const SizedBox(height: 60),
-              ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _rate,
+                    keyboardType: TextInputType.number,
+                    decoration: fieldDecoration('% / month'),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 16),
+                    label: Text(fmtDate(_loanDate)),
+                    onPressed: () => _pickDate(false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.event, size: 16),
+                    label:
+                        Text(_dueDate == null ? 'Due date' : fmtDate(_dueDate)),
+                    onPressed: () => _pickDate(true),
+                  ),
+                ),
+              ]),
+            ]),
+            for (var i = 0; i < _items.length; i++) _itemCard(i),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Add item'),
+              onPressed: () => setState(() => _items.add(_ItemEntry())),
             ),
-          ),
-        );
+            const SizedBox(height: 12),
+            _idProofSection(),
+            const SizedBox(height: 60),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _itemCard(int index) {
@@ -2022,41 +2034,6 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
 // ---------------------------------------------------------------- helpers
 /// Admin-password gate for delete / release. [verb] lets the same dialog ask
 /// "Are you sure to release …?" for pawn releases.
-Future<bool> _adminDeleteDialog(BuildContext context, String message,
-    {String verb = 'delete'}) async {
-  final pw = TextEditingController();
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Are you sure to $verb $message?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: pw,
-            obscureText: true,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Type admin password',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
-        FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, pw.text.trim().toLowerCase() == 'admin'),
-            child: Text(verb == 'release' ? 'Release' : 'Delete')),
-      ],
-    ),
-  );
-  return ok ?? false;
-}
-
 void _toast(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()

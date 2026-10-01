@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'backup_screen.dart';
 import 'palette.dart';
 import 'photo_local.dart';
 import 'widgets.dart';
@@ -57,6 +58,39 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Notifications', onTap: () => comingSoon(context)),
               _tile(context, icon: Icons.alarm, title: 'Reminders',
                   onTap: () => comingSoon(context)),
+              const Divider(height: 24),
+              // v1.0.12: backups and the sample-data clean-up. Nothing here
+              // runs by itself — the shopkeeper creates a backup or removes
+              // sample rows deliberately.
+              _tile(context,
+                  icon: Icons.backup_outlined,
+                  title: 'Backup & data',
+                  subtitle:
+                      'Save a verified copy of your data · remove sample data',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BackupScreen()),
+                  )),
+              // v1.0.21: one tap adds one member per visible condition, each
+              // named after it, so the due / upcoming / chips / refinance /
+              // interest-only paths can all be tried. Safe to run twice.
+              _tile(context,
+                  icon: Icons.group_add_outlined,
+                  title: 'Add sample data',
+                  subtitle:
+                      '11 members — one per condition (due, overdue, chips, '
+                      'refinance, interest-only, loss)',
+                  onTap: () async {
+                    final added =
+                        await context.read<AppState>().addSampleMembers();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text(added == 0
+                          ? 'Sample data is already added.'
+                          : 'Added $added sample member(s) — open Khatabook → '
+                              'a village.')));
+                  }),
               const Divider(height: 24),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -207,8 +241,10 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
   }
 
   Future<void> _add() async {
+    final state = context.read<AppState>();
     final path = await pickAndStoreImage(ImageSource.gallery);
     if (path == null) return;
+    if (!mounted) return;
     final nameCtl = TextEditingController();
     final label = await showDialog<String>(
       context: context,
@@ -229,16 +265,17 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
       ),
     );
     final name = (label == null || label.isEmpty) ? 'QR ${_codes.length + 1}' : label;
-    await context.read<AppState>().addQrCode(name, path);
+    await state.addQrCode(name, path);
     await _load();
   }
 
   Future<void> _delete(int id) async {
+    final state = context.read<AppState>();
     final ok = await confirmDialog(context, 'Remove this QR code?',
         title: 'Remove QR');
     if (!ok) return;
-    await context.read<AppState>().deleteQrCode(id);
-    final codes = await context.read<AppState>().qrCodes();
+    await state.deleteQrCode(id);
+    final codes = await state.qrCodes();
     if (!mounted) return;
     setState(() {
       _codes = codes;

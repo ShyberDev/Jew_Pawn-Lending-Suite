@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'data/db_setup_stub.dart' if (dart.library.js_interop) 'data/db_setup_web.dart';
-import 'data/demo_seed.dart';
 import 'data/local_db.dart';
 import 'state/app_state.dart';
+import 'util/app_version.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,20 +28,18 @@ Future<void> main() async {
       );
   try {
     await setupDatabase();
+    // Read the version out of the installed APK before anything can display
+    // it, so the drawer, About screen and bug reports all agree.
+    await AppVersion.load();
     final db = LocalDb();
     await db.init();
     final state = AppState(db);
     await state.load();
-    // Offline preview mode (auth/sync deferred): seed realistic sample data
-    // on first launch and skip the server login, so the app is fully
-    // explorable anywhere — no server involved.
-    final demoV = await db.getSetting('demo_version');
-    final villages = await db.db.query('villages');
-    if (villages.isEmpty || demoV != '3') {
-      await seedDemo(db);
-      await db.setSetting('demo_version', '3');
-      debugPrint('PREVIEW: demo data seeded');
-    }
+    // Production data must never be mixed with, or recreated from, sample
+    // records. Sample data used to be re-seeded automatically whenever the
+    // villages table happened to be empty (e.g. right after the last khata
+    // was deleted), which pushed fake pawn loans into the shop's real
+    // totals. seedDemo() is now an explicit, developer-only entry point.
     state.loggedIn = true;
     runApp(
       ChangeNotifierProvider<AppState>.value(

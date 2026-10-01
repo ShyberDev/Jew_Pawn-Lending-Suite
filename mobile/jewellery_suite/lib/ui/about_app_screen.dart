@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../util/app_version.dart';
 import 'palette.dart';
 import 'settings_screen.dart' show comingSoon;
 
@@ -11,7 +12,8 @@ import 'settings_screen.dart' show comingSoon;
 class AboutAppScreen extends StatelessWidget {
   const AboutAppScreen({super.key});
 
-  static const appVersion = '1.0.9';
+  /// Read from the installed APK — never typed in by hand. See AppVersion.
+  static String get appVersion => AppVersion.value;
   static const apkSizeMb = 95;
 
   String _fmtBytes(int bytes) {
@@ -54,9 +56,9 @@ class AboutAppScreen extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: inkOf(context))),
           ),
-          const Center(
+          Center(
             child: Text('Version $appVersion',
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 13, color: Color(0xFF8A6D14))),
           ),
           const SizedBox(height: 20),

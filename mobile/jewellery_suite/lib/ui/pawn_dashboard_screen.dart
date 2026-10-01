@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../util/format.dart';
+import '../util/pawn_math.dart';
 import 'palette.dart';
 import 'pawn_screen.dart';
 import 'reports_screen.dart';
@@ -27,21 +28,19 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
     final releases = await db.query('pawn_releases');
     final today = DateTime.now();
 
-    double principal = 0, interest = 0, receivable = 0;
-    int activeCount = 0;
-    double gold = 0, silver = 0;
+        double gold = 0, silver = 0;
     final buckets = {'0-3M': 0, '3-6M': 0, '6-12M': 0, '12M+': 0};
     final recent = <Map<String, Object?>>[];
 
     final activeUuids = loans
         .where((l) => (l['status']?.toString() ?? 'Active') == 'Active')
         .toList();
+    final pawnTotals = PawnMath.totals(activeUuids);
+    final principal = pawnTotals.investment;
+    final interest = pawnTotals.interest;
+    final receivable = pawnTotals.outstanding;
+    final activeCount = pawnTotals.count;
     for (final l in activeUuids) {
-      final out = Num.toDouble(l['balance']);
-      principal += Num.toDouble(l['loan_amount']);
-      interest += Num.toDouble(l['interest_accrued']);
-      receivable += out;
-      activeCount++;
       final start =
           DateTime.tryParse(l['loan_date']?.toString() ?? '') ?? today;
       final months = today.difference(start).inDays / 30.0;
@@ -81,9 +80,9 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
     if (mounted) {
       setState(() {
         _r = {
-          'principal': Num.money(principal),
-          'interest': Num.money(interest),
-          'receivable': Num.money(receivable),
+          'principal': principal,
+          'interest': interest,
+          'receivable': receivable,
           'active': activeCount,
           'gold': Num.round3(gold),
           'silver': Num.round3(silver),

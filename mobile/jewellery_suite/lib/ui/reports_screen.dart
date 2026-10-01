@@ -2,12 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../data/migration_v11.dart';
 import '../util/format.dart';
+import '../util/khata_loan_state.dart';
+import '../util/pawn_math.dart';
 import 'khata_screen.dart' show LoanBucket, loanBucket;
+import '../util/khata_schedule.dart';
 import 'palette.dart';
 import 'widgets.dart';
 
 /// Reports hub — Khata reports (blueprint §17) and Pawn reports (§14).
+/// Every rupee figure in Reports goes through here.
+///
+/// v1.0.20: Reports used to interpolate the raw double (`'₹${_r['x']}'`),
+/// which printed `₹8333500.0` - no Indian digit grouping and a fake `.0`
+/// of paise. Khata money is WHOLE rupees, so every figure is rendered by
+/// [moneyWhole] exactly like the rest of the app.
+String _m(Object? value) =>
+    '₹${moneyWhole(value is num ? value : Num.toDouble(value))}';
+
+/// `1 khata` / `2 khatas` - Reports used to say "1 khatas".
+String _plural(int n, String one) =>
+    n == 1 ? '$n $one' : '$n ${one}s';
+
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, this.initialTab = 0});
 
@@ -95,6 +112,12 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     }
 
     double totalGiven = 0, outstanding = 0, overdueAmt = 0;
+    // Interest actually collected = every rupee of interest the loans ever
+    // charged, minus the interest still owed. v1.0.20: this used to be
+    // `received - given`, which is Capital Recovery wearing the wrong label —
+    // it printed a NEGATIVE number whenever less had been collected than
+    // lent out. It can no longer go below zero.
+    double interestCharged = 0, interestOwed = 0;
     int overdueCount = 0;
     final villageMap = <String, double>{};
     final villageCount = <String, int>{};
@@ -102,13 +125,22 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     final overdueRows = <Map<String, Object?>>[];
     for (final l in loans) {
       totalGiven += Num.toDouble(l['principal_amount']);
-      final active = (l['status']?.toString() ?? 'Active') == 'Active';
-      final out = Num.toDouble(l['outstanding']);
+      final active = isActiveKhataStatus(l['status']);
+      // Read the balance through the one canonical reader, so Reports shows
+      // exactly the same figure as the khata list and the profile screen.
+      final st = KhataLoanState.fromRow(l);
+      final out = st.netOutstanding;
+      // A loan's interest for its whole term. Interest-only loans bill it per
+      // period, so their single figure is `current_interest`.
+      interestCharged += MigrationV11.isInterestOnly(l)
+          ? Num.toDouble(l['current_interest'] ?? l['interest_amount'])
+          : Num.toDouble(l['interest_amount']);
+      interestOwed += st.interestOutstanding;
       if (active) {
         outstanding += out;
         final village = l['village']?.toString() ?? 'General';
-        villageMap[village] = Num.money(
-            (villageMap[village] ?? 0) + Num.toDouble(out));
+        villageMap[village] =
+            Num.money((villageMap[village] ?? 0) + Num.toDouble(out));
         villageCount[village] = (villageCount[village] ?? 0) + 1;
         final customer = l['customer_name']?.toString() ?? '-';
         customerMap[customer] =
@@ -137,7 +169,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
           'month_col': Num.money(monthCol),
           'total_given': Num.money(totalGiven),
           'total_received': Num.money(totalReceived),
-          'interest_earned': Num.money(totalReceived - totalGiven),
+          'interest_earned': Num.money(interestCharged - interestOwed),
           'outstanding': Num.money(outstanding),
           'overdue_count': overdueCount,
           'overdue_amt': Num.money(overdueAmt),
@@ -157,13 +189,11 @@ class _KhataReportsViewState extends State<KhataReportsView> {
                 'count': villageCount[e.key] ?? 0,
                 'amount': e.value,
               }
-          ]..sort((a, b) =>
-              (b['amount'] as num).compareTo(a['amount'] as num)),
+          ]..sort((a, b) => (b['amount'] as num).compareTo(a['amount'] as num)),
           'customer_rows': [
             for (final e in customerMap.entries)
               {'name': e.key, 'amount': e.value}
-          ]..sort((a, b) =>
-              (b['amount'] as num).compareTo(a['amount'] as num)),
+          ]..sort((a, b) => (b['amount'] as num).compareTo(a['amount'] as num)),
         };
         _loading = false;
       });
@@ -193,8 +223,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
                       .titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700)),
             ),
-            Expanded(
-                child: ListView(controller: controller, children: [body])),
+            Expanded(child: ListView(controller: controller, children: [body])),
           ],
         ),
       ),
@@ -203,13 +232,12 @@ class _KhataReportsViewState extends State<KhataReportsView> {
 
   Widget _moneyListRow(Map<String, Object?> row, {String? date}) {
     return ListTile(
-      title: Text(
-          (date != null && date.isNotEmpty)
-              ? '$date  ·  ${row['customer'] ?? row['name'] ?? '-'}'
-              : (row['customer_name']?.toString() ??
-                  row['customer']?.toString() ??
-                  row['name']?.toString() ??
-                  '-')),
+      title: Text((date != null && date.isNotEmpty)
+          ? '$date  ·  ${row['customer'] ?? row['name'] ?? '-'}'
+          : (row['customer_name']?.toString() ??
+              row['customer']?.toString() ??
+              row['name']?.toString() ??
+              '-')),
       subtitle: row['village'] != null
           ? Text(row['village'].toString())
           : (row['count'] != null
@@ -229,8 +257,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.today_outlined,
         "Today's collection",
-        '₹${_r['today_col']}',
-        () => _sheet("Today's collection",
+        _m(_r['today_col']),
+        () => _sheet(
+            "Today's collection",
             (_r['today_rows'] as List).isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(24),
@@ -244,8 +273,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.weekend_outlined,
         'This week (7 days)',
-        '₹${_r['week_col']}',
-        () => _sheet('This week collection',
+        _m(_r['week_col']),
+        () => _sheet(
+            'This week collection',
             (_r['week_rows'] as List).isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(24),
@@ -259,8 +289,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.date_range_outlined,
         'This month (30 days)',
-        '₹${_r['month_col']}',
-        () => _sheet('This month collection',
+        _m(_r['month_col']),
+        () => _sheet(
+            'This month collection',
             (_r['month_rows'] as List).isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(24),
@@ -274,8 +305,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.north_east,
         'Total given (all time)',
-        '₹${_r['total_given']}',
-        () => _sheet('Total given — principal of all loans',
+        _m(_r['total_given']),
+        () => _sheet(
+            'Total given — principal of all loans',
             const Center(
                 heightFactor: 4,
                 child: Text('Sum of all khata loan principal amounts.'))),
@@ -283,8 +315,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.south_west,
         'Total received (all time)',
-        '₹${_r['total_received']}',
-        () => _sheet('Total received — all collections',
+        _m(_r['total_received']),
+        () => _sheet(
+            'Total received — all collections',
             const Center(
                 heightFactor: 4,
                 child: Text('Sum of every collection recorded.'))),
@@ -292,18 +325,22 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.trending_up_outlined,
         'Interest earned',
-        '₹${_r['interest_earned']}',
-        () => _sheet('Interest earned (received − given)',
+        _m(_r['interest_earned']),
+        () => _sheet(
+            'Interest earned — interest collected so far',
             const Center(
                 heightFactor: 4,
-                child:
-                    Text('Total received minus total principal given.'))),
+                child: Text(
+                    'All interest the loans ever charged, minus the interest '
+                    'still owed. Never negative. This is what you have '
+                    'actually earned as interest, not money still to recover.'))),
       ),
       (
         Icons.account_balance_wallet_outlined,
         'Outstanding overall',
-        '₹${_r['outstanding']}',
-        () => _sheet('Outstanding overall',
+        _m(_r['outstanding']),
+        () => _sheet(
+            'Outstanding overall',
             const Center(
                 heightFactor: 4,
                 child: Text('Sum of outstanding on all active loans.'))),
@@ -311,8 +348,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.warning_amber_outlined,
         'Overdue accounts',
-        '${_r['overdue_count']} · ₹${_r['overdue_amt']}',
-        () => _sheet('Overdue accounts',
+        '${_r['overdue_count']} · ${_m(_r['overdue_amt'])}',
+        () => _sheet(
+            'Overdue accounts',
             (_r['overdue_rows'] as List).isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(24),
@@ -325,8 +363,9 @@ class _KhataReportsViewState extends State<KhataReportsView> {
       (
         Icons.location_on_outlined,
         'Village-wise',
-        '${(_r['village_rows'] as List).length} khatas',
-        () => _sheet('Village-wise outstanding',
+        _plural((_r['village_rows'] as List).length, 'khata'),
+        () => _sheet(
+            'Village-wise outstanding',
             Column(children: [
               for (final c in _r['village_rows'] as List)
                 _moneyListRow(c as Map<String, Object?>),
@@ -336,7 +375,8 @@ class _KhataReportsViewState extends State<KhataReportsView> {
         Icons.people_outline,
         'Customer-wise',
         '${(_r['customer_rows'] as List).length} customers',
-        () => _sheet('Customer-wise outstanding',
+        () => _sheet(
+            'Customer-wise outstanding',
             Column(children: [
               for (final c in _r['customer_rows'] as List)
                 _moneyListRow(c as Map<String, Object?>),
@@ -346,7 +386,8 @@ class _KhataReportsViewState extends State<KhataReportsView> {
         Icons.block_outlined,
         'Bad credit / Blocked',
         '${_r['bad_credit']} bad · ${_r['blocked']} blocked',
-        () => _sheet('Bad credit & blocked customers',
+        () => _sheet(
+            'Bad credit & blocked customers',
             const Center(
                 heightFactor: 4,
                 child: Text(
@@ -441,18 +482,24 @@ class _PawnReportsViewState extends State<PawnReportsView> {
     final filtered = loans.where((l) =>
         periodOk(l['loan_date']?.toString()) &&
         statusOk(l['status']?.toString()));
-    double principal = 0, interest = 0, receivable = 0;
-    double goldReserve = 0, silverReserve = 0;
+    // "Outstanding" money is a LIVE figure, so it must only ever count active
+    // loans — a released loan still holds its original principal, and adding it
+    // here made this screen report ₹3,40,000 outstanding while the Pawn screen
+    // (correctly) showed ₹1,00,000. Settled loans are still listed below, they
+    // just do not inflate the totals.
+    final liveForMoney =
+        filtered.where((l) => isActiveKhataStatus(l['status'])).toList();
+    // Pawn money always comes from PawnMath so reports match the Home KPI, the
+    // Pawn screen and the Pawn dashboard.
+    final pawnTotals = PawnMath.totals(liveForMoney);
+    final principal = pawnTotals.investment;
+    final interest = pawnTotals.interest;
+    final receivable = pawnTotals.outstanding;
     final activeUuids = loans
-        .where((l) => (l['status']?.toString() ?? 'Active') == 'Active')
+        .where((l) => isActiveKhataStatus(l['status']))
         .map((l) => l['client_uuid']?.toString())
         .toSet();
-    for (final l in filtered) {
-      final out = Num.toDouble(l['balance']);
-      principal += Num.toDouble(l['loan_amount']);
-      interest += Num.toDouble(l['interest_accrued']);
-      receivable += out;
-    }
+    double goldReserve = 0, silverReserve = 0;
     for (final it in items) {
       final loanUuid = it['loan_uuid']?.toString();
       // Reserve only counts against active loans.
@@ -479,9 +526,8 @@ class _PawnReportsViewState extends State<PawnReportsView> {
     if (mounted) {
       setState(() {
         _r = {
-          'active': filtered
-              .where((l) => (l['status']?.toString() ?? 'Active') == 'Active')
-              .length,
+          'active':
+              filtered.where((l) => isActiveKhataStatus(l['status'])).length,
           'principal': Num.money(principal),
           'interest': Num.money(interest),
           'receivable': Num.money(receivable),
@@ -513,10 +559,11 @@ class _PawnReportsViewState extends State<PawnReportsView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (label, key, values)
-                  in [('Period', _period, ['All', 'This year', 'This month']),
-                      ('Metal', _metal, ['All', 'Gold', 'Silver']),
-                      ('Status', _status, ['All', 'Active', 'Released'])])
+              for (final (label, key, values) in [
+                ('Period', _period, ['All', 'This year', 'This month']),
+                ('Metal', _metal, ['All', 'Gold', 'Silver']),
+                ('Status', _status, ['All', 'Active', 'Released'])
+              ])
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _filterChip(label, key, values),
@@ -546,7 +593,8 @@ class _PawnReportsViewState extends State<PawnReportsView> {
                         const Padding(
                           padding: EdgeInsets.all(24),
                           child: Center(
-                              child: Text('No pawn loans match these filters.')),
+                              child:
+                                  Text('No pawn loans match these filters.')),
                         )
                       else ...[
                         for (final l in _r['rows'] as List)
@@ -623,8 +671,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
                   color: color ?? kInk)),
           const SizedBox(height: 3),
           Text(label,
-              style: TextStyle(
-                  fontSize: 10.5, color: mutedOf(context))),
+              style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
         ],
       ),
     );
@@ -633,46 +680,40 @@ class _PawnReportsViewState extends State<PawnReportsView> {
   Widget _metricGrid() {
     return Column(children: [
       Row(children: [
-        Expanded(
-            child: _metricCard(
-                '${_r['active']}', 'Active loans in view')),
+        Expanded(child: _metricCard('${_r['active']}', 'Active loans in view')),
         const SizedBox(width: 8),
         Expanded(
-            child: _metricCard('₹${_r['principal']}',
-                'Principal outstanding', color: kGoldDark)),
+            child: _metricCard(_m(_r['principal']), 'Principal outstanding',
+                color: kGoldDark)),
         const SizedBox(width: 8),
         Expanded(
-            child: _metricCard('₹${_r['interest']}',
-                'Interest due', color: kRed)),
+            child:
+                _metricCard(_m(_r['interest']), 'Interest due', color: kRed)),
       ]),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(
-            child: _metricCard('₹${_r['receivable']}',
-                'Total receivable')),
+            child: _metricCard(_m(_r['receivable']), 'Total receivable')),
+        const SizedBox(width: 8),
+        Expanded(child: _metricCard('${_r['gold_reserve']} g', 'Gold reserve')),
         const SizedBox(width: 8),
         Expanded(
-            child: _metricCard('${_r['gold_reserve']} g',
-                'Gold reserve')),
-        const SizedBox(width: 8),
-        Expanded(
-            child: _metricCard('${_r['silver_reserve']} g',
-                'Silver reserve')),
+            child: _metricCard('${_r['silver_reserve']} g', 'Silver reserve')),
       ]),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(
-            child: _metricCard(
-                '${_r['released_count']}', 'Released'),
-            ),
+          child: _metricCard('${_r['released_count']}', 'Released'),
+        ),
         const SizedBox(width: 8),
         Expanded(
-            child: _metricCard('₹${_r['realised']}',
-                'Interest realised', color: kGreen),
-            ),
+          child: _metricCard(_m(_r['realised']), 'Interest realised',
+              color: kGreen),
+        ),
         const SizedBox(width: 8),
         Expanded(
-            child: _metricCard('${(_r['rows'] as List).length}', 'Loans listed')),
+            child:
+                _metricCard('${(_r['rows'] as List).length}', 'Loans listed')),
       ]),
     ]);
   }
@@ -698,8 +739,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
                 Text(
                     '${l['loan_date']}  ·  ${released ? 'Released' : 'Active'}'
                     '${l['release_date'] != null ? ' · ${l['release_date']}' : ''}',
-                    style: TextStyle(
-                        fontSize: 11, color: mutedOf(context))),
+                    style: TextStyle(fontSize: 11, color: mutedOf(context))),
               ],
             ),
           ),
@@ -709,9 +749,12 @@ class _PawnReportsViewState extends State<PawnReportsView> {
               Text('₹${moneyText(l['loan_amount'] as num?)}',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700)),
-              Text(released
-                  ? 'Settled'
-                  : 'Bal ₹${moneyText(l['balance'] as num?)}',
+              // Live outstanding (PawnMath), not the stale stored balance —
+              // otherwise this row disagreed with the total on the same screen.
+              Text(
+                  released
+                      ? 'Settled'
+                      : 'Bal ₹${moneyText(PawnMath.outstanding(l))}',
                   style: TextStyle(
                       fontSize: 10.5,
                       color: released ? kGreen : mutedOf(context))),
@@ -723,12 +766,11 @@ class _PawnReportsViewState extends State<PawnReportsView> {
   }
 
   Widget _rowFooter() {
-    final rows = _r['rows'] as List;
-    double principal = 0, receivable = 0;
-    for (final l in rows) {
-      principal += Num.toDouble((l as Map<String, Object?>)['loan_amount']);
-      receivable += Num.toDouble(l['balance']);
-    }
+    final rows = (_r['rows'] as List).cast<Map<String, Object?>>();
+    // The footer must be the sum of exactly what the rows above show: live
+    // outstanding for active loans, and no principal for settled ones.
+    final live = rows.where((l) => isActiveKhataStatus(l['status'])).toList();
+    final totals = PawnMath.totals(live);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -742,9 +784,9 @@ class _PawnReportsViewState extends State<PawnReportsView> {
           Text('${rows.length} loans',
               style: TextStyle(
                   color: inkOf(context), fontWeight: FontWeight.w700)),
-          Text('₹${moneyText(principal)} · ₹${moneyText(receivable)} bal',
-              style: TextStyle(
-                  color: mutedOf(context), fontSize: 12)),
+          Text(
+              '₹${moneyText(totals.investment)} · ₹${moneyText(totals.outstanding)} bal',
+              style: TextStyle(color: mutedOf(context), fontSize: 12)),
         ],
       ),
     );
