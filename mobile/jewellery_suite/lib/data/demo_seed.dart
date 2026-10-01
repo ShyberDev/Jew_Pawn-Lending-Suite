@@ -1,18 +1,26 @@
 import 'local_db.dart';
 
-/// Seeds the local database with realistic sample data so the app is fully
-/// explorable offline — no server and no login required.
+/// DEVELOPMENT / TEST ONLY — writes realistic sample data into the local
+/// database.
 ///
-/// Every row is keyed by a fixed `client_uuid` and inserted with REPLACE
-/// semantics, so running this is safe on an empty database (guard inside
-/// [main.dart] only seeds when the villager list is empty).
+/// Production data must never be mixed with, or recreated from, sample
+/// records, so nothing calls this automatically any more. It used to run at
+/// every launch while the `villages` table was empty, which silently put
+/// fake pawn loans into the shop's real totals. Call it deliberately, from a
+/// developer action, against a scratch database.
+///
+/// Every row is keyed by a fixed `client_uuid`, so re-running it updates
+/// those same rows in place rather than creating duplicates. It will happily
+/// overwrite any real row that shares a `client_uuid` — never point it at a
+/// live database.
 Future<void> seedDemo(LocalDb db) async {
   final today = DateTime.now();
   String dstr(DateTime dt) => dt.toIso8601String().substring(0, 10);
   String dtstr(DateTime dt) =>
       dt.toIso8601String().substring(0, 16); // date + time, seconds omitted
 
-  Future<void> put(String table, Map<String, Object?> row) => db.upsert(table, row);
+  Future<void> put(String table, Map<String, Object?> row) =>
+      db.upsert(table, row);
 
   // ---------------------------------------------------------------- villages
   for (final (uuid, name, district, pincode, lat, lng) in [
@@ -159,7 +167,7 @@ Future<void> seedDemo(LocalDb db) async {
     'total_collected': 6000,
     'paid_installments': 6,
     'outstanding': 6000,
-    'updated_at': dtstr(today.subtract(const Duration(days: 42))) + ':00',
+    'updated_at': '${dtstr(today.subtract(const Duration(days: 42)))}:00',
   });
   for (var i = 5; i >= 0; i--) {
     await put('khatabook_collections', {
@@ -171,7 +179,7 @@ Future<void> seedDemo(LocalDb db) async {
       'amount': 1000,
       'payment_mode': 'Cash',
       'updated_at':
-          dtstr(today.subtract(Duration(days: i * 7))) + ':0${6 - (i % 5)}',
+          '${dtstr(today.subtract(Duration(days: i * 7)))}:0${6 - (i % 5)}',
     });
   }
 
@@ -196,7 +204,7 @@ Future<void> seedDemo(LocalDb db) async {
     'total_collected': 1100,
     'paid_installments': 1,
     'outstanding': 8200,
-    'updated_at': dtstr(today.subtract(const Duration(days: 40))) + ':00',
+    'updated_at': '${dtstr(today.subtract(const Duration(days: 40)))}:00',
   });
   // Keep the ledger consistent: Sunitha's ₹1,100 collected has one matching
   // collection row, and a late-fee "You Gave" ₹500 that added to her balance.
@@ -208,7 +216,7 @@ Future<void> seedDemo(LocalDb db) async {
     'collection_date': dstr(today.subtract(const Duration(days: 5))),
     'amount': 1100,
     'payment_mode': 'Cash',
-    'updated_at': dtstr(today.subtract(const Duration(days: 5))) + ':00',
+    'updated_at': '${dtstr(today.subtract(const Duration(days: 5)))}:00',
   });
   await put('khatabook_given', {
     'client_uuid': 'kg-demo-sunitha',
@@ -219,6 +227,6 @@ Future<void> seedDemo(LocalDb db) async {
     'given_date': dstr(today.subtract(const Duration(days: 2))),
     'amount': 500,
     'note': 'Late fee (month 2)',
-    'updated_at': dtstr(today.subtract(const Duration(days: 2))) + ':00',
+    'updated_at': '${dtstr(today.subtract(const Duration(days: 2)))}:00',
   });
 }

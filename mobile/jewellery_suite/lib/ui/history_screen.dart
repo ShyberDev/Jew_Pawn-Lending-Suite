@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../util/format.dart';
+import 'admin_guard.dart';
 import 'palette.dart';
 
 /// History of recent activity + deleted content for both Pawn Loans and
@@ -39,10 +40,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         .subtract(Duration(days: 30 * _retentionMonths)));
     final events = await state.db.query('history_log',
         orderBy: 'created_at desc');
-    if (mounted) setState(() {
-      _events = events;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _events = events;
+        _loading = false;
+      });
+    }
   }
 
   Set<String> get _villages =>
@@ -60,37 +63,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _clearNow() async {
-    final pw = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Clear all history?'),
-        content: TextField(
-          controller: pw,
-          obscureText: true,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Type admin password',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, pw.text.trim().toLowerCase() == 'admin'),
-              child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) {
-      if (mounted) _toast('Clear cancelled / wrong password.');
+    final state = context.read<AppState>();
+    final granted = await askPasswordIfEnabled(
+        context, state,
+        actionId: 'history_clear',
+        action: 'clear history',
+        confirmLabel: 'Clear');
+    if (!mounted) return;
+    if (!granted) {
+      _toast('Clear cancelled / wrong password.');
       return;
     }
-    await context.read<AppState>().clearHistory();
+    await state.clearHistory();
     await _load();
   }
 

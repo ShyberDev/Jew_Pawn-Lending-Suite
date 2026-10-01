@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../util/app_version.dart';
 import '../util/format.dart';
 import 'about_app_screen.dart';
 import 'customers_screen.dart';
+import 'password_settings_screen.dart';
 import 'history_screen.dart';
 import 'interest_calculator_screen.dart';
 import 'khata_screen.dart';
@@ -182,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           state.userName.isNotEmpty
                               ? state.userName
-                              : 'Version 1.0.9 • user details',
+                              : 'Version ${AppVersion.value} • user details',
                           style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context)
@@ -214,13 +216,15 @@ class _HomeScreenState extends State<HomeScreen> {
             sec('System'),
             tile(Icons.fingerprint, 'Biometric & screen lock',
                 _drawerComingSoon),
-            tile(Icons.lock_outline, 'Change password', _drawerComingSoon),
+            tile(Icons.lock_outline, 'Password Settings',
+                () => go(const PasswordSettingsScreen()),
+                subtitle: 'Delete / release passwords'),
             tile(Icons.settings_outlined, 'Settings',
                 () => go(const SettingsScreen()),
                 subtitle: 'Zoom, dark mode, languages & more'),
             tile(Icons.info_outline, 'About App',
                 () => go(const AboutAppScreen()),
-                subtitle: 'Version 1.0.9, size & data'),
+                subtitle: 'Version ${AppVersion.value}, size & data'),
             tile(Icons.support_agent, 'Help & Support', _drawerComingSoon),
             const Divider(),
             ListTile(
@@ -319,54 +323,52 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _kpiStrip() {
+    // v1.0.11: only three headline figures — what came in today, what is
+    // pledged (pawn) and what is lent out (khata).
     final kpi = <(IconData, String, String)>[
       (Icons.today_outlined, 'Collected today',
           '₹${moneyWhole(_stats['collected_today'] as num?)}'),
-      (Icons.account_balance_outlined, 'Pawn outstanding',
-          '₹${moneyWhole(_stats['pawn_out'] as num?)}'),
-      (Icons.account_balance_wallet_outlined, 'Pawns',
-          '${_stats['active_pawn'] ?? 0}'),
-      (Icons.menu_book_outlined, 'Active khata',
-          '${_stats['khatabook_active'] ?? 0}'),
+      (Icons.account_balance_outlined, 'Pawn investment',
+          '₹${moneyWhole(_stats['pawn_investment'] as num?)}'),
+      (Icons.menu_book_outlined, 'Khata investment',
+          '₹${moneyWhole(_stats['khatabook_principal'] as num?)}'),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.4,
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
+    return Row(
       children: [
-        for (final (icon, label, value) in kpi)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: surfaceOf(context),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: kGold),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(value,
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: inkOf(context))),
-                      Text(label,
-                          style: TextStyle(
-                              fontSize: 10.5, color: mutedOf(context))),
-                    ],
+        for (final (icon, label, value) in kpi) ...[
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              decoration: BoxDecoration(
+                color: surfaceOf(context),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 17, color: kGold),
+                  const SizedBox(height: 6),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(value,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: inkOf(context))),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(label,
+                      maxLines: 2,
+                      style:
+                          TextStyle(fontSize: 10.5, color: mutedOf(context))),
+                ],
+              ),
             ),
           ),
+          if (label != kpi.last.$2) const SizedBox(width: 8),
+        ],
       ],
     );
   }

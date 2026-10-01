@@ -1,8 +1,14 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+
+import 'migration_v10.dart';
+import 'migration_v11.dart';
+import 'migration_v12.dart';
+import 'migration_v13.dart';
+import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
 /// pushed to the server idempotently, plus `server_name` once the server has it
@@ -15,14 +21,24 @@ class LocalDb {
 
   Database get db => _db!;
 
-  Future<void> init() async {
+  /// Absolute path of the open SQLite file, or null before [init] completes.
+  /// Exposed so BackupService can take a verified snapshot of *this* database
+  /// instead of re-deriving the file name (which would silently back up
+  /// nothing if the name ever changed).
+  String? path;
+
+  /// Opens the database. [pathOverride] exists so tests can open a scratch
+  /// file instead of the real one; production never passes it.
+  Future<void> init({String? pathOverride}) async {
     // Web (wasm SQLite) has no path concept — open by plain filename.
-    final file = kIsWeb
-        ? 'jewellery_suite.db'
-        : p.join(await getDatabasesPath(), 'jewellery_suite.db');
+    final file = pathOverride ??
+        (kIsWeb
+            ? 'jewellery_suite.db'
+            : p.join(await getDatabasesPath(), 'jewellery_suite.db'));
+    path = file;
     _db = await openDatabase(
       file,
-      version: 8,
+      version: MigrationV13.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -32,8 +48,7 @@ class LocalDb {
     if (oldVersion < 2) {
       // Khata type for village groups (Village / Personal / Business).
       try {
-        await db
-            .execute('ALTER TABLE villages ADD COLUMN khata_type TEXT');
+        await db.execute('ALTER TABLE villages ADD COLUMN khata_type TEXT');
       } catch (_) {/* column already present */}
     }
     if (oldVersion < 3) {
@@ -50,8 +65,7 @@ class LocalDb {
             .execute('ALTER TABLE customers ADD COLUMN id_photo_front TEXT');
       } catch (_) {/* column already present */}
       try {
-        await db
-            .execute('ALTER TABLE customers ADD COLUMN id_photo_back TEXT');
+        await db.execute('ALTER TABLE customers ADD COLUMN id_photo_back TEXT');
       } catch (_) {/* column already present */}
       await db.execute('''
         CREATE TABLE IF NOT EXISTS khatabook_given (
@@ -68,7 +82,8 @@ class LocalDb {
         await db.execute('ALTER TABLE customers ADD COLUMN reminder_date TEXT');
       } catch (_) {/* column already present */}
       try {
-        await db.execute('ALTER TABLE khatabook_given ADD COLUMN given_type TEXT');
+        await db
+            .execute('ALTER TABLE khatabook_given ADD COLUMN given_type TEXT');
       } catch (_) {/* column already present */}
     }
     if (oldVersion < 5) {
@@ -98,8 +113,7 @@ class LocalDb {
       // pawn transaction ledger (Amount Paying / Amount Requesting /
       // Interest Paid / Release with dual dates).
       try {
-        await db
-            .execute('ALTER TABLE customers ADD COLUMN customer_id TEXT');
+        await db.execute('ALTER TABLE customers ADD COLUMN customer_id TEXT');
       } catch (_) {/* column already present */}
       await db.execute('''
         CREATE TABLE IF NOT EXISTS customer_id_pool (
@@ -142,10 +156,57 @@ class LocalDb {
         } catch (_) {/* column already present */}
       }
     }
+    if (oldVersion < 9) {
+      // v9: CUSTOMER IDENTITY. Pawn loans, khata loans, collections, releases
+      // and transactions used to identify their customer by storing the
+      // customer's NAME, which cannot say which of two people called "Ravi"
+      // owns a loan — one Ravi's 12,000 was filed under another village
+      // because the name alone could not resolve. Identity is now the
+      // customer's uuid; the name stays as a display cache.
+      //
+      // The backfill links only what is unambiguous and reports the rest for a
+      // human, so no money is ever silently moved between people. See
+      // lib/data/migration_v9.dart.
+      await MigrationV9.addSchema(db);
+      final report = await MigrationV9.backfill(db);
+      await MigrationV9.writeLog(db, report);
+      if (report.unresolved.isNotEmpty) {
+        debugPrint('[db] migration v9 needs manual review: '
+            '${report.unresolved.length} row(s)');
+      }
+    }
+    if (oldVersion < 10) {
+      // v10: the canonical khatabook model. Installments become real rows,
+      // the loan carries per-component balances so 'Investment' (capital
+      // deployed) can be answered, and every payment records exactly where
+      // each rupee went. See docs/MIGRATION_V10.md.
+      await MigrationV10.addSchema(db);
+      final seeded = await MigrationV10.seedComponents(db);
+      debugPrint('[db] migration v10: schema added, $seeded loan(s) seeded');
+    }
+    if (oldVersion < 13) {
+      // v13: activity timestamp for the member-row recency display.
+      // See lib/data/migration_v13.dart.
+      await MigrationV13.addSchema(db);
+    }
+    if (oldVersion < 12) {
+      // v12: Loss Khata origin tracking — one nullable column, nothing else.
+      // See lib/data/migration_v12.dart.
+      await MigrationV12.addSchema(db);
+    }
+    if (oldVersion < 11) {
+      // v11: payment types. Interest-only loans bill one interest period at a
+      // time instead of amortising a fixed total. See
+      // lib/data/migration_v11.dart.
+      await MigrationV11.addSchema(db);
+      final filled = await MigrationV11.backfill(db);
+      debugPrint('[db] migration v11: schema added, $filled loan(s) defaulted');
+    }
   }
 
   Future<void> _create(Database db, int version) async {
-    await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)');
+    await db
+        .execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)');
 
     await db.execute('''
       CREATE TABLE qr_codes (
@@ -287,9 +348,19 @@ class LocalDb {
       )
     ''');
 
-    await db.execute('CREATE INDEX idx_pawn_items_loan ON pawn_items(loan_uuid)');
+    await db
+        .execute('CREATE INDEX idx_pawn_items_loan ON pawn_items(loan_uuid)');
     await db.execute(
         'CREATE INDEX idx_pawn_tx_loan ON pawn_transactions(pawn_loan)');
+
+    // v9–v13 are part of the fresh-install schema too, so a new phone
+    // starts with customer identity, the canonical khatabook model, payment
+    // types, loss tracking and the activity timestamp already in place.
+    await MigrationV9.addSchema(db);
+    await MigrationV10.addSchema(db);
+    await MigrationV11.addSchema(db);
+    await MigrationV12.addSchema(db);
+    await MigrationV13.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings
@@ -332,11 +403,49 @@ class LocalDb {
     return rows.isEmpty ? null : rows.first;
   }
 
+  /// The table's declared primary-key column, read from the schema itself
+  /// (never hard-coded) and cached for the lifetime of the app.
+  final Map<String, String> _pkCache = {};
+
+  Future<String?> _primaryKey(String table) async {
+    final cached = _pkCache[table];
+    if (cached != null) return cached;
+    final rows = await db.rawQuery('PRAGMA table_info($table)');
+    for (final r in rows) {
+      if ((r['pk'] as int?) == 1) {
+        final name = r['name'] as String;
+        _pkCache[table] = name;
+        return name;
+      }
+    }
+    return null;
+  }
+
+  /// Writes [row] into [table], matched on the table's primary key.
+  ///
+  /// MERGE semantics, deliberately NOT `INSERT OR REPLACE`: REPLACE is a
+  /// delete + insert, so every column missing from [row] silently reverts to
+  /// its default (NULL). Callers only ever write the fields they own, so that
+  /// behaviour wiped a customer's book ID, reminder date, interest-rate
+  /// overrides, rating and ID photos the moment anyone edited their name —
+  /// a routine action destroying data the form does not even display.
+  ///
+  /// A column is cleared only when the caller passes an explicit `null`.
   Future<void> upsert(String table, Map<String, Object?> row) async {
+    final pk = await _primaryKey(table);
+    final key = pk == null ? null : row[pk];
+    if (key != null) {
+      final changed = await db.update(table, row,
+          where: '$pk = ?',
+          whereArgs: [key],
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      if (changed > 0) return;
+    }
     await db.insert(table, row, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> deleteWhere(String table, String where, List<Object?> args) async {
+  Future<void> deleteWhere(
+      String table, String where, List<Object?> args) async {
     await db.delete(table, where: where, whereArgs: args);
   }
 
@@ -431,7 +540,7 @@ class LocalDb {
   }
 
   Future<void> markPhotoUploaded(int id) async {
-    await db
-        .update('photo_queue', {'uploaded': 1}, where: 'id = ?', whereArgs: [id]);
+    await db.update('photo_queue', {'uploaded': 1},
+        where: 'id = ?', whereArgs: [id]);
   }
 }

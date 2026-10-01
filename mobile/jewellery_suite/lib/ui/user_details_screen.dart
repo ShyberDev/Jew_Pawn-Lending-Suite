@@ -41,9 +41,10 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   }
 
   Future<void> _pickPhoto() async {
+    final state = context.read<AppState>();
     final path = await pickAndStoreImage(ImageSource.gallery);
     if (path == null) return;
-    await context.read<AppState>().setUserField('user_photo', path);
+    await state.setUserField('user_photo', path);
     if (mounted) setState(() => _photo = path);
   }
 

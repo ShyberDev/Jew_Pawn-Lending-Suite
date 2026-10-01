@@ -7,8 +7,15 @@ import 'package:sqflite/sqflite.dart' show getDatabasesPath;
 
 import '../data/api_client.dart';
 import '../data/local_db.dart';
+import '../data/migration_v12.dart';
 import '../data/sync_service.dart';
 import '../util/format.dart';
+import '../util/ids.dart';
+import '../util/khata_alloc.dart';
+import '../util/khata_loan_state.dart';
+import '../util/khata_math.dart';
+import '../util/khata_schedule.dart';
+import '../util/pawn_math.dart';
 
 /// Single source of truth for the UI: session, local data helpers and sync.
 class AppState extends ChangeNotifier {
@@ -66,7 +73,72 @@ class AppState extends ChangeNotifier {
     userName = await db.getSetting('user_name') ?? '';
     await refreshCounts();
     await migrateCustomerIdScheme();
+    await normalizeCustomerIds();
     await backfillCustomerIds();
+    await ensureLossKhata();
+  }
+
+  /// Guarantees the reserved Loss Khata exists. A village already named Loss
+  /// (any casing) is adopted as-is rather than duplicated; otherwise the
+  /// reserved row is created. Idempotent.
+  Future<void> ensureLossKhata() async {
+    final villages = await db.query('villages');
+    for (final v in villages) {
+      if (MigrationV12.isLossVillageName(v['village_name']?.toString())) {
+        return;
+      }
+    }
+    await db.upsert('villages', {
+      'client_uuid': MigrationV12.lossVillageUuid,
+      'village_name': MigrationV12.lossVillageName,
+      'khata_type': 'Loss',
+      'notes': 'Reserved: customers moved here are treated as loss. '
+          'This khata cannot be deleted.',
+      'updated_at': DateTime.now().toIso8601String(),
+      'dirty': 1,
+    });
+  }
+
+  /// Moves a customer to the Loss Khata. Only the village changes (origin
+  /// remembered in `previous_village`); loans, collections, IDs and history
+  /// are untouched, and normal collection keeps working there.
+  Future<void> moveCustomerToLoss(Map<String, Object?> customer) async {
+    final uuid = customer['client_uuid']?.toString() ?? '';
+    if (uuid.isEmpty) return;
+    final full = await db.byUuid('customers', uuid);
+    if (full == null) return;
+    await ensureLossKhata();
+    await db.upsert('customers', {
+      ...full,
+      'previous_village': full['village'],
+      'village': MigrationV12.lossVillageName,
+      'updated_at': DateTime.now().toIso8601String(),
+      'dirty': 1,
+    });
+    await logEvent(
+        'khata', 'move_loss', 'Moved to Loss — ${full['customer_name']}',
+        village: full['village']?.toString());
+    notifyListeners();
+  }
+
+  /// Moves a customer out of Loss back into [village] (or General when null).
+  Future<void> moveCustomerFromLoss(
+      Map<String, Object?> customer, String? village) async {
+    final uuid = customer['client_uuid']?.toString() ?? '';
+    if (uuid.isEmpty) return;
+    final full = await db.byUuid('customers', uuid);
+    if (full == null) return;
+    await db.upsert('customers', {
+      ...full,
+      'previous_village': null,
+      'village': village,
+      'updated_at': DateTime.now().toIso8601String(),
+      'dirty': 1,
+    });
+    await logEvent(
+        'khata', 'move_back', 'Moved back from Loss — ${full['customer_name']}',
+        village: village);
+    notifyListeners();
   }
 
   Future<void> setDarkMode(bool value) async {
@@ -205,45 +277,562 @@ class AppState extends ChangeNotifier {
     await db.enqueuePhoto(uuid, doctype, path);
   }
 
+  /// Capital currently deployed on active khatabook loans — the sum of
+  /// principal still owed, so it **falls** as principal is recovered.
+  ///
+  /// This is what makes "Khata investment" mean the money still in the street.
+  /// Summing `principal_amount` (the original principal) could only ever rise.
+  ///
+  /// A row written before v10 has no `principal_outstanding`; its principal is
+  /// the only figure available, so it is used as a safe upper bound rather than
+  /// guessing at recovery. Pure, so the KPI can be tested directly.
+  static double _khataInvestmentValue(List<Map<String, Object?>> loans) {
+    var total = 0.0;
+    for (final l in loans) {
+      total += l['principal_outstanding'] != null
+          ? Num.toDouble(l['principal_outstanding'])
+          : Num.toDouble(l['principal_amount']);
+    }
+    return Num.rupees(total);
+  }
+
+  /// Public seam for [khataInvestmentForTest] so the Home KPI's definition can
+  /// be tested directly rather than inferred through a widget.
+  @visibleForTesting
+  static double khataInvestmentForTest(List<Map<String, Object?>> loans) =>
+      _khataInvestmentValue(loans);
+
+  /// Writes the permanent allocation ledger for one payment.
+  ///
+  /// The specification requires that every payment record exactly where each
+  /// rupee went — installment, component, amount. Without this a balance is
+  /// merely correct *today* and cannot be explained afterwards.
+  ///
+  /// One row per component with an explicit order, so the allocation can be
+  /// replayed in the sequence it was applied.
+  Future<void> recordAllocations({
+    required String loanUuid,
+    required String collectionUuid,
+    required Allocation allocation,
+    int? installmentNumber,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+    var order = 0;
+    final parts = <(String, double)>[
+      ('INTEREST', allocation.interest),
+      ('LATE_FEE', allocation.lateFee),
+      ('OTHER_CHARGE', allocation.otherCharge),
+      ('PRINCIPAL', allocation.principal),
+    ];
+    for (final (component, amount) in parts) {
+      if (amount <= 0) continue;
+      await db.upsert('khatabook_allocations', {
+        'client_uuid': newUuid(),
+        'khatabook_loan': loanUuid,
+        'installment_number': installmentNumber,
+        'khatabook_collection': collectionUuid,
+        'component': component,
+        'amount': Num.rupees(amount),
+        'allocation_order': order++,
+        'allocated_at': now,
+      });
+    }
+    // Surplus is recorded too, so held credit is never invisible.
+    if (allocation.unapplied > 0) {
+      await db.upsert('khatabook_allocations', {
+        'client_uuid': newUuid(),
+        'khatabook_loan': loanUuid,
+        'installment_number': installmentNumber,
+        'khatabook_collection': collectionUuid,
+        'component': 'UNAPPLIED_CREDIT',
+        'amount': Num.rupees(allocation.unapplied),
+        'allocation_order': order,
+        'allocated_at': now,
+        'note': 'Held as credit; not applied to any obligation',
+      });
+    }
+  }
+
+  /// Principal recovered on a loan, taken from the ledger when it exists.
+  ///
+  /// The ledger is authoritative because it records what actually happened.
+  /// Older rows have no ledger, so the stored column is used — and recovery is
+  /// never assumed, because inventing it would understate the shop's capital.
+  Future<double> principalRecoveredFor(String loanUuid) async {
+    try {
+      final rows = await db.query('khatabook_allocations',
+          where: 'khatabook_loan = ? AND component = ?',
+          whereArgs: [loanUuid, 'PRINCIPAL']);
+      if (rows.isNotEmpty) {
+        return Num.rupees(
+            rows.fold<double>(0, (s, r) => s + Num.toDouble(r['amount'])));
+      }
+    } catch (_) {/* the table is absent before v10 */}
+    final loan = await db.byUuid('khatabook_loans', loanUuid);
+    return Num.toDouble(loan?['principal_recovered']);
+  }
+
+  /// Interest-only period rows for a loan, oldest first.
+  ///
+  /// Billing happens here and only here: generating a period adds its interest
+  /// to the loan's `interest_outstanding` / `total_payable` / `outstanding`.
+  /// Calling this when nothing is missing changes nothing, so it is safe to
+  /// call from every screen that shows dues.
+  ///
+  /// Period n is due one full interval after the previous: period 1 falls
+  /// `start + 1 step`, never on the start day itself. All fully elapsed
+  /// periods plus the current one are billed; anything after that does not
+  /// exist yet. A future period can still be billed early by passing
+  /// [throughPeriod] (the Future Interest option), which generates and bills
+  /// every period up to and including it.
+  Future<List<Map<String, Object?>>> ensureInterestPeriods(
+    Map<String, Object?> loan, {
+    int? throughPeriod,
+    DateTime? today,
+  }) async {
+    final now = today ?? DateTime.now();
+    final day = DateTime(now.year, now.month, now.day);
+    final uuid = loan['client_uuid']?.toString() ?? '';
+    if (uuid.isEmpty) return const [];
+    final start = parseIso(loan['start_date'] ?? loan['loan_date']);
+    if (start == null) return const [];
+    final frequency = loan['collection_frequency']?.toString() ?? 'Monthly';
+    final stepDays = KhataSchedule.intervalDays(frequency);
+
+    var rows = await db.query('khatabook_installments',
+        where: 'khatabook_loan = ?',
+        whereArgs: [uuid],
+        orderBy: 'installment_number asc');
+    var billed = rows.length;
+
+    int periodsElapsed() {
+      var n = 0;
+      while (!_addSteps(start, (n + 1) * stepDays, frequency).isAfter(day)) {
+        n++;
+      }
+      // The period containing today is always billable.
+      return n + 1;
+    }
+
+    var target = periodsElapsed();
+    if (throughPeriod != null && throughPeriod > target) target = throughPeriod;
+    if (target < 1) target = 1;
+
+    final currentInterest =
+        Num.toDouble(loan['current_interest'] ?? loan['interest_amount']);
+    var billedInterest = 0.0;
+    final stamp = DateTime.now().toIso8601String();
+    for (var n = billed + 1; n <= target; n++) {
+      final due = _addSteps(start, n * stepDays, frequency);
+      await db.upsert('khatabook_installments', {
+        'client_uuid': newUuid(),
+        'khatabook_loan': uuid,
+        'customer_uuid': loan['customer_uuid'],
+        'installment_number': n,
+        'due_date': _isoDay(due),
+        'scheduled_amount': Num.rupees(currentInterest),
+        'paid_amount': 0,
+        'remaining_amount': Num.rupees(currentInterest),
+        'status': 'PENDING',
+        'interest_component': Num.rupees(currentInterest),
+        'created_at': stamp,
+        'updated_at': stamp,
+      });
+      billedInterest = Num.rupees(billedInterest + currentInterest);
+    }
+    if (billedInterest > 0) {
+      final fresh = await db.byUuid('khatabook_loans', uuid) ?? loan;
+      await db.upsert('khatabook_loans', {
+        ...fresh,
+        'interest_outstanding': Num.rupees(
+            Num.toDouble(fresh['interest_outstanding']) + billedInterest),
+        'total_payable':
+            Num.rupees(Num.toDouble(fresh['total_payable']) + billedInterest),
+        'outstanding':
+            Num.rupees(Num.toDouble(fresh['outstanding']) + billedInterest),
+        'installment_count': target,
+        'dirty': 1,
+      });
+    }
+    rows = await db.query('khatabook_installments',
+        where: 'khatabook_loan = ?',
+        whereArgs: [uuid],
+        orderBy: 'installment_number asc');
+    return rows;
+  }
+
+  /// Re-marks interest-period rows from the remaining INTEREST allocation
+  /// slices, oldest first. Used after a collection is edited or deleted so no
+  /// row keeps a paid state its money no longer supports. Future-prepaid
+  /// periods keep their explicit link (`interest_period` on the collection).
+  Future<void> rebuildInterestPeriods(String loanUuid) async {
+    final rows = await db.query('khatabook_installments',
+        where: 'khatabook_loan = ?',
+        whereArgs: [loanUuid],
+        orderBy: 'installment_number asc');
+    if (rows.isEmpty) return;
+    for (final r in rows) {
+      await db.upsert('khatabook_installments', {
+        ...r,
+        'paid_amount': 0,
+        'remaining_amount': r['scheduled_amount'],
+        'status': 'PENDING',
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    }
+    // Replay the INTEREST allocation slices — never full collection amounts,
+    // because one payment can split across interest and principal and only
+    // the interest share belongs on these rows.
+    List<Map<String, Object?>> slices;
+    try {
+      slices = await db.query('khatabook_allocations',
+          where: 'khatabook_loan = ? AND component = ?',
+          whereArgs: [loanUuid, 'INTEREST'],
+          orderBy: 'allocated_at asc, allocation_order asc');
+    } catch (_) {
+      return; // table absent before v10
+    }
+    for (final s in slices) {
+      var left = Num.toDouble(s['amount']);
+      if (left <= 0) continue;
+      int? pinned;
+      try {
+        final coll = await db.query('khatabook_collections',
+            where: 'client_uuid = ?', whereArgs: [s['khatabook_collection']]);
+        if (coll.isNotEmpty) {
+          pinned = (coll.first['interest_period'] as num?)?.toInt();
+        }
+      } catch (_) {/* collections table always exists; ignore */}
+      final targets = pinned != null
+          ? rows
+              .where(
+                  (r) => (r['installment_number'] as num?)?.toInt() == pinned)
+              .toList()
+          : rows;
+      for (final t in targets) {
+        if (left <= 0) break;
+        final current = await db.query('khatabook_installments',
+            where: 'client_uuid = ?', whereArgs: [t['client_uuid']]);
+        if (current.isEmpty) continue;
+        final row = current.first;
+        final remaining = Num.toDouble(row['remaining_amount']);
+        if (remaining <= 0) continue;
+        final take = left < remaining ? left : remaining;
+        final paid = Num.rupees(Num.toDouble(row['paid_amount']) + take);
+        final leftRow =
+            Num.rupees(Num.toDouble(row['scheduled_amount']) - paid);
+        await db.upsert('khatabook_installments', {
+          ...row,
+          'paid_amount': paid,
+          'remaining_amount': leftRow < 0 ? 0 : leftRow,
+          'status': leftRow <= 0 ? 'PAID' : 'PARTIALLY_PAID',
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+        left = Num.rupees(left - take);
+      }
+    }
+    await _recountInterestPeriods(loanUuid);
+  }
+
+  /// Applies a payment's interest share to interest-period rows, oldest first.
+  ///
+  /// Normal money never prepays the future: only due rows (date arrived) take
+  /// money here. Pass [onlyPeriod] for an explicit Future Interest payment,
+  /// which marks that specific period instead. Returns the rupees that landed
+  /// on rows; anything left over already went to principal via the allocation
+  /// engine.
+  Future<double> applyPaymentToInterestPeriods(
+    String loanUuid,
+    double amount, {
+    int? onlyPeriod,
+  }) async {
+    var rows = await db.query('khatabook_installments',
+        where: 'khatabook_loan = ?',
+        whereArgs: [loanUuid],
+        orderBy: 'installment_number asc');
+    if (rows.isEmpty) return 0;
+    final day = DateTime.now();
+    final today = DateTime(day.year, day.month, day.day);
+    Iterable<Map<String, Object?>> targets = rows;
+    if (onlyPeriod != null) {
+      targets = rows.where(
+          (r) => (r['installment_number'] as num?)?.toInt() == onlyPeriod);
+    } else {
+      targets = rows.where((r) {
+        final due = parseIso(r['due_date']);
+        return due != null &&
+            !DateTime(due.year, due.month, due.day).isAfter(today);
+      });
+    }
+    var left = amount;
+    var applied = 0.0;
+    for (final t in targets) {
+      if (left <= 0) break;
+      final current = await db.query('khatabook_installments',
+          where: 'client_uuid = ?', whereArgs: [t['client_uuid']]);
+      if (current.isEmpty) continue;
+      final row = current.first;
+      final remaining = Num.toDouble(row['remaining_amount']);
+      if (remaining <= 0) continue;
+      final take = left < remaining ? left : remaining;
+      final paid = Num.rupees(Num.toDouble(row['paid_amount']) + take);
+      final leftRow = Num.rupees(Num.toDouble(row['scheduled_amount']) - paid);
+      await db.upsert('khatabook_installments', {
+        ...row,
+        'paid_amount': paid,
+        'remaining_amount': leftRow < 0 ? 0 : leftRow,
+        'status': leftRow <= 0 ? 'PAID' : 'PARTIALLY_PAID',
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      left = Num.rupees(left - take);
+      applied = Num.rupees(applied + take);
+    }
+    await _recountInterestPeriods(loanUuid);
+    return applied;
+  }
+
+  /// `paid_installments` / `installment_count` mirror the period rows so every
+  /// existing counter display keeps working: paid = oldest-consecutive fully
+  /// paid periods, count = billed periods.
+  Future<void> _recountInterestPeriods(String loanUuid) async {
+    final rows = await db.query('khatabook_installments',
+        where: 'khatabook_loan = ?',
+        whereArgs: [loanUuid],
+        orderBy: 'installment_number asc');
+    var consecutive = 0;
+    for (final r in rows) {
+      if (Num.toDouble(r['remaining_amount']) <= 0) {
+        consecutive++;
+      } else {
+        break;
+      }
+    }
+    final loan = await db.byUuid('khatabook_loans', loanUuid);
+    if (loan == null) return;
+    await db.upsert('khatabook_loans', {
+      ...loan,
+      'paid_installments': consecutive,
+      'installment_count': rows.length,
+      'dirty': 1,
+    });
+  }
+
+  /// Due date `totalDays` after [start]: flat days, except Monthly which
+  /// steps whole calendar months (10th stays 10th, 31-01 lands on Feb 28/29).
+  static DateTime _addSteps(DateTime start, int totalDays, String frequency) {
+    if (frequency.toLowerCase().contains('month')) {
+      final months = totalDays ~/ 30;
+      return KhataSchedule.dueDate(start, 'Monthly', months);
+    }
+    return start.add(Duration(days: totalDays));
+  }
+
+  static String _isoDay(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// Refinances a loan: the single writer for every refinance in the app.
+  ///
+  /// The old loan is FROZEN — status to REFINANCED, every balance and row
+  /// untouched — and a separate new loan carries the fresh arrangement. Fresh
+  /// cash is physical money handed over now; it is never the old outstanding.
+  ///
+  /// New obligation = previous outstanding + fresh cash + new interest.
+  /// Returns the new loan row.
+  Future<Map<String, Object?>> executeRefinance({
+    required Map<String, Object?> oldLoan,
+    required double fresh,
+    required double interest,
+    required String paymentType,
+    required String frequency,
+    required int count,
+    required double collectionAmount,
+    String? note,
+    DateTime? on,
+  }) async {
+    final day = on ?? DateTime.now();
+    final dayIso = '${day.year.toString().padLeft(4, '0')}-'
+        '${day.month.toString().padLeft(2, '0')}-'
+        '${day.day.toString().padLeft(2, '0')}';
+    final stamp = day.toIso8601String();
+    final oldUuid = oldLoan['client_uuid']?.toString() ?? '';
+    final prevOut = Num.rupees(Num.toDouble(oldLoan['outstanding']));
+    final freshMoney = Num.rupees(fresh);
+    final newInterest = Num.rupees(interest);
+    final newPrincipal = Num.rupees(prevOut + freshMoney);
+    final isIO = paymentType == 'INTEREST_ONLY';
+    // Interest-only loans start at principal only; the first period is billed
+    // by ensureInterestPeriods below (pre-adding it here would bill twice —
+    // the same trap as loan creation).
+    final newTotal =
+        Num.rupees(isIO ? newPrincipal : newPrincipal + newInterest);
+    final newLoanUuid = newUuid();
+    final ref = (oldLoan['server_name'] as String?) ?? oldUuid;
+
+    // 1. Freeze the old loan. Nothing from its history is rewritten.
+    await db.upsert('khatabook_loans', {
+      ...oldLoan,
+      'status': 'REFINANCED',
+      'dirty': 1,
+    });
+
+    // 2. The new loan, with its own terms and its own schedule.
+    final n = isIO ? 0 : (count <= 0 ? 12 : count);
+    final per = collectionAmount > 0
+        ? collectionAmount
+        : Num.rupees(isIO ? newInterest : newTotal / n);
+    final newLoan = <String, Object?>{
+      'client_uuid': newLoanUuid,
+      'server_name': null,
+      'dirty': 1,
+      'customer': oldLoan['customer'],
+      'customer_name': oldLoan['customer_name'],
+      'customer_uuid': oldLoan['customer_uuid'],
+      'phone': oldLoan['phone'],
+      'village': oldLoan['village'],
+      'business': oldLoan['business'],
+      'status': 'Active',
+      'loan_date': dayIso,
+      'principal_amount': newPrincipal,
+      'interest_amount': newInterest,
+      'total_payable': newTotal,
+      'installment_count': n,
+      'installment_amount': per,
+      'collection_frequency': frequency,
+      'start_date': dayIso,
+      'end_date': _isoDay(_addSteps(DateTime(day.year, day.month, day.day),
+          (isIO ? 1 : n) * KhataSchedule.intervalDays(frequency), frequency)),
+      'customer_rating': oldLoan['customer_rating'],
+      'refinanced_from': oldUuid,
+      'total_collected': 0,
+      'paid_installments': 0,
+      'outstanding': newTotal,
+      'original_principal': newPrincipal,
+      'expected_interest': newInterest,
+      'expected_repayment': newTotal,
+      'principal_recovered': 0,
+      'principal_outstanding': newPrincipal,
+      'interest_outstanding': isIO ? 0 : newInterest,
+      'late_fee_outstanding': 0,
+      'other_charge_outstanding': 0,
+      'unapplied_credit': 0,
+      'payment_type': paymentType,
+      'current_interest': newInterest,
+      'updated_at': stamp,
+    };
+    await db.upsert('khatabook_loans', newLoan);
+
+    // 3. The refinance record links both sides and carries the breakdown the
+    // tile shows: previous + fresh + interest = new obligation.
+    await db.upsert('khatabook_refinances', {
+      'client_uuid': newUuid(),
+      'server_name': null,
+      'dirty': 1,
+      'khatabook_loan': ref,
+      'customer': oldLoan['customer'],
+      'refinance_date': stamp,
+      'old_outstanding': prevOut,
+      'new_principal': newPrincipal,
+      'new_interest_amount': newInterest,
+      'new_installment_count': n,
+      'new_interest_note': note,
+      'new_loan': newLoanUuid,
+      'remarks': note,
+      'updated_at': stamp,
+    });
+
+    // 4. First interest period for interest-only new loans.
+    if (isIO) {
+      final created =
+          await db.byUuid('khatabook_loans', newLoanUuid) ?? newLoan;
+      await ensureInterestPeriods(created, today: day);
+    }
+
+    await touchActivity(oldLoan['customer_uuid']?.toString());
+    await logEvent('khata', 'refinance', 'Refinance',
+        amount: newTotal, village: oldLoan['village']?.toString(), ref: ref);
+    notifyListeners();
+    return (await db.byUuid('khatabook_loans', newLoanUuid)) ?? newLoan;
+  }
+
+  /// Stamps a customer's money-activity clock. Called ONLY by actions that
+  /// move money or mark non-payment (collect, You Gave, Unpaid/Unavailable,
+  /// interest changes, refinance, collection/given edits and deletes) — never
+  /// by visits or plain edits, so the member row's recency display stays
+  /// truthful. Failures are swallowed: a missing clock must never block money.
+  Future<void> touchActivity(String? customerUuid) async {
+    final uuid = customerUuid?.toString() ?? '';
+    if (uuid.isEmpty) return;
+    try {
+      final row = await db.byUuid('customers', uuid);
+      if (row == null) return;
+      await db.upsert('customers', {
+        ...row,
+        'last_activity_at': DateTime.now().toIso8601String(),
+        'dirty': 1,
+      });
+    } catch (_) {/* clock is advisory, money comes first */}
+  }
+
   Future<List<Map<String, Object?>>> itemsFor(String loanUuid) {
     return db.query('pawn_items',
         where: 'loan_uuid = ?', whereArgs: [loanUuid], orderBy: 'id asc');
   }
 
   // --------------------------------------------------------------- dashboard
+  /// Home dashboard figures. Every pawn number comes from [PawnMath] so the
+  /// Home KPI, the Pawn screen, the Pawn dashboard and Reports always agree.
   Future<Map<String, Object?>> dashboard() async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
+    final activePawns = await db.query('pawn_loans',
+        where: 'status = ? OR status IS NULL', whereArgs: ['Active']);
+    final pawn = PawnMath.totals(activePawns);
+    // Both vocabularies count: legacy 'Active' and v10 'ACTIVE'.
+    // (Pawn queries elsewhere intentionally keep their own 'Active'.)
+    final khata = await db.query('khatabook_loans',
+        where: 'status IN (?, ?) OR status IS NULL',
+        whereArgs: ['Active', 'ACTIVE']);
     return {
       'customers': await db.count('customers'),
-      'active_pawn': await db.count('pawn_loans',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
-      'pawn_out': await db.sum('pawn_loans', 'loan_amount',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
-      'pawn_payable': await db.sum('pawn_loans', 'total_payable',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
-      'pawn_paid': await db.sum('pawn_loans', 'amount_paid',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
+      'active_pawn': pawn.count,
+      // "Pawn outstanding" = what the shop can still collect (principal +
+      // interest due − received). Identical to the Pawn screen and dashboard.
+      'pawn_out': pawn.outstanding,
+      'pawn_investment': pawn.investment,
+      'pawn_interest': pawn.interest,
       'khatabook_active': await db.count('khatabook_loans',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
-      'khatabook_principal': await db.sum('khatabook_loans', 'principal_amount',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
+          where: 'status IN (?, ?) OR status IS NULL',
+          whereArgs: ['Active', 'ACTIVE']),
+      // v10: "Khata investment" is the CAPITAL DEPLOYED, i.e. principal
+      // outstanding, not the original principal. It falls as principal is
+      // recovered, which is the whole point — summing `principal_amount` could
+      // only ever rise and never meant the money still in the street. Rows
+      // written before v10 have no principal_outstanding, so they fall back to
+      // their principal, keeping the figure an upper bound rather than a guess.
+      'khatabook_principal': _khataInvestmentValue(khata),
+      'khatabook_recovered': Num.rupees(khata.fold<double>(
+          0, (s, l) => s + Num.toDouble(l['principal_recovered']))),
       'khatabook_outstanding': await db.sum('khatabook_loans', 'outstanding',
-          where: 'status = ? OR status IS NULL', whereArgs: ['Active']),
+          where: 'status IN (?, ?) OR status IS NULL',
+          whereArgs: ['Active', 'ACTIVE']),
       'collected_today': await db.sum('khatabook_collections', 'amount',
           where: 'collection_date = ?', whereArgs: [today]),
     };
   }
 
   // ---------------------------------------------------------- customer IDs
-  // Book-style IDs: a letter + at least two digits —
-  //   A-01, A-02 … A-99, B-01 … B-99, … Z-99,
-  //   then A-001 … Z-999, and A-0001 … when a letter runs out again.
+  // Book-style IDs: a letter + at least two digits, NO hyphen (mobile typing) —
+  //   A01, A02 … A99, B01 … B99, … Z99,
+  //   then A001 … Z999, and A0001 … when a letter runs out again.
+  // Older rows may still hold hyphenated IDs (A-01); the regex accepts both
+  // and everything is normalised to the hyphen-free form on read/write.
   // The number is the searchable book number shown wherever a customer is
   // listed (khata card, pawn loan, profile, search results).
 
-  static final _bookIdRe = RegExp(r'^([A-Za-z])\s*-\s*(\d+)$');
+  static final _bookIdRe = RegExp(r'^([A-Za-z])\s*-?\s*(\d+)$');
 
-  /// "B-07" -> (width 2, letter index 1, number 7). Null when not a book ID.
+  /// "B07" (or legacy "B-07") -> (width 2, letter index 1, number 7).
+  /// Null when not a book ID.
   static (int, int, int)? _parseBookId(String raw) {
     final m = _bookIdRe.firstMatch(raw.trim());
     if (m == null) return null;
@@ -256,7 +845,15 @@ class AppState extends ChangeNotifier {
   }
 
   static String _formatBookId(int width, int letter, int n) =>
-      '${String.fromCharCode(65 + letter)}-${n.toString().padLeft(width, '0')}';
+      '${String.fromCharCode(65 + letter)}${n.toString().padLeft(width, '0')}';
+
+  /// Hyphen-free canonical form: "a-03" -> "A03". Returns the trimmed input
+  /// unchanged when it is not a book ID.
+  static String normalizeBookId(String raw) {
+    final p = _parseBookId(raw);
+    if (p == null) return raw.trim();
+    return _formatBookId(p.$1, p.$2, p.$3);
+  }
 
   /// The ID that follows (width, letter, number) in the book sequence.
   static (int, int, int) _bookSuccessor(int width, int letter, int n) {
@@ -301,8 +898,9 @@ class AppState extends ChangeNotifier {
       last = seedParts;
     } else {
       final rows = await db.query('customers', columns: ['customer_id']);
-      last = _highestBookId(rows.map((r) => r['customer_id']?.toString() ?? '')) ??
-          (2, 0, 0);
+      last =
+          _highestBookId(rows.map((r) => r['customer_id']?.toString() ?? '')) ??
+              (2, 0, 0);
     }
     final next = _bookSuccessor(last.$1, last.$2, last.$3);
     final id = _formatBookId(next.$1, next.$2, next.$3);
@@ -311,9 +909,9 @@ class AppState extends ChangeNotifier {
   }
 
   /// New-customer ID entry. Blank [input] -> auto sequence ([nextCustomerId]).
-  /// A typed ID (e.g. "C-07", "c7", "B 12") is normalised to "C-07" / "B-12"
-  /// and the sequence continues from it. Throws [StateError] if the ID already
-  /// belongs to another customer or is not letter + digits.
+  /// A typed ID (e.g. "C07", "c7", "B 12", legacy "C-07") is normalised to
+  /// "C07" / "B12" and the sequence continues from it. Throws [StateError] if
+  /// the ID already belongs to another customer or is not letter + digits.
   Future<String> claimCustomerId(String? input, {String? excludeUuid}) async {
     final raw = (input ?? '').trim();
     if (raw.isEmpty) return nextCustomerId();
@@ -323,11 +921,11 @@ class AppState extends ChangeNotifier {
       final letter = m.group(1)!.toUpperCase();
       final digits = m.group(2)!;
       final width = digits.length < 2 ? 2 : digits.length;
-      normalized = '$letter-${digits.padLeft(width, '0')}';
+      normalized = '$letter${digits.padLeft(width, '0')}';
     } else {
       final n = int.tryParse(raw.replaceAll(RegExp(r'[^0-9]'), ''));
       if (n == null || n <= 0) {
-        throw StateError('Customer ID must be a letter + digits (e.g. A-01)');
+        throw StateError('Customer ID must be a letter + digits (e.g. A01)');
       }
       // Digits only: keep the letter the sequence is currently on.
       final seed = await db.getSetting('customer_id_next');
@@ -338,17 +936,21 @@ class AppState extends ChangeNotifier {
         await db.query('customers', columns: ['client_uuid', 'customer_id']);
     for (final r in rows) {
       if (r['client_uuid'] == excludeUuid) continue;
-      final existing = r['customer_id']?.toString() ?? '';
+      final existing = normalizeBookId(r['customer_id']?.toString() ?? '');
       if (existing.toUpperCase() == normalized.toUpperCase()) {
         throw StateError(
             'Customer ID $normalized is already used by another customer');
       }
     }
-    final pool =
-        await db.query('customer_id_pool', where: 'id = ?', whereArgs: [normalized]);
+    final pool = await db
+        .query('customer_id_pool', where: 'id = ?', whereArgs: [normalized]);
     if (pool.isNotEmpty) {
       await db.deleteWhere('customer_id_pool', 'id = ?', [normalized]);
     }
+    // Legacy hyphenated pool entries (A-01) equal the normalized ID.
+    final legacyHyphen =
+        '${normalized.substring(0, 1)}-${normalized.substring(1)}';
+    await db.deleteWhere('customer_id_pool', 'id = ?', [legacyHyphen]);
     await db.setSetting('customer_id_next', normalized);
     return normalized;
   }
@@ -358,9 +960,52 @@ class AppState extends ChangeNotifier {
   Future<void> freeCustomerId(String? id) async {
     if (id == null || id.trim().isEmpty) return;
     await db.upsert('customer_id_pool', {
-      'id': id.trim(),
+      'id': normalizeBookId(id),
       'freed_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  /// One-time normalisation: rewrite hyphenated IDs (A-01) to hyphen-free
+  /// (A01) across customers, the freed pool and the sequence setting.
+  Future<void> normalizeCustomerIds() async {
+    try {
+      final rows =
+          await db.query('customers', columns: ['client_uuid', 'customer_id']);
+      for (final r in rows) {
+        final raw = r['customer_id']?.toString() ?? '';
+        if (raw.contains('-')) {
+          final norm = normalizeBookId(raw);
+          if (norm != raw) {
+            final full = await db.byUuid(
+                'customers', r['client_uuid']?.toString() ?? '');
+            if (full != null) {
+              await db.upsert(
+                  'customers', {...full, 'customer_id': norm, 'dirty': 1});
+            }
+          }
+        }
+      }
+      final pool = await db.query('customer_id_pool');
+      for (final p in pool) {
+        final raw = p['id']?.toString() ?? '';
+        if (raw.contains('-')) {
+          final norm = normalizeBookId(raw);
+          if (norm != raw) {
+            await db.deleteWhere('customer_id_pool', 'id = ?', [raw]);
+            await db.upsert('customer_id_pool', {
+              'id': norm,
+              'freed_at': DateTime.now().toIso8601String(),
+            });
+          }
+        }
+      }
+      final next = await db.getSetting('customer_id_next');
+      if (next != null && next.contains('-')) {
+        await db.setSetting('customer_id_next', normalizeBookId(next));
+      }
+    } catch (error) {
+      debugPrint('normalize customer ids failed: $error');
+    }
   }
 
   /// Assigns IDs to any customers still missing one (legacy / demo rows), in
@@ -380,16 +1025,16 @@ class AppState extends ChangeNotifier {
   }
 
   /// v1.0.9: IDs used to be plain numbers (1, 2, 3 …). The shop's book scheme
-  /// is A-01 … Z-99 → A-001 …, so any legacy numeric ID is re-issued once, in
+  /// is A01 … Z99 → A001 …, so any legacy numeric ID is re-issued once, in
   /// customer order. A no-op on every start-up after the first run.
   Future<void> migrateCustomerIdScheme() async {
     try {
       if (await db.getSetting('customer_id_scheme') == 'book') return;
       // Full rows: upsert() replaces, so a partial row would wipe the customer.
-      final rows =
-          await db.query('customers', orderBy: 'updated_at asc');
+      final rows = await db.query('customers', orderBy: 'updated_at asc');
       final legacy = rows
-          .where((r) => _parseBookId(r['customer_id']?.toString() ?? '') == null)
+          .where(
+              (r) => _parseBookId(r['customer_id']?.toString() ?? '') == null)
           .toList();
       if (legacy.isEmpty) {
         await db.setSetting('customer_id_scheme', 'book');
@@ -398,7 +1043,7 @@ class AppState extends ChangeNotifier {
       final used = <String>{
         for (final r in rows)
           if (_parseBookId(r['customer_id']?.toString() ?? '') != null)
-            (r['customer_id']?.toString() ?? '').toUpperCase()
+            normalizeBookId(r['customer_id']?.toString() ?? '').toUpperCase()
       };
       var cursor = _highestBookId(used) ?? (2, 0, 0);
       for (final c in legacy) {
@@ -410,8 +1055,7 @@ class AppState extends ChangeNotifier {
         }
         cursor = next;
         used.add(id);
-        await db.upsert('customers',
-            {...c, 'customer_id': id, 'dirty': 1});
+        await db.upsert('customers', {...c, 'customer_id': id, 'dirty': 1});
       }
       await db.setSetting(
           'customer_id_next', _formatBookId(cursor.$1, cursor.$2, cursor.$3));
@@ -430,7 +1074,7 @@ class AppState extends ChangeNotifier {
         'module': module,
         'kind': kind,
         'title': title,
-        'amount': Num.money(amount),
+        'amount': Num.rupees(amount),
         'village': village,
         'loan_ref': ref,
         'created_at': DateTime.now().toIso8601String(),
@@ -438,6 +1082,550 @@ class AppState extends ChangeNotifier {
     } catch (error) {
       debugPrint('history log failed: $error');
     }
+  }
+
+  // ------------------------------------------------------- sample data
+  /// The single canonical writer for a khata collection.
+  ///
+  /// Every rupee that comes in goes through here: the Collect dialog on the
+  /// profile, the one on the loan sheet, and the sample seeder. Money is
+  /// allocated by [KhataAlloc] (interest -> late fee -> other -> principal),
+  /// the resulting component balances are written back, and the per-rupee
+  /// allocation rows are recorded so the ledger can always be explained.
+  ///
+  /// Sample data MUST go through this rather than a hand-written shortcut:
+  /// v1.0.20's seeder wrote `outstanding` by hand and left the v10 component
+  /// columns empty, so every sample balance disagreed with the real engine.
+  Future<void> applyCollection({
+    required Map<String, Object?> loan,
+    required double amount,
+    required DateTime receivedOn,
+    String mode = 'Cash',
+  }) async {
+    if (amount <= 0) return;
+    final loanUuid = '${loan['client_uuid'] ?? ''}';
+    if (loanUuid.isEmpty) return;
+
+    final collectionUuid = newUuid();
+    await db.upsert('khatabook_collections', {
+      'client_uuid': collectionUuid,
+      'dirty': 1,
+      'khatabook_loan': loanUuid,
+      'customer': loan['customer'],
+      // khatabook_collections has NO customer_name column (the name lives on
+      // the loan and is reached through customer_uuid). Writing one aborted
+      // the insert, so a seeded payment silently vanished.
+      'customer_uuid': loan['customer_uuid'] ?? loan['customer'],
+      'village': loan['village'],
+      'collection_date': _isoDay(receivedOn),
+      'amount': Num.rupees(amount),
+      'payment_mode': mode,
+      'is_irregular': 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+
+    // Re-read the loan: an earlier sample payment may have moved it on.
+    final fresh = await db.byUuid('khatabook_loans', loanUuid) ?? loan;
+    final before = KhataLoanState.fromRow(fresh);
+    final allocation = KhataAlloc.allocate(
+      payment: amount,
+      interestDue: before.interestOutstanding,
+      lateFeeDue: before.lateFeeOutstanding,
+      otherChargeDue: before.otherChargeOutstanding,
+      principalDue: before.investment,
+    );
+    final after = KhataLoanState.apply(before, allocation);
+    final collected = KhataMath.addToCollected(
+      already: Num.toDouble(fresh['total_collected']),
+      payment: amount,
+      totalPayable: Num.toDouble(fresh['total_payable']),
+    );
+    await db.upsert('khatabook_loans', {
+      ...fresh,
+      ...after.toRow(),
+      'total_collected': collected,
+      'paid_installments': KhataMath.paidInstallments(
+        collected: collected,
+        totalPayable: Num.toDouble(fresh['total_payable']),
+        count: (fresh['installment_count'] as num?)?.toInt() ?? 0,
+      ),
+      'dirty': 1,
+    });
+    await recordAllocations(
+      loanUuid: loanUuid,
+      collectionUuid: collectionUuid,
+      allocation: allocation,
+    );
+  }
+
+  /// Records a "You Gave" charge against a loan (a fresh principal top-up, a
+  /// late fee, another charge) exactly as the You Gave dialog does: a dated
+  /// `khatabook_collections`-style row on the given side, the component added
+  /// to the loan, and the running balances kept true.
+  Future<void> _addGiven({
+    required Map<String, Object?> loan,
+    required double amount,
+    required String kind,
+    String note = '',
+    DateTime? on,
+  }) async {
+    if (amount <= 0) return;
+    final loanUuid = '${loan['client_uuid'] ?? ''}';
+    if (loanUuid.isEmpty) return;
+    final day = on ?? DateTime.now();
+    await db.upsert('khatabook_given', {
+      'client_uuid': newUuid(),
+      'dirty': 1,
+      'khatabook_loan': loanUuid,
+      'customer': loan['customer'],
+      'customer_uuid': loan['customer_uuid'] ?? loan['customer'],
+      'customer_name': loan['customer_name'],
+      'given_date': _isoDay(day),
+      'amount': Num.rupees(amount),
+      'given_type': kind,
+      'note': note,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+    final before = KhataLoanState.fromRow(loan);
+    final after = switch (kind) {
+      'principal' => KhataLoanState(
+          originalPrincipal: Num.rupees(before.originalPrincipal + amount),
+          principalRecovered: before.principalRecovered,
+          interestOutstanding: before.interestOutstanding,
+          lateFeeOutstanding: before.lateFeeOutstanding,
+          otherChargeOutstanding: before.otherChargeOutstanding,
+          unappliedCredit: before.unappliedCredit,
+          status: before.status),
+      'late_fee' => before.copyWith(
+          lateFeeOutstanding: Num.rupees(before.lateFeeOutstanding + amount)),
+      _ => before.copyWith(
+          otherChargeOutstanding:
+              Num.rupees(before.otherChargeOutstanding + amount)),
+    };
+    final totalPayable =
+        Num.rupees(Num.toDouble(loan['total_payable']) + amount);
+    await db.upsert('khatabook_loans', {
+      ...loan,
+      ...after.toRow(),
+      'principal_amount': kind == 'principal'
+          ? Num.rupees(Num.toDouble(loan['principal_amount']) + amount)
+          : loan['principal_amount'],
+      'total_payable': totalPayable,
+      'outstanding': Num.rupees(after.outstandingBalance),
+      'dirty': 1,
+    });
+  }
+
+  /// v1.0.21: a full KHATABOOK test matrix, one member per visible condition,
+  /// named after that condition so the list explains itself:
+  ///
+  ///   Sample_DueToday         red chip - an installment falls due today
+  ///   Sample_Overdue_4Days    red chip - four days late
+  ///   Sample_Overdue_Arrears  red chip - three installments missed at once
+  ///   Sample_Upcoming         blue chip - next due is in the future
+  ///   Sample_OnTime           green ON TIME - nothing due
+  ///   Sample_FullyPaid        closed loan, nothing outstanding
+  ///   Sample_PartPaid         one paid, next due still ahead
+  ///   Sample_LateFee          a late fee outstanding alongside the schedule
+  ///   Sample_InterestOnly     interest-only loan with billed periods
+  ///   Sample_Refinanced       refinanced: old frozen, new loan split in three
+  ///   Sample_NoDueDate        no schedule at all (No Due Date filter)
+  ///
+  /// Every balance is produced by [applyCollection] and [KhataLoanState], the
+  /// same engine the real screens use, so nothing here can drift from the app.
+  /// Safe to run twice: existing sample names are skipped.
+  Future<int> addSampleMembers() async {
+    var added = 0;
+    try {
+      final today = DateTime.now();
+
+      // Members must live in a khata that exists, or they cannot be opened
+      // from anywhere in Khatabook. Reuse the shop's Pallipatti khata when it
+      // is there, otherwise create one for the sample set.
+      const sampleVillage = 'Pallipatti';
+      final villageRows =
+          await db.query('villages', columns: ['village_name']);
+      final villageName = villageRows
+          .map((v) => (v['village_name']?.toString() ?? '').trim())
+          .firstWhere((v) => v.toLowerCase() == sampleVillage.toLowerCase(),
+              orElse: () => '');
+      if (villageName.isEmpty) {
+        await db.upsert('villages', {
+          'client_uuid': 'v-sample-members',
+          'village_name': sampleVillage,
+          'notes': 'Created by "Add sample data" — safe to delete',
+          'updated_at': DateTime.now().toIso8601String(),
+          'dirty': 1,
+        });
+      }
+      final village = villageName.isEmpty ? sampleVillage : villageName;
+
+      final existing = await db.query('customers', columns: ['customer_name']);
+      final have = existing
+          .map((c) => (c['customer_name']?.toString() ?? '').toLowerCase())
+          .toSet();
+
+      // (name, phone, business, principal, interest, count, frequency,
+      //  daysAgoStart, lateFee, interestOnly, noDueDate, refinance,
+      //  payments: (amount, daysAgoReceived))
+      final specs = <(
+        String,
+        String,
+        String,
+        double,
+        double,
+        int,
+        String,
+        int,
+        double,
+        bool,
+        bool,
+        bool,
+        List<(double, int)>
+      )>[
+        // start 7 days back, weekly -> first due is TODAY, unpaid = red.
+        (
+          'Sample_DueToday',
+          '9000000001',
+          'Grocer',
+          12000,
+          2400,
+          12,
+          'Weekly',
+          7,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[]
+        ),
+        // start 11 days back -> first due 4 days ago, unpaid = red + late.
+        (
+          'Sample_Overdue_4Days',
+          '9000000002',
+          'Tailor',
+          8000,
+          1600,
+          10,
+          'Weekly',
+          11,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[]
+        ),
+        // start 30 days back, weekly -> dues 23/16/9 days ago all missed.
+        (
+          'Sample_Overdue_Arrears',
+          '9000000003',
+          'Business',
+          12000,
+          2400,
+          12,
+          'Weekly',
+          30,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[]
+        ),
+        // start 2 days back -> first due 5 days ahead = blue.
+        (
+          'Sample_Upcoming',
+          '9000000004',
+          'Shop',
+          10000,
+          2000,
+          10,
+          'Weekly',
+          2,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[]
+        ),
+        // start 20 days back, biweekly -> dues 6 days ago and 8 days ahead.
+        // Pay the first in full, so what is left sits in the future = blue.
+        (
+          'Sample_PartPaid',
+          '9000000005',
+          'Tailor',
+          15000,
+          3000,
+          8,
+          'Biweekly',
+          20,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[(4500, 18)]
+        ),
+        // Two monthly dues behind, nothing paid since = red arrears.
+        (
+          'Sample_LateFee',
+          '9000000006',
+          'Business',
+          9000,
+          1800,
+          6,
+          'Monthly',
+          75,
+          300,
+          false,
+          false,
+          false,
+          <(double, int)>[(1800, 40)]
+        ),
+        // Fully settled: nothing left to collect = green ON TIME.
+        // 4 x 1800 = 7200 = the whole obligation, so this one is genuinely
+        // settled and shows the green ON TIME chip. v1.0.21 first shipped this
+        // with only 2 of 4 paid, which still showed a red DUE chip.
+        (
+          'Sample_FullyPaid',
+          '9000000007',
+          'Grocer',
+          6000,
+          1200,
+          4,
+          'Monthly',
+          150,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[(1800, 130), (1800, 100), (1800, 70), (1800, 40)]
+        ),
+        // Interest-only: one fixed monthly interest, billed per period.
+        (
+          'Sample_InterestOnly',
+          '9000000008',
+          'Landlord',
+          20000,
+          2000,
+          12,
+          'Monthly',
+          70,
+          0,
+          true,
+          false,
+          false,
+          <(double, int)>[(2000, 60), (2000, 30)]
+        ),
+        // Old loan frozen as REFINANCED, new loan = previous outstanding +
+        // fresh cash + new interest, linked by khatabook_refinances.
+        (
+          'Sample_Refinanced',
+          '9000000009',
+          'Business',
+          30000,
+          6000,
+          12,
+          'Monthly',
+          90,
+          0,
+          false,
+          false,
+          true,
+          <(double, int)>[(3000, 60)]
+        ),
+        // Overdue AND carrying no reminder date. v1.0.21 shipped this as
+        // "Sample_NoReminder" with a BLANK frequency, which _frequencyName
+        // silently reads as Weekly — so the row showed "DUE 3 DAYS AGO" under a
+        // name that said it had no due date. An empty frequency is also
+        // impossible in the real loan form (it always defaults to Weekly), so
+        // it was a made-up state. Now it is honestly named and honestly
+        // overdue.
+        (
+          'Sample_Overdue_NoReminder',
+          '9000000010',
+          'Shop',
+          5000,
+          500,
+          10,
+          'Weekly',
+          10,
+          0,
+          false,
+          true,
+          false,
+          <(double, int)>[]
+        ),
+        // Already living in the Loss Khata (village = Loss) so that screen has
+        // something in it. A real move is a village change only; loans,
+        // collections and history all stay with the member.
+        (
+          'Sample_InLoss',
+          '9000000011',
+          'Uncollected',
+          8000,
+          1600,
+          10,
+          'Weekly',
+          80,
+          0,
+          false,
+          false,
+          false,
+          <(double, int)>[]
+        ),
+      ];
+
+      for (final s in specs) {
+        if (have.contains(s.$1.toLowerCase())) continue;
+        final cu = newUuid();
+        final start = today.subtract(Duration(days: s.$8));
+        final total = Num.rupees(s.$4 + s.$5);
+
+        // The Loss member must sit in the reserved Loss khata, which is just a
+        // village named 'Loss' (MigrationV12). Moving a customer there is a
+        // village change; everything else about them stays.
+        final memberVillage =
+            s.$1 == 'Sample_InLoss' ? MigrationV12.lossVillageName : village;
+        await db.upsert('customers', {
+          'client_uuid': cu,
+          'customer_name': s.$1,
+          'phone': s.$2,
+          'village': memberVillage,
+          'previous_village': s.$1 == 'Sample_InLoss' ? village : null,
+          'customer_type': 'Khatabook',
+          'status': 'Active',
+          'customer_id': await nextCustomerId(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'dirty': 1,
+        });
+
+        // No reminder_date is seeded on purpose. A reminder OVERRIDES the
+        // loan schedule in the due display (the shopkeeper's word wins), so
+        // seeding one turned every overdue sample blue and hid the very chips
+        // the matrix exists to show. The schedule alone must produce red /
+        // blue / green, which is the real rule worth testing.
+
+        // A reminder date OVERRIDES the loan schedule in the due display — the
+        // shopkeeper's word wins. So it is only seeded where the schedule
+        // already points into the future; giving one to an overdue member would
+        // repaint its red chip blue and hide the arrears the sample exists to
+        // show. This also makes the "No Due Date" filter (which really means
+        // "no reminder set") discriminate instead of listing everyone.
+        const remindable = {
+          'Sample_Upcoming',
+          'Sample_PartPaid',
+          'Sample_InterestOnly',
+          'Sample_Refinanced',
+        };
+        if (remindable.contains(s.$1)) {
+          await db.upsert('customers', {
+            'client_uuid': cu,
+            'reminder_date': _isoDay(today.add(const Duration(days: 4))),
+            'dirty': 1,
+          });
+        }
+
+        // The loan itself is the first "You Gave" row; _addGiven records it
+        // the same way the dialog does, so the ledger reads exactly like one a
+        // shopkeeper typed by hand: money out on the start date, then each
+        // part-payment on its own dated line.
+        final loanUuid = newUuid();
+        await db.upsert('khatabook_loans', {
+          'client_uuid': loanUuid,
+          'dirty': 1,
+          'customer': cu,
+          'customer_uuid': cu,
+          'customer_name': s.$1,
+          'phone': s.$2,
+          'village': memberVillage,
+          'business': s.$3,
+          'status': 'Active',
+          'loan_date': _isoDay(start),
+          'start_date': _isoDay(start),
+          'end_date': s.$11
+              ? null
+              : _isoDay(_addSteps(
+                  DateTime(start.year, start.month, start.day),
+                  s.$6 * KhataSchedule.intervalDays(s.$7),
+                  s.$7)),
+          'principal_amount': s.$4,
+          'interest_amount': s.$5,
+          'total_payable': total,
+          'installment_count': s.$6,
+          'installment_amount': s.$6 == 0 ? 0 : Num.rupees(total / s.$6),
+          'collection_frequency': s.$7,
+          'paid_installments': 0,
+          'total_collected': 0,
+          'outstanding': total,
+          // ---- v10 component balances. The old seeder left these empty,
+          // which made every sample balance disagree with the real engine.
+          'original_principal': s.$4,
+          'expected_interest': s.$5,
+          'expected_repayment': total,
+          'principal_recovered': 0,
+          'principal_outstanding': s.$4,
+          'interest_outstanding': s.$10 ? 0 : s.$5,
+          // Added later by _addGiven as a dated charge; must not be
+          // seeded here as well or it would be counted twice.
+          'late_fee_outstanding': 0,
+          'other_charge_outstanding': 0,
+          'unapplied_credit': 0,
+          'payment_type': s.$10 ? 'INTEREST_ONLY' : 'INSTALLMENT',
+          'current_interest': s.$5,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+
+        // Payments, oldest first, each through the canonical engine.
+        var loan = await db.byUuid('khatabook_loans', loanUuid);
+        if (loan == null) continue;
+        var current = loan;
+        for (final p in s.$13) {
+          await applyCollection(
+            loan: current,
+            amount: p.$1,
+            receivedOn: today.subtract(Duration(days: p.$2)),
+          );
+          current = await db.byUuid('khatabook_loans', loanUuid) ?? current;
+        }
+
+        // Late fee as its own dated "You Gave" entry, so the arrears member
+        // shows a charge line the way a real one would.
+        if (s.$9 > 0) {
+          await _addGiven(
+            loan: current,
+            amount: s.$9,
+            kind: 'late_fee',
+            note: 'Late fee',
+            on: today.subtract(Duration(days: 5)),
+          );
+          current = await db.byUuid('khatabook_loans', loanUuid) ?? current;
+        }
+
+        // Interest-only loans bill one period at a time as the days pass.
+        if (s.$10) {
+          await ensureInterestPeriods(current, today: today);
+          current = await db.byUuid('khatabook_loans', loanUuid) ?? current;
+        }
+
+        // Refinance: freeze this loan and open the new three-part loan.
+        if (s.$12) {
+          await executeRefinance(
+            oldLoan: current,
+            fresh: 25000,
+            interest: 5000,
+            paymentType: 'INSTALLMENT',
+            frequency: 'Monthly',
+            count: 12,
+            collectionAmount: 0,
+          );
+        }
+        added++;
+      }
+      await db.setSetting('sample_members_added', '1');
+      await refreshCounts();
+    } catch (error) {
+      debugPrint('sample data failed: $error');
+    }
+    return added;
   }
 
   /// Deletes events older than [before] (retention-based auto-clear).

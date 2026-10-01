@@ -1,7 +1,7 @@
 name: jewellery_suite
 description: "Offline-first mobile app for the Jewellery + Pawn + Khatabook + Lending suite."
 publish_to: "none"
-version: 1.0.9+9
+version: 1.0.24+24
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -27,11 +27,18 @@ dependencies:
   latlong2: ^0.10.1
   google_mlkit_text_recognition: ^0.17.1
   google_mlkit_document_scanner: ^0.6.1
+  archive: ^4.3.0
+  share_plus: ^13.3.0
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  # Runs the real sqflite code against an in-memory SQLite under
+  # `flutter test`, so LocalDb's write contract is verified against a real
+  # database instead of a mock.
+  sqflite_common_ffi: ^2.4.3
 
 flutter:
   uses-material-design: true

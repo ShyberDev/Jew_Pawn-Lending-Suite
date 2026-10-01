@@ -8,11 +8,19 @@ import 'package:intl/intl.dart';
 ///   * percent -> 2 decimals
 class Num {
   /// Ceiling a money value to 2 decimals (never under-charges).
+  ///
+  /// PAWN-ONLY since the truncation rule: khata writes must use [rupees].
   static double money(num value) {
     final scaled = value * 100.0;
     final ceiled = scaled.ceilToDouble();
     return ceiled / 100.0;
   }
+
+  /// Truncate to whole rupees, dropping paise (1.50 → 1, 10000.90 → 10000).
+  ///
+  /// KHATA-ONLY rule: paise precision is not needed and every intermediate
+  /// paise figure was a source of phantom fractions. Pawn keeps [money].
+  static double rupees(num value) => value.truncateToDouble();
 
   /// Round a weight to 3 decimals, half-up.
   static double round3(num value) {
@@ -112,6 +120,22 @@ String moneyWhole(num? value) {
 /// "₹1,600" — whole rupees with Indian grouping.
 String inr(num? value) => '₹${moneyWhole(value)}';
 
+/// Whole rupees with Indian grouping, TRUNCATED (10000.90 → "10,000").
+///
+/// KHATA-ONLY display: matches the truncate-on-write rule so a legacy paise
+/// row can never render a rupee that was rounded up. Pawn keeps [moneyWhole].
+String moneyWholeDown(num? value) {
+  final d = Num.toDouble(value).truncate();
+  final negative = d < 0;
+  final s = d.abs().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(s[i]);
+  }
+  return '${negative ? '-' : ''}${buffer.toString()}';
+}
+
 /// "16-08-26" — DD-MM-YY for ISO date/datetime strings.
 String fmtDate(Object? value) {
   final dt = parseIso(value);
@@ -134,6 +158,28 @@ String fmtDateLong(Object? value) {
   final dt = parseIso(value);
   if (dt == null) return value?.toString() ?? '';
   return DateFormat('dd MMM yy').format(dt);
+}
+
+/// "1 sec ago" … "12 min ago" … "24 hours ago" … "3 days ago".
+///
+/// Recency of real money movement (member rows). Empty string when [value] is
+/// null, unparseable, or in the future — never show a recency the data cannot
+/// prove. Unit-tested in `test/format_test.dart` via the member display.
+/// Grey in the UI: deliberately none of red/blue/green/gold.
+String timeAgo(Object? value, {DateTime? now}) {
+  if (value == null) return '';
+  final dt = parseIso(value);
+  if (dt == null) return '';
+  final at = now ?? DateTime.now();
+  final secs = at.difference(dt).inSeconds;
+  if (secs < 0) return '';
+  if (secs < 60) return '$secs sec ago';
+  final mins = secs ~/ 60;
+  if (mins < 60) return '$mins min ago';
+  final hours = mins ~/ 60;
+  if (hours < 48) return '$hours hour${hours == 1 ? '' : 's'} ago';
+  final days = hours ~/ 24;
+  return '$days day${days == 1 ? '' : 's'} ago';
 }
 
 /// "25-10-26 Mon" — reminder chip format (DD-MM-YY + weekday).
@@ -187,4 +233,31 @@ DateTime? parseIso(Object? value) {
     return parsed;
   }
   return DateTime.tryParse(s);
+}
+
+/// The stamp shown on a ledger row, and nothing else.
+///
+/// v1.0.24: both the loan rows and the money rows used to prefer
+/// `updated_at` — the moment the shopkeeper TYPED the entry. A payment
+/// back-dated to last week was therefore displayed, and sorted, as today.
+/// The ledger has to say when the money actually moved, so the business date
+/// wins; the clock time is only worth showing when the entry was made on the
+/// very day it happened (that is also the only case where it orders
+/// same-day entries).
+({DateTime when, String stamp}) ledgerWhen({
+  required Object? businessDate,
+  required Object? entryAt,
+}) {
+  final b = parseIso(businessDate);
+  final e = parseIso(entryAt);
+  if (b == null) {
+    return (when: e ?? DateTime.now(), stamp: fmtDateTime(entryAt));
+  }
+  if (e != null &&
+      e.year == b.year &&
+      e.month == b.month &&
+      e.day == b.day) {
+    return (when: b, stamp: fmtDateTime(entryAt));
+  }
+  return (when: b, stamp: fmtDate(businessDate));
 }
