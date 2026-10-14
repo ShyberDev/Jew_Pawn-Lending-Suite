@@ -224,6 +224,73 @@ class AppState extends ChangeNotifier {
       clientUuid: uuid,
       data: {...data, if (serverName != null) 'name': serverName},
     );
+
+    // Auto-hook: Pawn Release -> Cash IN
+    if (table == 'pawn_releases' && existing == null) {
+      final now = DateTime.now();
+      final totalPaid = Num.toDouble(data['total_paid']);
+      if (totalPaid > 0) {
+        await db.addCashbookEntry({
+          'client_uuid': newUuid(),
+          'entry_date': data['release_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_type': 'IN',
+          'amount': Num.rupees(totalPaid),
+          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+          'category': 'PAWN_REPAYMENT',
+          'reference_id': uuid,
+          'party_name': data['customer']?.toString() ?? '',
+          'notes': 'Pawn loan release settlement',
+          'created_at': now.toIso8601String(),
+          'dirty': 1,
+        });
+      }
+    }
+
+    // Auto-hook: Khatabook Loan -> Cash OUT (Disbursed)
+    if (table == 'khatabook_loans' && existing == null) {
+      final now = DateTime.now();
+      final principal = Num.toDouble(data['principal_amount']);
+      if (principal > 0) {
+        await db.addCashbookEntry({
+          'client_uuid': newUuid(),
+          'entry_date': data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_type': 'OUT',
+          'amount': Num.rupees(principal),
+          'payment_mode': 'CASH',
+          'category': 'KHATA_DISBURSE',
+          'reference_id': uuid,
+          'party_name': data['customer_name']?.toString() ?? '',
+          'notes': 'Khata loan disbursed',
+          'created_at': now.toIso8601String(),
+          'dirty': 1,
+        });
+      }
+    }
+
+    // Auto-hook: Khatabook Given (Extra) -> Cash OUT
+    if (table == 'khatabook_given' && existing == null) {
+      final now = DateTime.now();
+      final amount = Num.toDouble(data['amount']);
+      if (amount > 0) {
+        await db.addCashbookEntry({
+          'client_uuid': newUuid(),
+          'entry_date': data['given_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_type': 'OUT',
+          'amount': Num.rupees(amount),
+          'payment_mode': 'CASH',
+          'category': 'KHATA_DISBURSE',
+          'reference_id': uuid,
+          'party_name': data['customer_name']?.toString() ?? '',
+          'notes': data['note']?.toString() ?? 'Khata You-Gave extra',
+          'created_at': now.toIso8601String(),
+          'dirty': 1,
+        });
+      }
+    }
+
     await refreshCounts();
     return uuid;
   }
@@ -256,6 +323,29 @@ class AppState extends ChangeNotifier {
         if (serverName != null) 'name': serverName,
       },
     );
+
+    // Auto-hook: Pawn Loan Creation -> Cash OUT (Disbursed)
+    if (existing == null) {
+      final now = DateTime.now();
+      final loanAmount = Num.toDouble(data['loan_amount']);
+      if (loanAmount > 0) {
+        await db.addCashbookEntry({
+          'client_uuid': newUuid(),
+          'entry_date': data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_type': 'OUT',
+          'amount': Num.rupees(loanAmount),
+          'payment_mode': 'CASH',
+          'category': 'PAWN_DISBURSE',
+          'reference_id': uuid,
+          'party_name': data['customer_name']?.toString() ?? '',
+          'notes': 'Pawn loan principal disbursed',
+          'created_at': now.toIso8601String(),
+          'dirty': 1,
+        });
+      }
+    }
+
     await refreshCounts();
     return uuid;
   }
@@ -817,7 +907,61 @@ class AppState extends ChangeNotifier {
           whereArgs: ['Active', 'ACTIVE']),
       'collected_today': await db.sum('khatabook_collections', 'amount',
           where: 'collection_date = ?', whereArgs: [today]),
+      'cashbook_in': (await db.getCashbookDailySummary(today))['total_in'] ?? 0.0,
+      'cashbook_out': (await db.getCashbookDailySummary(today))['total_out'] ?? 0.0,
+      'cashbook_net': (await db.getCashbookDailySummary(today))['net'] ?? 0.0,
     };
+  }
+
+  // ------------------------------------------------------------------ cashbook
+  Future<void> addCashbookEntry({
+    required String type, // 'IN' or 'OUT'
+    required double amount,
+    required String category,
+    required String mode,
+    DateTime? date,
+    String? partyName,
+    String? notes,
+    String? referenceId,
+  }) async {
+    final now = DateTime.now();
+    final d = date ?? now;
+    final uuid = newUuid();
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+    await db.addCashbookEntry({
+      'client_uuid': uuid,
+      'entry_date': _isoDay(d),
+      'entry_time': timeStr,
+      'entry_type': type,
+      'amount': Num.rupees(amount),
+      'payment_mode': mode.toUpperCase(),
+      'category': category,
+      'reference_id': referenceId,
+      'party_name': partyName ?? '',
+      'notes': notes ?? '',
+      'created_at': now.toIso8601String(),
+      'dirty': 1,
+    });
+    notifyListeners();
+  }
+
+  Future<void> deleteCashbookEntry(String uuid) async {
+    await db.deleteCashbookEntry(uuid);
+    notifyListeners();
+  }
+
+  Future<List<Map<String, Object?>>> getCashbookEntries({
+    String? date,
+    String? mode,
+    String? type,
+  }) =>
+      db.getCashbookEntries(date: date, mode: mode, type: type);
+
+  Future<Map<String, double>> getCashbookDailySummary([String? date]) {
+    final d = date ?? _isoDay(DateTime.now());
+    return db.getCashbookDailySummary(d);
   }
 
   // ---------------------------------------------------------- customer IDs
@@ -1122,6 +1266,23 @@ class AppState extends ChangeNotifier {
       'payment_mode': mode,
       'is_irregular': 0,
       'updated_at': DateTime.now().toIso8601String(),
+    });
+
+    // Auto-hook: Khata Collection -> Cash IN
+    final now = DateTime.now();
+    await db.addCashbookEntry({
+      'client_uuid': newUuid(),
+      'entry_date': _isoDay(receivedOn),
+      'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+      'entry_type': 'IN',
+      'amount': Num.rupees(amount),
+      'payment_mode': mode.toUpperCase(),
+      'category': 'KHATA_COLLECTION',
+      'reference_id': loanUuid,
+      'party_name': loan['customer_name']?.toString() ?? '',
+      'notes': 'Khata collection payment',
+      'created_at': now.toIso8601String(),
+      'dirty': 1,
     });
 
     // Re-read the loan: an earlier sample payment may have moved it on.
