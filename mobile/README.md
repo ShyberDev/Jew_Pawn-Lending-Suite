@@ -9,18 +9,20 @@ This is a **native Flutter app**, not a web/PWA wrapper.
 
 ---
 
-## What it does (v1.0.2)
+## What it does (v1.1.0)
 
 | Screen | Purpose |
 |---|---|
-| Home | Jewellers-gold module launcher — greeting, KPI strip (collected today, pawn outstanding), compact Core Modules grid (Khatabook / Pawn Loans / Jewellery / Cashbook), Reports entry, sync count. |
-| Khata Books | **Khata/Village groups** (Village Location / Personal / Business) with members + outstanding + overdue badges, **Create New Khata**, and a **collection-first customer list** (🔴 overdue → due today → this week → upcoming) with filters + search. |
-| Customer profile | Outstanding hero card, **You Gave** (loans), **You Got** (collections), **Collect**, **Refinance**, **Add Loan**, full history + payment schedule sheets. |
-| Customers | Add/edit customers with **photo**, phone, village, ID, ratings and per-customer interest overrides. |
-| Pawn Loans | Summary strip (principal out · interest due · active count), status chips, new loan with items (metal, weight, hallmark, rate, **item photo**), and **Release** — now enforces the blueprint rule: interest clears first and **partial release is not supported**. |
+| Home | Jewellers-gold module launcher — greeting, KPI strip (collected today, pawn outstanding), compact Core Modules grid (Khatabook / Pawn Loans / Cashbook / Jewellery), Reports entry, and sync indicator. |
+| Cashbook | **Daily Cash Ledger** with date navigation, Cash IN / Cash OUT cards, net daily balance, categorized entries, and automatic ledger recording whenever pawn loans are disbursed/released or khata loans are collected. |
+| Khata Books | **Khata/Village groups** (Village Location / Personal / Business) with members + outstanding + overdue badges, **Create New Khata**, and a **collection-first customer list** (🔴 overdue → due today → this week → upcoming) with search & filters. Removing a customer from khata preserves customer KYC if active pawn loans exist. |
+| Customer Profile | Outstanding hero card, **You Gave** (loans), **You Got** (collections), **Collect** with **Payment Mode** selection (Cash / UPI / Bank), **Refinance**, full ledger history, and payment schedule sheets. |
+| Pawn Loans | Summary strip (principal out · interest due · active count), status chips, and **Customer Autocomplete** searching by name/phone with inline creation fallback. |
+| New Pawn Loan | Dynamic 3-choice interest basis (**Gold 3.0%**, **Silver 4.0%**, **Gold & Silver 3.5%**), typeable customer selector, item weight, hallmark, and photo attachments. |
+| Customer Pawn Profile | Dedicated customer loan review modal with KYC summary card, item appraisal details, interest breakdown, and explicit admin-protected delete action. |
 | Pawn Dashboard | Principal outstanding hero, gold/silver reserve, **age groups (0–3M / 3–6M / 6–12M / 12M+)**, quick views (interest due, old pawns 12M+, recently added, released). |
-| Reports | **Khata reports** (Today's/This week/This month collection, total given/received, interest earned, outstanding, overdue, village-wise, customer-wise, bad credit/blocked) and **Pawn reports** (period/metal/status filters, principal, interest due, receivable, reserves, released, interest realised). |
-| Sync | Pending-change count and manual sync (currently nothing to sync — offline mode). |
+| Reports | **Khata reports** (collections, total given/received, interest earned, outstanding, overdue, village-wise) and **Pawn reports** (period/metal/status filters, principal, interest due, reserves, released, interest realised). |
+| Sync | Pending-change count and offline-first synchronization engine. |
 
 Photos are stored on the phone and uploaded to the server (attached to the
 document) as soon as that document has synced.
