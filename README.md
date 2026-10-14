@@ -63,12 +63,19 @@ Keep the whole business safe **off the laptop**:
 See **[`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md)** for the rclone
 setup, encryption, nightly cron, and step-by-step restore after a laptop loss.
 
-## Mobile sync (Android app)
+## Mobile App (Android APK v1.1.0)
 
-The server side of phone ⇄ laptop sync is **done** (`pawn_shop.api.sync`:
-`register_device` / `pull` / `push`, idempotent by `client_uuid`). The native
-Android (Flutter) app is next. Design:
-**[`docs/MOBILE_SYNC_DESIGN.md`](docs/MOBILE_SYNC_DESIGN.md)**.
+A high-performance offline-first native Android app (Flutter) bundling **Pawn Shop + Khatabook + Cashbook + Jewellery suite**:
+- **Latest Release APK**: Download [`jewellery_suite_v1.1.0.apk`](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.1.0) from the [Releases](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases) page.
+- **Interactive UI Architecture**: Explore live screens at [Anatomy of Mobile App](https://shyberdev.github.io/anatomy-of-a-mobile-app/).
+- **Key Capabilities**:
+  - **4-in-1 Suite**: Unified Home launcher for Khatabook, Pawn Loans, Cashbook Daily Ledger, and Jewellery.
+  - **Cashbook Ledger**: Daily Cash IN / Cash OUT tracking with automatic synchronization hooks for all pawn loans, releases, and Khata collections.
+  - **Typeable Customer Autocomplete**: Search-as-you-type in New Pawn Loan by name/phone with inline customer creation.
+  - **3-Segment Interest Basis**: Independent interest configuration for Gold (3.0%), Silver (4.0%), and combined Gold & Silver (3.5%).
+  - **Customer Pawn Profile**: Dedicated KYC card, loan breakdown, and secure admin-password-protected loan deletion.
+  - **Payment Modes**: Seamless Cash, UPI, and Bank tracking across collections and disbursements.
+- Detailed documentation and build instructions are in [`mobile/README.md`](mobile/README.md).
 
 ## Keeping the bundle in sync
 
