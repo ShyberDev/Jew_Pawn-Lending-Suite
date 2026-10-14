@@ -224,6 +224,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     // The interest-period rebuild above is async; the screen may be gone by
     // the time we would open the collect dialog.
     if (!mounted) return;
+    String paymentMode = 'Cash';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -252,96 +253,118 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Against: ${loan['customer_name']} · '
-                  'balance ₹${moneyWholeDown(loan['outstanding'] as num?)}'),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: fieldDecoration('Amount received',
-                      hint: suggested > 0
-                          ? 'e.g. ${moneyWholeDown(suggested)}'
-                          : null)),
-              const SizedBox(height: 10),
-              // Future interest is EXPLICIT only, and only interest-only
-              // loans offer it: normal money never prepays the future.
-              if (isIO) ...[
-                Wrap(
-                  spacing: 8,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Against: ${loan['customer_name']} · '
+                    'balance ₹${moneyWholeDown(loan['outstanding'] as num?)}'),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: fieldDecoration('Amount received',
+                        hint: suggested > 0
+                            ? 'e.g. ${moneyWholeDown(suggested)}'
+                            : null)),
+                const SizedBox(height: 10),
+                Text('Payment Mode',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: inkOf(context))),
+                const SizedBox(height: 6),
+                Row(
                   children: [
-                    for (final (v, label) in const [
-                      ('normal', 'Normal collection'),
-                      ('future', 'Future Interest'),
-                    ])
+                    for (final mode in const ['Cash', 'UPI', 'Bank']) ...[
                       ChoiceChip(
-                        label:
-                            Text(label, style: const TextStyle(fontSize: 12.5)),
-                        selected: kind == v,
+                        label: Text(mode, style: const TextStyle(fontSize: 12.5)),
+                        selected: paymentMode == mode,
                         selectedColor: kGold.withValues(alpha: .25),
-                        onSelected: (_) => setDlg(() => kind = v),
+                        onSelected: (_) => setDlg(() => paymentMode = mode),
                       ),
+                      const SizedBox(width: 8),
+                    ],
                   ],
                 ),
-                if (kind == 'future') ...[
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: futurePeriod,
-                    decoration: fieldDecoration('Interest period (month)'),
-                    items: [
-                      for (final p in periods)
+                const SizedBox(height: 10),
+                // Future interest is EXPLICIT only, and only interest-only
+                // loans offer it: normal money never prepays the future.
+                if (isIO) ...[
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final (v, label) in const [
+                        ('normal', 'Normal collection'),
+                        ('future', 'Future Interest'),
+                      ])
+                        ChoiceChip(
+                          label:
+                              Text(label, style: const TextStyle(fontSize: 12.5)),
+                          selected: kind == v,
+                          selectedColor: kGold.withValues(alpha: .25),
+                          onSelected: (_) => setDlg(() => kind = v),
+                        ),
+                    ],
+                  ),
+                  if (kind == 'future') ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<int>(
+                      initialValue: futurePeriod,
+                      decoration: fieldDecoration('Interest period (month)'),
+                      items: [
+                        for (final p in periods)
+                          DropdownMenuItem(
+                            value: (p['installment_number'] as num?)?.toInt(),
+                            child: Text(
+                                'Period ${(p['installment_number'] as num?)?.toInt()} · ${p['due_date']} · ${Num.toDouble(p['remaining_amount']) <= 0 ? 'paid' : 'owes ₹${moneyWholeDown(Num.toDouble(p['remaining_amount']))}'}',
+                                style: const TextStyle(fontSize: 12.5)),
+                          ),
                         DropdownMenuItem(
-                          value: (p['installment_number'] as num?)?.toInt(),
+                          value: nextUnbilled,
                           child: Text(
-                              'Period ${(p['installment_number'] as num?)?.toInt()} · ${p['due_date']} · ${Num.toDouble(p['remaining_amount']) <= 0 ? 'paid' : 'owes ₹${moneyWholeDown(Num.toDouble(p['remaining_amount']))}'}',
+                              'Period $nextUnbilled · next (not yet billed)',
                               style: const TextStyle(fontSize: 12.5)),
                         ),
-                      DropdownMenuItem(
-                        value: nextUnbilled,
-                        child: Text(
-                            'Period $nextUnbilled · next (not yet billed)',
-                            style: const TextStyle(fontSize: 12.5)),
-                      ),
-                    ],
-                    onChanged: (v) => setDlg(() => futurePeriod = v),
-                  ),
-                ],
-                const SizedBox(height: 10),
-              ],
-              GestureDetector(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: picked,
-                    firstDate: DateTime(2015),
-                    lastDate: DateTime(2100),
-                    helpText: 'Received date (past or future)',
-                  );
-                  if (d != null) {
-                    setDlg(() => picked = DateTime(d.year, d.month, d.day));
-                  }
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.event, size: 16, color: kGoldDark),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Received on ${fmtDate(picked)}'
-                      '${picked.toIso8601String().substring(0, 10) == todayIso() ? ' (today)' : ''}',
-                      style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: kGoldDark),
+                      ],
+                      onChanged: (v) => setDlg(() => futurePeriod = v),
                     ),
                   ],
+                  const SizedBox(height: 10),
+                ],
+                GestureDetector(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: picked,
+                      firstDate: DateTime(2015),
+                      lastDate: DateTime(2100),
+                      helpText: 'Received date (past or future)',
+                    );
+                    if (d != null) {
+                      setDlg(() => picked = DateTime(d.year, d.month, d.day));
+                    }
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.event, size: 16, color: kGoldDark),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Received on ${fmtDate(picked)}'
+                        '${picked.toIso8601String().substring(0, 10) == todayIso() ? ' (today)' : ''}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: kGoldDark),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -382,7 +405,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         'village': loan['village'],
         'collection_date': picked.toIso8601String().substring(0, 10),
         'amount': value,
-        'payment_mode': 'Cash',
+        'payment_mode': paymentMode,
         'is_irregular': 1,
         if (futureBilled != null) 'interest_period': futureBilled,
       },
@@ -493,111 +516,138 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final noteCtl = TextEditingController();
     String type = 'late_fee';
     var givenOn = DateTime.now();
-    // v1.0.23: returns the chosen TYPE, not a bool. "Refinance" is not an
+    String paymentMode = 'Cash';
+    // v1.0.23: returns the chosen TYPE and PAYMENT MODE. "Refinance" is not an
     // amount added inside this dialog - it is a different dialog entirely.
-    final picked = await showDialog<String>(
+    final picked = await showDialog<({String type, String paymentMode})>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           title: const Text('You Gave'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_youGaveHint(loan, type),
-                  style: TextStyle(
-                      fontSize: 12, color: kInk.withValues(alpha: .7))),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: amountCtl,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: fieldDecoration('Amount')),
-              const SizedBox(height: 10),
-              // v1.0.8: back-datable "given on" date.
-              GestureDetector(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: givenOn,
-                    firstDate: DateTime(2015),
-                    lastDate: DateTime(2100),
-                    helpText: 'Date the amount was given',
-                  );
-                  if (d != null) {
-                    setDlg(() => givenOn = DateTime(d.year, d.month, d.day));
-                  }
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_youGaveHint(loan, type),
+                    style: TextStyle(
+                        fontSize: 12, color: kInk.withValues(alpha: .7))),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: amountCtl,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: fieldDecoration('Amount')),
+                const SizedBox(height: 10),
+                Text('Payment Mode',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: inkOf(context))),
+                const SizedBox(height: 6),
+                Row(
                   children: [
-                    const Icon(Icons.event, size: 16, color: kGoldDark),
-                    const SizedBox(width: 6),
-                    Text('Given on ${fmtDate(givenOn)}',
-                        style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: kGoldDark)),
+                    for (final mode in const ['Cash', 'UPI', 'Bank']) ...[
+                      ChoiceChip(
+                        label: Text(mode, style: const TextStyle(fontSize: 12.5)),
+                        selected: paymentMode == mode,
+                        selectedColor: kGold.withValues(alpha: .25),
+                        onSelected: (_) => setDlg(() => paymentMode = mode),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                   ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text('Type',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: inkOf(context))),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  for (final (value, label) in const [
-                    ('principal', 'Principal'),
-                    ('late_fee', 'Late fee'),
-                    ('interest', 'Interest'),
-                    ('unpaid', 'Unpaid'),
-                    ('unavailable', 'Unavailable'),
-                    ('refinance', 'Refinance'),
-                  ])
-                    ChoiceChip(
-                      label:
-                          Text(label, style: const TextStyle(fontSize: 12.5)),
-                      selected: type == value,
-                      selectedColor: kGold.withValues(alpha: .25),
-                      onSelected: (_) {
-                        // Nothing on this form applies to a refinance: it carries its own
-                        // previous-outstanding / fresh-cash / new-interest fields. Close this
-                        // dialog and open that one straight away, instead of leaving the
-                        // shopkeeper to type an amount here that would be ignored.
-                        if (value == 'refinance') {
-                          Navigator.pop(ctx, 'refinance');
-                          return;
-                        }
-                        setDlg(() => type = value);
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: noteCtl,
-                  decoration: fieldDecoration('Note (e.g. Late fee)')),
-            ],
+                const SizedBox(height: 10),
+                // v1.0.8: back-datable "given on" date.
+                GestureDetector(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: givenOn,
+                      firstDate: DateTime(2015),
+                      lastDate: DateTime(2100),
+                      helpText: 'Date the amount was given',
+                    );
+                    if (d != null) {
+                      setDlg(() => givenOn = DateTime(d.year, d.month, d.day));
+                    }
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.event, size: 16, color: kGoldDark),
+                      const SizedBox(width: 6),
+                      Text('Given on ${fmtDate(givenOn)}',
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: kGoldDark)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text('Type',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: inkOf(context))),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final (value, label) in const [
+                        ('principal', 'Principal'),
+                        ('late_fee', 'Late fee'),
+                        ('interest', 'Interest'),
+                        ('unpaid', 'Unpaid'),
+                        ('unavailable', 'Unavailable'),
+                        ('refinance', 'Refinance'),
+                      ]) ...[
+                        ChoiceChip(
+                          label:
+                              Text(label, style: const TextStyle(fontSize: 12.5)),
+                          selected: type == value,
+                          selectedColor: kGold.withValues(alpha: .25),
+                          onSelected: (_) {
+                            // Nothing on this form applies to a refinance: it carries its own
+                            // previous-outstanding / fresh-cash / new-interest fields. Close this
+                            // dialog and open that one straight away, instead of leaving the
+                            // shopkeeper to type an amount here that would be ignored.
+                            if (value == 'refinance') {
+                              Navigator.pop(ctx, (type: 'refinance', paymentMode: paymentMode));
+                              return;
+                            }
+                            setDlg(() => type = value);
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                    controller: noteCtl,
+                    decoration: fieldDecoration('Note (e.g. Late fee)')),
+              ],
+            ),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx, type),
+                onPressed: () => Navigator.pop(ctx, (type: type, paymentMode: paymentMode)),
                 child: const Text('Add')),
           ],
         ),
       ),
     );
     if (picked == null) return;
-    type = picked;
+    type = picked.type;
+    paymentMode = picked.paymentMode;
     if (type == 'refinance') {
       // One shared dialog + one shared writer, so refinance can never mean
       // something different here than on the loan sheet. Reached by tapping
@@ -635,6 +685,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           'given_date': givenOn.toIso8601String().substring(0, 10),
           'amount': 0,
           'given_type': type,
+          'payment_mode': paymentMode,
           'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
         },
       );
@@ -677,6 +728,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         'given_date': givenOn.toIso8601String().substring(0, 10),
         'amount': amount,
         'given_type': type,
+        'payment_mode': paymentMode,
         'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
       },
     );

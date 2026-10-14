@@ -1166,19 +1166,90 @@ class _PawnDetailState extends State<_PawnDetail> {
               controller: controller,
               padding: const EdgeInsets.all(16).copyWith(bottom: 96),
               children: [
-                Text(loan['customer_name']?.toString() ?? '-',
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 4),
-                Text((() {
-                  final id = widget.customerId;
-                  final phone = (loan['phone'] ?? '') as String;
-                  final village = (loan['village'] ?? '') as String;
-                  return [
-                    if (id.isNotEmpty) 'ID $id',
-                    if (phone.isNotEmpty) phone,
-                    if (village.isNotEmpty) village,
-                  ].join('  ');
-                })()),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: kGold.withValues(alpha: .15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.diamond_outlined, color: kGoldDark, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Customer Pawn Profile',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kGoldDark)),
+                          Text(loan['customer_name']?.toString() ?? '-',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: released ? kGreen.withValues(alpha: .15) : kGold.withValues(alpha: .2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        loan['status']?.toString() ?? 'Active',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: released ? kGreen : kGoldDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 0,
+                  color: Theme.of(context).cardColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.badge_outlined, color: kGoldDark),
+                    title: const Text('Customer KYC & Details', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text((() {
+                      final id = widget.customerId;
+                      final phone = (loan['phone'] ?? '') as String;
+                      final village = (loan['village'] ?? '') as String;
+                      return [
+                        if (id.isNotEmpty) 'ID $id',
+                        if (phone.isNotEmpty) phone,
+                        if (village.isNotEmpty) village,
+                      ].join(' · ');
+                    })()),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final custUuid = loan['customer_uuid']?.toString();
+                      if (custUuid != null && custUuid.isNotEmpty) {
+                        final db = context.read<AppState>().db;
+                        final cust = await db.byUuid('customers', custUuid);
+                        if (!context.mounted) return;
+                        if (cust != null) {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomerForm(
+                                existing: cust,
+                                initialType: cust['customer_type']?.toString() ?? 'General',
+                              ),
+                            ),
+                          );
+                          if (mounted) _loadTransactions();
+                        }
+                      }
+                    },
+                  ),
+                ),
                 const Divider(height: 24),
                 _kv('Principal (investment)',
                     '₹${moneyText(PawnMath.principalOut(loan))}'),
@@ -1248,6 +1319,42 @@ class _PawnDetailState extends State<_PawnDetail> {
                     onPressed: _release,
                     icon: const Icon(Icons.lock_open),
                     label: const Text('Release (principal + interest)'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kRed,
+                      side: const BorderSide(color: kRed),
+                    ),
+                    onPressed: () async {
+                      final state = context.read<AppState>();
+                      final granted = await askPasswordIfEnabled(context, state,
+                          actionId: 'pawn_delete',
+                          action: 'delete',
+                          detail: loan['customer_name']?.toString() ?? 'pawn loan');
+                      if (!context.mounted) return;
+                      if (granted != true) {
+                        _toast(context, 'Delete cancelled / wrong password.');
+                        return;
+                      }
+                      final db = state.db;
+                      final uuid = loan['client_uuid'] as String?;
+                      final ref = (loan['server_name'] as String?) ?? uuid;
+                      if (uuid == null) return;
+                      await db.delete('pawn_loans', where: 'client_uuid = ?', whereArgs: [uuid]);
+                      await db.delete('pawn_items', where: 'loan_uuid = ?', whereArgs: [uuid]);
+                      await db.delete('pawn_transactions',
+                          where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+                      await db.delete('pawn_releases',
+                          where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+                      await state.logEvent(
+                          'pawn', 'delete', 'Pawn loan deleted — ${loan['customer_name'] ?? ''}',
+                          amount: Num.toDouble(loan['loan_amount']));
+                      if (!context.mounted) return;
+                      Navigator.pop(context, true);
+                    },
+                    icon: const Icon(Icons.delete_outline, color: kRed),
+                    label: const Text('Delete Loan', style: TextStyle(color: kRed)),
                   ),
                 ],
                 const Divider(height: 28),
@@ -1424,6 +1531,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   DateTime? _dueDate;
   String? _customerUuid;
   String? _customerName;
+  final _customerNameController = TextEditingController();
   List<Map<String, Object?>> _customers = [];
   final List<_ItemEntry> _items = [_ItemEntry()];
   // v1.0.9: ID proof captured on the pawn loan itself.
@@ -1451,6 +1559,44 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     if (mounted) setState(() => _customers = list);
   }
 
+  void _onCustomerSelected(Map<String, Object?> customer) {
+    setState(() {
+      _customerUuid = customer['client_uuid'] as String?;
+      _customerName = customer['customer_name']?.toString() ?? '';
+      _customerNameController.text = _customerName ?? '';
+      _customerId.text = customer['customer_id']?.toString() ?? '';
+      _phone.text = customer['phone']?.toString() ?? '';
+      _address.text = customer['village']?.toString() ?? '';
+      if ((customer['id_proof_type']?.toString() ?? '').isNotEmpty) {
+        _idProofType = customer['id_proof_type'].toString();
+      }
+      if ((customer['id_proof_number']?.toString() ?? '').isNotEmpty) {
+        _idNumber.text = customer['id_proof_number'].toString();
+      }
+      if (customer['id_front'] != null) {
+        _idFront = customer['id_front'] as String?;
+      }
+      if (customer['id_back'] != null) {
+        _idBack = customer['id_back'] as String?;
+      }
+      _setBasis(_basis, _customers);
+    });
+  }
+
+  void _onCustomerTyped(String name) {
+    _customerName = name;
+    final match = _customers.where((c) =>
+        (c['customer_name']?.toString() ?? '').trim().toLowerCase() ==
+        name.trim().toLowerCase());
+    if (match.isNotEmpty) {
+      _onCustomerSelected(match.first);
+    } else {
+      setState(() {
+        _customerUuid = null;
+      });
+    }
+  }
+
   /// The "+" beside the customer picker opens the full customer form (photo,
   /// ID proof type/number/front/back), then re-selects the new customer.
   Future<void> _addCustomer() async {
@@ -1465,11 +1611,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     final newest =
         await state.db.query('customers', orderBy: 'updated_at desc', limit: 1);
     if (newest.isNotEmpty && mounted) {
-      setState(() {
-        _customerUuid = newest.first['client_uuid'] as String?;
-        _customerName = newest.first['customer_name']?.toString();
-        _setBasis(_basis, _customers);
-      });
+      _onCustomerSelected(newest.first);
     }
   }
 
@@ -1634,6 +1776,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
     _phone.dispose();
     _customerId.dispose();
     _rate.dispose();
+    _customerNameController.dispose();
     for (final item in _items) {
       item.dispose();
     }
@@ -1652,9 +1795,14 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       }
       final override = basis == 'Gold'
           ? customer['gold_interest_rate']
-          : customer['silver_interest_rate'];
+          : (basis == 'Silver'
+              ? customer['silver_interest_rate']
+              : (customer['gold_interest_rate'] ?? customer['silver_interest_rate']));
       final value = Num.toDouble(override);
-      _rate.text = (value > 0 ? value : (basis == 'Gold' ? 3 : 4)).toString();
+      _rate.text = (value > 0
+              ? value
+              : (basis == 'Silver' ? 4 : (basis == 'Gold & Silver' ? 3.5 : 3)))
+          .toString();
     });
   }
 
@@ -1678,12 +1826,40 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_customerUuid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Select a customer first')));
-      return;
-    }
     final state = context.read<AppState>();
+    if (_customerUuid == null || _customerUuid!.isEmpty) {
+      final typedName = (_customerName?.trim().isNotEmpty == true)
+          ? _customerName!.trim()
+          : _customerNameController.text.trim();
+      if (typedName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select or type a customer name')));
+        return;
+      }
+      final newUuidVal = newUuid();
+      final newId = _customerId.text.trim().isNotEmpty
+          ? await state.claimCustomerId(_customerId.text.trim())
+          : await state.claimCustomerId('A01');
+      await state.saveEntity(
+        table: 'customers',
+        doctype: 'Pawn Customer',
+        uuid: newUuidVal,
+        data: {
+          'customer_name': typedName,
+          'customer_id': newId,
+          'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          'village': _address.text.trim().isEmpty ? null : _address.text.trim(),
+          'id_proof_type': _idProofType,
+          'id_proof_number':
+              _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
+          'id_front': _idFront,
+          'id_back': _idBack,
+          'customer_type': 'General',
+        },
+      );
+      _customerUuid = newUuidVal;
+      _customerName = typedName;
+    }
     final items = _items.map((e) => e.toMap()).toList();
     double totalGross = 0, totalNet = 0, hallmarked = 0, marketValue = 0;
     for (final item in items) {
@@ -1810,41 +1986,127 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: fieldDecoration('Customer *'),
-                      initialValue: _customerUuid,
-                      items: _customers
-                          .map((c) => DropdownMenuItem(
-                                value: c['client_uuid'] as String,
-                                child:
-                                    Text(c['customer_name']?.toString() ?? '-'),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        final customer = _customers.firstWhere(
-                            (c) => c['client_uuid'] == value,
-                            orElse: () => {});
-                        setState(() {
-                          _customerUuid = value;
-                          _customerName = customer['customer_name']?.toString();
-                          _customerId.text =
-                              customer['customer_id']?.toString() ?? '';
-                          _phone.text = customer['phone']?.toString() ?? '';
-                          final override = _basis == 'Gold'
-                              ? customer['gold_interest_rate']
-                              : customer['silver_interest_rate'];
-                          final v = Num.toDouble(override);
-                          _rate.text = (v > 0 ? v : (_basis == 'Gold' ? 3 : 4))
-                              .toString();
+                    child: Autocomplete<Map<String, Object?>>(
+                      initialValue: TextEditingValue(text: _customerNameController.text),
+                      displayStringForOption: (option) =>
+                          option['customer_name']?.toString() ?? '',
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        final query = textEditingValue.text.trim().toLowerCase();
+                        if (query.isEmpty) {
+                          return _customers.take(15);
+                        }
+                        final matches = _customers.where((c) {
+                          final name =
+                              (c['customer_name']?.toString() ?? '').toLowerCase();
+                          final phone = (c['phone']?.toString() ?? '').toLowerCase();
+                          final id = (c['customer_id']?.toString() ?? '').toLowerCase();
+                          return name.contains(query) ||
+                              phone.contains(query) ||
+                              id.contains(query);
+                        }).toList();
+                        if (!matches.any((c) =>
+                            (c['customer_name']?.toString() ?? '')
+                                .trim()
+                                .toLowerCase() ==
+                            query)) {
+                          return [
+                            ...matches,
+                            {
+                              '_isNew': true,
+                              'customer_name': textEditingValue.text.trim(),
+                              'client_uuid': '',
+                            }
+                          ];
+                        }
+                        return matches;
+                      },
+                      onSelected: (option) {
+                        if (option['_isNew'] == true) {
+                          final name = option['customer_name']?.toString() ?? '';
+                          _customerNameController.text = name;
+                          _onCustomerTyped(name);
+                        } else {
+                          _onCustomerSelected(option);
+                        }
+                      },
+                      fieldViewBuilder:
+                          (context, textController, focusNode, onFieldSubmitted) {
+                        textController.addListener(() {
+                          if (_customerNameController.text != textController.text) {
+                            _customerNameController.text = textController.text;
+                            _customerName = textController.text;
+                          }
                         });
+                        return TextFormField(
+                          controller: textController,
+                          focusNode: focusNode,
+                          decoration: fieldDecoration(
+                            'Customer * (Type name or search)',
+                            hint: 'Type letter or name...',
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter customer name'
+                              : null,
+                        );
+                      },
+                      optionsViewBuilder: (context, onSelected, options) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4.0,
+                            borderRadius: BorderRadius.circular(8),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: 250,
+                                maxWidth: MediaQuery.of(context).size.width - 48,
+                              ),
+                              child: ListView.separated(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final opt = options.elementAt(index);
+                                  final isNew = opt['_isNew'] == true;
+                                  if (isNew) {
+                                    return ListTile(
+                                      dense: true,
+                                      leading: const Icon(Icons.add_circle, color: kGoldDark),
+                                      title: Text('+ Create "${opt['customer_name']}"',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: kGoldDark)),
+                                      onTap: () => onSelected(opt),
+                                    );
+                                  }
+                                  final name = opt['customer_name']?.toString() ?? '';
+                                  final id = opt['customer_id']?.toString() ?? '';
+                                  final phone = opt['phone']?.toString() ?? '';
+                                  return ListTile(
+                                    dense: true,
+                                    leading: const Icon(Icons.person_outline, size: 20),
+                                    title: Text(name,
+                                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    subtitle: Text(
+                                        [
+                                          if (id.isNotEmpty) 'ID $id',
+                                          if (phone.isNotEmpty) phone
+                                        ].join(' · '),
+                                        style: const TextStyle(fontSize: 12)),
+                                    onTap: () => onSelected(opt),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                   ),
                   const SizedBox(width: 6),
                   // v1.0.8: add a new customer right here (+).
                   IconButton(
-                    tooltip: 'Add new customer',
+                    tooltip: 'Add new customer (Full KYC form)',
                     icon: const Icon(Icons.add_circle_outline,
                         color: kGoldDark, size: 26),
                     onPressed: _addCustomer,
@@ -1854,7 +2116,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               if (_customers.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
-                  child: Text('No customers yet — tap + to add one.',
+                  child: Text('No customers yet — type name or tap + to add one.',
                       style: TextStyle(fontSize: 12, color: Color(0xFF8A6D14))),
                 ),
               const SizedBox(height: 10),
@@ -1885,13 +2147,37 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               ),
             ]),
             SectionCard(title: 'Loan', children: [
-              DropdownButtonFormField<String>(
-                initialValue: _basis,
-                decoration: fieldDecoration('Interest basis'),
-                items: const ['Gold', 'Silver']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-                onChanged: (v) => _setBasis(v ?? 'Gold', _customers),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Interest basis',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: inkOf(context))),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      for (final b in const ['Gold', 'Silver', 'Gold & Silver']) ...[
+                        Expanded(
+                          child: ChoiceChip(
+                            label: Center(
+                              child: Text(b,
+                                  style: const TextStyle(
+                                      fontSize: 11.5, fontWeight: FontWeight.w600)),
+                            ),
+                            selected: _basis == b,
+                            selectedColor: kGold.withValues(alpha: .25),
+                            onSelected: (selected) {
+                              if (selected) _setBasis(b, _customers);
+                            },
+                          ),
+                        ),
+                        if (b != 'Gold & Silver') const SizedBox(width: 6),
+                      ],
+                    ],
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Row(children: [
