@@ -2,6 +2,8 @@
 
 Status: **HELD. Nothing applied.** Written 2026-10-14 against `develop` @ v1.0.24.
 
+Tracked as PLAY-01 … PLAY-07 in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
+
 A "Play Store Ready: All Fixes" document was supplied with 7 replacement files.
 Each claim was checked against this repository before applying anything. The
 document is a generic template: several of its claims are false for this
