@@ -631,9 +631,14 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
     var deleted = 0.0;
     for (final c in customers) {
       final cn = c['customer_name']?.toString() ?? '';
-      final cu = c['client_uuid'];
-      // v1.0.8: free the customer ID so the next new customer reuses it.
-      await state.freeCustomerId(c['customer_id']?.toString());
+      final cu = c['client_uuid']?.toString() ?? '';
+      final pawnLoans = await db.query('pawn_loans',
+          where: 'customer_uuid = ? OR customer = ? OR customer_name = ?',
+          whereArgs: [cu, cn, cn]);
+      if (pawnLoans.isEmpty) {
+        // v1.0.8: free the customer ID so the next new customer reuses it.
+        await state.freeCustomerId(c['customer_id']?.toString());
+      }
       final loans = await db.query('khatabook_loans',
           where: 'customer = ? OR customer_name = ?', whereArgs: [cu, cn]);
       for (final l in loans) {
@@ -653,7 +658,11 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           whereArgs: [cu, cn, cu]);
       await db.delete('khatabook_collections',
           where: 'customer = ? OR customer = ?', whereArgs: [cu, cn]);
-      await db.delete('customers', where: 'client_uuid = ?', whereArgs: [cu]);
+      if (pawnLoans.isEmpty) {
+        await db.delete('customers', where: 'client_uuid = ?', whereArgs: [cu]);
+      } else {
+        await db.upsert('customers', {...c, 'village': null, 'dirty': 1});
+      }
     }
     if (name != 'General') {
       await db.delete('villages', where: 'village_name = ?', whereArgs: [name]);
@@ -1525,6 +1534,9 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
           where: 'khatabook_loan = ?', whereArgs: [ref]);
       deleted += Num.toDouble(l['total_payable']);
     }
+    final pawnLoans = await db.query('pawn_loans',
+        where: 'customer_uuid = ? OR customer = ? OR customer_name = ?',
+        whereArgs: [uuid, name, name]);
     await db.delete('khatabook_loans',
         where: 'customer = ? OR customer_name = ?', whereArgs: [uuid, name]);
     await db.delete('khatabook_given',
@@ -1532,7 +1544,12 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
         whereArgs: [uuid, name, uuid]);
     await db.delete('khatabook_collections',
         where: 'customer = ? OR customer = ?', whereArgs: [uuid, name]);
-    await db.delete('customers', where: 'client_uuid = ?', whereArgs: [uuid]);
+    if (pawnLoans.isEmpty) {
+      await state.freeCustomerId(c['customer_id']?.toString());
+      await db.delete('customers', where: 'client_uuid = ?', whereArgs: [uuid]);
+    } else {
+      await db.upsert('customers', {...c, 'village': null, 'dirty': 1});
+    }
     await state.logEvent('khata', 'customer_delete', 'Customer deleted — $name',
         amount: deleted, village: c['village']?.toString());
     // Re-query the list: a bare setState reuses the completed future and the

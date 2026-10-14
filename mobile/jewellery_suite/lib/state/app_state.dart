@@ -269,6 +269,28 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // Auto-hook: Khatabook Collection -> Cash IN
+    if (table == 'khatabook_collections' && existing == null) {
+      final now = DateTime.now();
+      final amount = Num.toDouble(data['amount']);
+      if (amount > 0) {
+        await db.addCashbookEntry({
+          'client_uuid': newUuid(),
+          'entry_date': data['collection_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_type': 'IN',
+          'amount': Num.rupees(amount),
+          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+          'category': 'KHATA_COLLECTION',
+          'reference_id': uuid,
+          'party_name': data['customer']?.toString() ?? data['customer_name']?.toString() ?? '',
+          'notes': 'Khata collection payment',
+          'created_at': now.toIso8601String(),
+          'dirty': 1,
+        });
+      }
+    }
+
     // Auto-hook: Khatabook Given (Extra) -> Cash OUT
     if (table == 'khatabook_given' && existing == null) {
       final now = DateTime.now();
@@ -280,7 +302,7 @@ class AppState extends ChangeNotifier {
           'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'OUT',
           'amount': Num.rupees(amount),
-          'payment_mode': 'CASH',
+          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
           'category': 'KHATA_DISBURSE',
           'reference_id': uuid,
           'party_name': data['customer_name']?.toString() ?? '',

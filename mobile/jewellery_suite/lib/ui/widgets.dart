@@ -21,7 +21,8 @@ Future<String?> pickAndStoreImage(ImageSource source) async {
   final picked = await ImagePicker().pickImage(
     source: source,
     imageQuality: 70,
-    maxWidth: 1600,
+    maxWidth: 1024,
+    maxHeight: 1024,
   );
   if (picked == null) return null;
   if (kIsWeb) return null; // web preview: photos are not persisted
