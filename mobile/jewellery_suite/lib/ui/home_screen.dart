@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../util/app_version.dart';
 import '../util/format.dart';
 import 'about_app_screen.dart';
+import 'cashbook_screen.dart';
 import 'customers_screen.dart';
 import 'password_settings_screen.dart';
 import 'history_screen.dart';
@@ -389,7 +390,8 @@ class _HomeScreenState extends State<HomeScreen> {
           () => _open(const KhataGroupsScreen())),
       (Icons.account_balance_outlined, 'Pawn Loans',
           () => _open(const PawnScreen())),
-      (Icons.account_balance_wallet_outlined, 'Cashbook', _comingSoon),
+      (Icons.account_balance_wallet_outlined, 'Cashbook',
+          () => _open(const CashbookScreen())),
       (Icons.diamond_outlined, 'Jewellery', _comingSoon),
     ];
     return GridView.count(

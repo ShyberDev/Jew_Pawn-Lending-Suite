@@ -8,6 +8,7 @@ import 'migration_v10.dart';
 import 'migration_v11.dart';
 import 'migration_v12.dart';
 import 'migration_v13.dart';
+import 'migration_v14.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -38,7 +39,7 @@ class LocalDb {
     path = file;
     _db = await openDatabase(
       file,
-      version: MigrationV13.version,
+      version: MigrationV14.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -183,6 +184,11 @@ class LocalDb {
       await MigrationV10.addSchema(db);
       final seeded = await MigrationV10.seedComponents(db);
       debugPrint('[db] migration v10: schema added, $seeded loan(s) seeded');
+    }
+    if (oldVersion < 14) {
+      // v14: cashbook module (daily in/out entries and auto-hooks).
+      // See lib/data/migration_v14.dart.
+      await MigrationV14.addSchema(db);
     }
     if (oldVersion < 13) {
       // v13: activity timestamp for the member-row recency display.
@@ -361,6 +367,7 @@ class LocalDb {
     await MigrationV11.addSchema(db);
     await MigrationV12.addSchema(db);
     await MigrationV13.addSchema(db);
+    await MigrationV14.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings
@@ -542,5 +549,65 @@ class LocalDb {
   Future<void> markPhotoUploaded(int id) async {
     await db.update('photo_queue', {'uploaded': 1},
         where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ------------------------------------------------------------------ cashbook
+  Future<void> addCashbookEntry(Map<String, Object?> entry) async {
+    await db.insert('cashbook_entries', entry,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, Object?>>> getCashbookEntries({
+    String? date,
+    String? mode,
+    String? type,
+  }) async {
+    final whereClauses = <String>[];
+    final args = <Object?>[];
+
+    if (date != null && date.isNotEmpty) {
+      whereClauses.add('entry_date = ?');
+      args.add(date);
+    }
+    if (mode != null && mode != 'ALL') {
+      whereClauses.add('payment_mode = ?');
+      args.add(mode);
+    }
+    if (type != null && type != 'ALL') {
+      whereClauses.add('entry_type = ?');
+      args.add(type);
+    }
+
+    final where = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
+    return db.query(
+      'cashbook_entries',
+      where: where,
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'entry_date DESC, entry_time DESC',
+    );
+  }
+
+  Future<Map<String, double>> getCashbookDailySummary(String date) async {
+    final rows = await db.rawQuery('''
+      SELECT 
+        SUM(CASE WHEN entry_type = 'IN' THEN amount ELSE 0 END) as total_in,
+        SUM(CASE WHEN entry_type = 'OUT' THEN amount ELSE 0 END) as total_out
+      FROM cashbook_entries
+      WHERE entry_date = ?
+    ''', [date]);
+
+    if (rows.isEmpty) return {'total_in': 0.0, 'total_out': 0.0, 'net': 0.0};
+    final totalIn = (rows.first['total_in'] as num?)?.toDouble() ?? 0.0;
+    final totalOut = (rows.first['total_out'] as num?)?.toDouble() ?? 0.0;
+    return {
+      'total_in': totalIn,
+      'total_out': totalOut,
+      'net': totalIn - totalOut,
+    };
+  }
+
+  Future<void> deleteCashbookEntry(String uuid) async {
+    await db.delete('cashbook_entries',
+        where: 'client_uuid = ?', whereArgs: [uuid]);
   }
 }
