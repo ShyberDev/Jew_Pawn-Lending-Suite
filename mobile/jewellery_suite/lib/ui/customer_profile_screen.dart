@@ -2057,10 +2057,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     // A transfer is neither cash given nor cash received: old outstanding
     // moved into the new loan. Gold tile, explicit label, never red/green.
     final isTransfer = r.kind == 'transfer';
-    // Refinance display: the headline is the NEW loan's total (previous
-    // outstanding + fresh cash + new interest). The amount actually refinanced
-    // — the old outstanding that moved, not fresh money — is spelled out
-    // underneath, so ₹63,000 on top and ₹33,000 below can never be confused.
+    // Refinance display: the new-loan row above already carries the full
+    // ₹63,000 (previous outstanding + fresh cash + new interest). This transfer
+    // tile sits directly below it and headlines the amount that actually moved
+    // (₹33,000) — never ₹63,000 again — so the two figures cannot be confused.
     final movedOut =
         isTransfer ? Num.toDouble(r.source['old_outstanding']) : 0.0;
     final newPrincipal =
@@ -2174,7 +2174,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   children: [
                     Text(
                       !isGave
-                          ? '₹${moneyWholeDown(isTransfer ? newLoanTotal : r.got)}'
+                          ? '₹${moneyWholeDown(isTransfer ? movedOut : r.got)}'
                           : '',
                       textAlign: TextAlign.right,
                       style: TextStyle(
@@ -2187,7 +2187,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   : color),
                     ),
                     if (isTransfer)
-                      Text('new loan',
+                      Text('refinanced',
                           style: TextStyle(
                               fontSize: 8.5,
                               fontWeight: FontWeight.w600,
@@ -2202,7 +2202,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
               child: Text(
-                'Refinanced amount ₹${moneyWholeDown(movedOut)}'
+                'New loan ₹${moneyWholeDown(newLoanTotal)}'
                 '${freshCash > 0 ? '  •  Fresh cash ₹${moneyWholeDown(freshCash)}' : ''}',
                 style: const TextStyle(
                     fontSize: 12,

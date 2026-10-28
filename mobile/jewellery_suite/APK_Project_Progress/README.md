@@ -2,8 +2,8 @@
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
 **Last updated:** 2026-10-28
-**App version installed for testing:** v1.1.0 (versionCode 25, debug-signed)
-**Next target:** v1.1.1 — fixes only (money, data, Play Store, backup, Cashbook/Reports)
+**App version installed for testing:** v1.1.1 (versionCode 26, debug-signed) — verified 2026-10-28
+**Next target:** v1.1.2 — reminders, export/charts, HTTPS, Jewellery module (v1.1.1 is fixes only)
 
 ---
 
@@ -42,14 +42,20 @@ Screenshot: (if visual)
 
 | # | Status | Area | Page / option | What was wrong | What was changed |
 |---|---|---|---|---|---|
-| **#001** | 🟨 CODE DONE | System / Calculations | **New Pawn Loan → SAVE** | SAVE did nothing for a new customer. Root causes: (a) blank Customer ID was forced to `A01`, which is usually already used → duplicate-ID error; (b) the new customer was written with `id_front` / `id_back`, but the customers table has `id_photo_front` / `id_photo_back`; (c) the save was async with no error handler, so every failure looked like a dead button. | Blank ID now takes the next free book number. Photo columns corrected. Save wrapped in try/catch with a visible error message and a saving spinner. Selecting an existing customer now also loads their saved ID photos. |
-| **#002** | 🟨 CODE DONE | System / Data | **Customer Profile → You Gave → Add** | Late fee / interest / principal could not be added after the first loan. `khatabook_given` had no `payment_mode` column, but every write sent one → SQL error, silently swallowed. | Schema v15 adds `khatabook_given.payment_mode`. The dialog now validates the amount (no more silent no-op) and shows a message if the save fails. |
-| **#003** | 🟨 CODE DONE | System UI / Calculations | **Customer Profile → ledger → refinance transfer** | The old loan’s ₹33,000 transfer was shown without saying what it was, next to the new ₹63,000 loan. Could not tell which amount was refinanced and which was fresh cash. It also sorted ABOVE the new loan because same-day rows all tied at midnight. | Transfer tile now headlines the **new loan total ₹63,000** (“new loan”), then a gold line: **Refinanced amount ₹33,000 • Fresh cash ₹25,000**, then the balance. Same-day ledger rows now order by their entry time, and the transfer is stamped one second before the new loan, so the ₹63,000 row sits directly above the ₹33,000 line. The “moved, not paid” note stays. |
-| **#004** | 🟨 CODE DONE | System UI | **Customer Profile → ledger → balance line** | Lowercase `bal ₹…` looked unfinished. | Now **`Bal ₹…`**. |
-| **#005** | 🟨 CODE DONE | System UI / Cashbook | **Cashbook → filters** | Only Cash / UPI / Bank could be filtered. Could not isolate Khatabook, Pawn, Jewellery or manual entries. The daily tally also ignored the active filters. | Two filter rows: **Source** = All / Khatabook / Pawn / Jewellery / Manual, and **Payment** = All modes / Cash / UPI / Bank. Both combine. The total-in / total-out / net card now follows the filters exactly. Jewellery and Manual filter chips are ready for future modules. |
+| **#001** | ✅ DONE | System / Calculations | **New Pawn Loan → SAVE** | SAVE did nothing for a new customer. Root causes: (a) blank Customer ID was forced to `A01`, which is usually already used → duplicate-ID error; (b) the new customer was written with `id_front` / `id_back`, but the customers table has `id_photo_front` / `id_photo_back`; (c) the save was async with no error handler, so every failure looked like a dead button. | Blank ID now takes the next free book number. Photo columns corrected. Save wrapped in try/catch with a visible error message and a saving spinner. Selecting an existing customer now also loads their saved ID photos. |
+| **#002** | ✅ DONE | System / Data | **Customer Profile → You Gave → Add** | Late fee / interest / principal could not be added after the first loan. `khatabook_given` had no `payment_mode` column, but every write sent one → SQL error, silently swallowed. | Schema v15 adds `khatabook_given.payment_mode`. The dialog now validates the amount (no more silent no-op) and shows a message if the save fails. |
+| **#003** | ✅ DONE | System UI / Calculations | **Customer Profile → ledger → refinance transfer** | The old loan’s ₹33,000 transfer was shown without saying what it was, next to the new ₹63,000 loan. Could not tell which amount was refinanced and which was fresh cash. It also sorted ABOVE the new loan because same-day rows all tied at midnight. | The ₹63,000 new-loan row stays on top. The transfer tile directly below it now headlines **₹33,000 “refinanced”** (the amount that moved), with **New loan ₹63,000 • Fresh cash ₹25,000** underneath, then `Bal ₹0`. Same-day ledger rows now order by their entry time, and the transfer is stamped one second before the new loan. |
+| **#004** | ✅ DONE | System UI | **Customer Profile → ledger → balance line** | Lowercase `bal ₹…` looked unfinished. | Now **`Bal ₹…`** on every ledger row. |
+| **#005** | ✅ DONE | System UI / Cashbook | **Cashbook → filters** | Only Cash / UPI / Bank could be filtered. Could not isolate Khatabook, Pawn, Jewellery or manual entries. The daily tally also ignored the active filters. | Two filter rows: **Source** = All / Khatabook / Pawn / Jewellery / Manual, and **Payment** = All modes / Cash / UPI / Bank. Both combine. The total-in / total-out / net card now follows the filters exactly. Jewellery and Manual filter chips are ready for future modules. |
 | **#006** | ✅ DONE | Documentation | **Project tracking** | No single place to see done / todo / improve. | This folder and file. |
 
-> **Phone verification pending for #001–#005.** The APK must be rebuilt and installed before they can be marked ✅.
+> **All five were verified on the phone on 2026-10-28 (v1.1.1 / versionCode 26).**
+>
+> - **#001** — isolated QA install: brand-new customer “QA pawn” saved with auto ID `A01` and a ₹1,000 loan; the row appeared in Pawn Loans.
+> - **#002** — isolated QA install: khata loan ₹1,000 + ₹100, then You Gave ₹50 late fee; balance became ₹1,150, the row appeared, and Cashbook received the ₹50 OUT entry.
+> - **#003** — live install: ₹63,000 new-loan row on top; transfer tile below shows ₹33,000 refinanced, with “New loan ₹63,000 • Fresh cash ₹25,000”.
+> - **#004** — live install: `Bal ₹…` on every ledger row.
+> - **#005** — live install: Pawn filter shows the empty state and zero tally; Khatabook + Cash shows the two entries and the same ₹608 / ₹10,000 tally.
 
 ---
 
@@ -120,15 +126,17 @@ Screenshot: (if visual)
 
 ## 5. Change log
 
-### 2026-10-28 — v1.1.1 development round 1
+### 2026-10-28 — v1.1.1 development round 1 — verified on phone
 - Added **#001–#006** (this round).
 - Added schema **v15** (`khatabook_given.payment_mode`).
 - Added regression suite `test/v1_1_1_regression_test.dart` (8 tests).
 - `flutter analyze`: clean. **284 tests pass** (276 old + 8 new).
 - Same-day ledger ordering fixed (`ledgerWhen`) so a refinance transfer sits below the new loan.
-- Built **v1.1.1 / versionCode 26** APK; awaiting device connection for install and verification.
-- Committed as `82835f7` on `develop` (not pushed).
-- APK `mobile/jewellery_suite-release.apk`, SHA-256 `549a6110…29cc5a1`, still **debug-signed** — release signing remains #027/#028.
+- **#003 refined after the first on-device look:** the ₹63,000 new-loan row stays on top; the transfer tile below headlines ₹33,000 “refinanced” instead of repeating ₹63,000.
+- **#001 / #002 verified on an isolated QA install** (fresh application ID, sample-free). New pawn customer + loan saved with auto ID `A01`; You Gave ₹50 late fee saved and wrote its Cashbook OUT. QA app was uninstalled afterwards.
+- **#003–#005 verified on the live v1.1.1 install** with existing data intact.
+- Final APK **v1.1.1 / versionCode 26**, `mobile/jewellery_suite-release.apk`, SHA-256 `1af92f28…9d3685af`; still **debug-signed** — release signing remains #027/#028.
+- Committed on `develop` (not pushed).
 
 ### 2026-10-28 — v1.1.0 installed for testing
 - Commit `488b4c8`: personalised greeting, editable Khata type, Lolugu map default.
