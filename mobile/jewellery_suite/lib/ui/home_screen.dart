@@ -62,11 +62,15 @@ class _HomeScreenState extends State<HomeScreen> {
     comingSoon(context);
   }
 
-  String get _greeting {
+  String _greeting(AppState state) {
     final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+    final timeGreeting = (h < 12)
+        ? 'Good Morning'
+        : (h < 17)
+            ? 'Good Afternoon'
+            : 'Good Evening';
+    final name = state.userName.trim();
+    return name.isNotEmpty ? '$timeGreeting, $name' : timeGreeting;
   }
 
   String get _dateLine {
@@ -275,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_greeting,
+              Text(_greeting(state),
                   style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
