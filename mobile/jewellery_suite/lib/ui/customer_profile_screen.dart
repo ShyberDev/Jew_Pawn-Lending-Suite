@@ -1313,27 +1313,13 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     ('tomorrow', 'Tomorrow'),
                     ('next_week', 'Next week'),
                     ('next_month', 'Next month'),
-                    ('calendar', 'Calendar…'),
                   ])
                     ChoiceChip(
                       label:
                           Text(label, style: const TextStyle(fontSize: 12.5)),
                       selected: selection == value,
                       selectedColor: kGold.withValues(alpha: .25),
-                      onSelected: (_) async {
-                        if (value == 'calendar') {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: picked,
-                            firstDate: now,
-                            lastDate: DateTime(now.year + 2, 12, 31),
-                          );
-                          if (d != null) {
-                            picked = d;
-                            setDlg(() => selection = 'calendar');
-                          }
-                          return;
-                        }
+                      onSelected: (_) {
                         setDlg(() {
                           selection = value;
                           if (value == 'today') picked = now;
@@ -1364,7 +1350,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   );
                   if (d != null) {
                     picked = d;
-                    setDlg(() => selection = 'calendar');
+                    setDlg(() => selection = '');
                   }
                 },
               ),

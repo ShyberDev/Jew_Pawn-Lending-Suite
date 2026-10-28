@@ -30,13 +30,95 @@ class PawnScreen extends StatefulWidget {
 
 class _PawnScreenState extends State<PawnScreen> {
   String _search = '';
-  late String _filter = widget.filter ?? 'All';
+  late String _filter = widget.filter ?? 'active';
   String _metal = 'all'; // all | gold | silver | mixed
+  String? _village;
+  List<String> _villageOptions = const [];
   bool _dragActive = false;
 
-  /// Loan uuid -> customer book ID, for display only. Kept OUT of the row map
-  /// so it can never leak into a db.upsert() of pawn_loans.
-  final Map<String, String> _customerIdByLoan = {};
+  /// loan uuid -> customer row (photo, village, book ID, address, KYC paths).
+  /// Kept OUT of the loan row map so it can never leak into a db.upsert() of
+  /// pawn_loans — an unknown column would abort the write.
+  final Map<String, Map<String, Object?>> _customerByLoan = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVillageOptions();
+  }
+
+  Future<void> _loadVillageOptions() async {
+    final db = context.read<AppState>().db;
+    final villages = await db.query('villages', columns: ['village_name']);
+    final loans = await db.query('pawn_loans', columns: ['village']);
+    final customers = await db.query('customers', columns: ['village']);
+    final names = <String>{
+      for (final v in villages) (v['village_name']?.toString() ?? '').trim(),
+      for (final l in loans) (l['village']?.toString() ?? '').trim(),
+      for (final c in customers) (c['village']?.toString() ?? '').trim(),
+    };
+    names.removeWhere((n) => n.isEmpty);
+    final sorted = names.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (mounted) setState(() => _villageOptions = sorted);
+  }
+
+  /// One query serves both the list and the summary strip. The loan rows keep
+  /// only cached display fields; the live customers table has the photo,
+  /// address, mobile and KYC images.
+  Future<
+      ({
+        Map<String, Map<String, Object?>> byUuid,
+        Map<String, Map<String, Object?>> byName,
+      })> _customerLookup() async {
+    final customers = await context.read<AppState>().db.query(
+      'customers',
+      columns: [
+        'client_uuid',
+        'customer_name',
+        'customer_id',
+        'village',
+        'address',
+        'phone',
+        'photo_path',
+        'id_photo_front',
+        'id_photo_back',
+      ],
+    );
+    return (
+      byUuid: {
+        for (final c in customers)
+          if ((c['client_uuid']?.toString() ?? '').isNotEmpty)
+            c['client_uuid']!.toString(): c,
+      },
+      byName: {
+        for (final c in customers)
+          if ((c['customer_name']?.toString() ?? '').isNotEmpty)
+            c['customer_name']!.toString(): c,
+      },
+    );
+  }
+
+  Map<String, Object?>? _customerFor(
+    Map<String, Object?> loan,
+    Map<String, Map<String, Object?>> byUuid,
+    Map<String, Map<String, Object?>> byName,
+  ) {
+    final uuid = loan['customer_uuid']?.toString() ?? '';
+    if (uuid.isNotEmpty && byUuid.containsKey(uuid)) return byUuid[uuid];
+    return byName[loan['customer_name']?.toString() ?? ''];
+  }
+
+  /// Village lives on the customer; older loans may carry only the cached copy.
+  String _villageOf(
+    Map<String, Object?> loan,
+    Map<String, Map<String, Object?>> byUuid,
+    Map<String, Map<String, Object?>> byName,
+  ) {
+    final customer = _customerFor(loan, byUuid, byName);
+    final saved = (customer?['village'] ?? '').toString().trim();
+    return saved.isNotEmpty ? saved : (loan['village'] ?? '').toString().trim();
+  }
 
   /// loan_uuid -> list of normalised metals found on its items.
   Future<Map<String, List<String>>> _metalIndex() async {
@@ -124,20 +206,21 @@ class _PawnScreenState extends State<PawnScreen> {
               r['interest_basis']?.toString() ?? '', _metal))
           .toList();
     }
-    // Attach the customer's book ID for display (kept in a side map, never in
-    // the row itself — the row is spread into db.upsert('pawn_loans') by the
-    // release / edit flows, and an unknown column would abort the write).
-    final customers =
-        await db.query('customers', columns: ['customer_name', 'customer_id']);
-    final idByName = <String, String>{
-      for (final c in customers)
-        (c['customer_name']?.toString() ?? ''):
-            (c['customer_id']?.toString() ?? '')
-    };
-    _customerIdByLoan.clear();
+    final lookup = await _customerLookup();
+    if (_village != null) {
+      rows = rows
+          .where((r) => _villageOf(r, lookup.byUuid, lookup.byName) == _village)
+          .toList();
+    }
+    // Attach the customer row for display only (photo, village, book ID).
+    // Never add these keys to the loan row itself — it is spread into
+    // db.upsert('pawn_loans'), and an unknown column would abort the write.
+    _customerByLoan.clear();
     for (final r in rows) {
-      _customerIdByLoan[r['client_uuid']?.toString() ?? ''] =
-          idByName[r['customer_name']?.toString() ?? ''] ?? '';
+      final customer = _customerFor(r, lookup.byUuid, lookup.byName);
+      if (customer != null) {
+        _customerByLoan[r['client_uuid']?.toString() ?? ''] = customer;
+      }
     }
     return rows;
   }
@@ -145,7 +228,10 @@ class _PawnScreenState extends State<PawnScreen> {
   Future<void> _openForm() async {
     await Navigator.push(
         context, MaterialPageRoute(builder: (_) => const PawnLoanForm()));
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _loadVillageOptions();
+    }
   }
 
   Future<void> _openDetail(Map<String, Object?> loan) async {
@@ -154,11 +240,16 @@ class _PawnScreenState extends State<PawnScreen> {
       isScrollControlled: true,
       builder: (_) => _PawnDetail(
         loan: loan,
-        customerId:
-            _customerIdByLoan[loan['client_uuid']?.toString() ?? ''] ?? '',
+        customerId: (_customerByLoan[loan['client_uuid']?.toString() ?? '']
+                    ?['customer_id']
+                ?.toString()) ??
+            '',
       ),
     );
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _loadVillageOptions();
+    }
   }
 
   @override
@@ -221,43 +312,7 @@ class _PawnScreenState extends State<PawnScreen> {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final row = rows[index];
-                        final status = row['status']?.toString() ?? 'Active';
-                        final released = status == 'Released';
-                        return DragToDeleteTile(
-                          onDragChanged: (v) => setState(() => _dragActive = v),
-                          payload: DeletePayload(
-                            drop: () => _deleteLoan(row),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: released
-                                  ? kGreenSoft
-                                  : kGold.withValues(alpha: .25),
-                              child: Icon(
-                                  released ? Icons.check : Icons.lock_clock,
-                                  size: 20,
-                                  color: released ? kGreen : kGoldDark),
-                            ),
-                            title:
-                                Text(row['customer_name']?.toString() ?? '-'),
-                            subtitle: Text(
-                                '${_customerIdByLoan[row['client_uuid']?.toString() ?? '']?.isNotEmpty == true ? 'ID ${_customerIdByLoan[row['client_uuid']?.toString() ?? '']} · ' : ''}${fmtDate(row['loan_date'])} · ${row['interest_basis'] ?? ''} · ₹${moneyWhole(row['loan_amount'] as num?)}'),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(status,
-                                    style: TextStyle(
-                                        color: released ? kGreen : kGoldDark,
-                                        fontWeight: FontWeight.w600)),
-                                if (row['server_name'] == null)
-                                  const Icon(Icons.cloud_upload_outlined,
-                                      size: 16),
-                              ],
-                            ),
-                            onTap: () => _openDetail(row),
-                          ),
-                        );
+                        return _loanRow(row);
                       },
                     );
                   },
@@ -283,7 +338,78 @@ class _PawnScreenState extends State<PawnScreen> {
     );
   }
 
-  /// Whole pawn loan deletion (admin-gated when the Admin setting is on).
+  Widget _loanRow(Map<String, Object?> row) {
+    final status = row['status']?.toString() ?? 'Active';
+    final released = status == 'Released';
+    final customer = _customerByLoan[row['client_uuid']?.toString() ?? ''];
+    final name =
+        (row['customer_name'] ?? customer?['customer_name'] ?? '-').toString();
+    final id = (customer?['customer_id'] ?? '').toString().trim();
+    final savedVillage = (customer?['village'] ?? '').toString().trim();
+    final village = savedVillage.isNotEmpty
+        ? savedVillage
+        : (row['village'] ?? '').toString().trim();
+    final firstLine = [
+      if (village.isNotEmpty) village,
+      if (id.isNotEmpty) 'ID $id',
+    ].join(' · ');
+
+    return DragToDeleteTile(
+      onDragChanged: (v) => setState(() => _dragActive = v),
+      payload: DeletePayload(drop: () => _deleteLoan(row)),
+      child: ListTile(
+        isThreeLine: true,
+        leading: _customerAvatar(customer, name),
+        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (firstLine.isNotEmpty)
+              Text(firstLine, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              '${fmtDate(row['loan_date'])} · '
+              '${row['interest_basis'] ?? ''} · '
+              '₹${moneyWhole(row['loan_amount'] as num?)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(status,
+                style: TextStyle(
+                    color: released ? kGreen : kGoldDark,
+                    fontWeight: FontWeight.w600)),
+            if (row['server_name'] == null)
+              const Icon(Icons.cloud_upload_outlined, size: 16),
+          ],
+        ),
+        onTap: () => _openDetail(row),
+      ),
+    );
+  }
+
+  Widget _customerAvatar(Map<String, Object?>? customer, String name) {
+    final photo = customer?['photo_path']?.toString() ?? '';
+    final hasPhoto = photo.isNotEmpty && File(photo).existsSync();
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: kGold.withValues(alpha: .16),
+      foregroundImage: hasPhoto ? FileImage(File(photo)) : null,
+      child: hasPhoto
+          ? null
+          : Text(
+              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, color: kGoldDark),
+            ),
+    );
+  }
+
   /// Removes the loan plus its items, transactions, releases and payment rows.
   Future<bool> _deleteLoan(Map<String, Object?> row) async {
     final state = context.read<AppState>();
@@ -317,6 +443,7 @@ class _PawnScreenState extends State<PawnScreen> {
   Widget _summaryStrip() {
     final db = context.read<AppState>().db;
     final metal = _metal;
+    final village = _village;
     return FutureBuilder<Map<String, Object?>>(
       future: () async {
         final loans = await db.query('pawn_loans',
@@ -324,12 +451,19 @@ class _PawnScreenState extends State<PawnScreen> {
         var filtered = loans;
         if (metal != 'all') {
           final idx = await _metalIndex();
-          filtered = loans
+          filtered = filtered
               .where((l) => _matchesMetal(
                   idx,
                   l['client_uuid']?.toString() ?? '',
                   l['interest_basis']?.toString() ?? '',
                   metal))
+              .toList();
+        }
+        if (village != null) {
+          final lookup = await _customerLookup();
+          filtered = filtered
+              .where(
+                  (l) => _villageOf(l, lookup.byUuid, lookup.byName) == village)
               .toList();
         }
         double out = 0, intDue = 0, outstanding = 0;
@@ -342,6 +476,7 @@ class _PawnScreenState extends State<PawnScreen> {
           'int': intDue,
           'total': outstanding,
           'metal': metal,
+          'village': village,
         };
       }(),
       builder: (context, snap) {
@@ -352,6 +487,10 @@ class _PawnScreenState extends State<PawnScreen> {
           'mixed' => 'Gold + Silver pawns (mixed)',
           _ => null,
         };
+        final captions = [
+          if (caption != null) caption,
+          if (r['village'] != null) 'Village: ${r['village']}',
+        ];
         Widget stat(String value, String label) => Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -388,7 +527,7 @@ class _PawnScreenState extends State<PawnScreen> {
                   stat('₹${moneyWhole(r['total'] as num?)}', 'Outstanding'),
                 ],
               ),
-              if (caption != null)
+              if (captions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
@@ -396,9 +535,11 @@ class _PawnScreenState extends State<PawnScreen> {
                       const Icon(Icons.filter_alt_outlined,
                           size: 13, color: Colors.white70),
                       const SizedBox(width: 4),
-                      Text(caption,
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.white70)),
+                      Expanded(
+                        child: Text(captions.join(' · '),
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.white70)),
+                      ),
                     ],
                   ),
                 ),
@@ -411,13 +552,13 @@ class _PawnScreenState extends State<PawnScreen> {
 
   Widget _chipRow() {
     final tags = <(String, String)>[
-      ('All', 'All'),
       ('Active', 'active'),
       ('Released', 'released'),
       if (_filter == 'old') ('Old 12M+', 'old'),
       if (_filter == 'recent') ('Recent', 'recent'),
       if (_filter == 'interest') ('Interest due', 'interest'),
     ];
+    final selectedVillage = _village;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: SingleChildScrollView(
@@ -441,6 +582,69 @@ class _PawnScreenState extends State<PawnScreen> {
                   onSelected: (_) => setState(() => _filter = value),
                 ),
               ),
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: PopupMenuButton<String>(
+                key: const ValueKey('pawn-village-filter'),
+                tooltip: 'Filter by village',
+                onSelected: (value) =>
+                    setState(() => _village = value.isEmpty ? null : value),
+                itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                    value: '',
+                    key: ValueKey('pawn-village-all'),
+                    child: Text('All villages'),
+                  ),
+                  for (final village in _villageOptions)
+                    PopupMenuItem<String>(
+                      value: village,
+                      key: ValueKey('pawn-village-$village'),
+                      child: Text(village),
+                    ),
+                ],
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: selectedVillage == null
+                        ? Colors.transparent
+                        : kGold.withValues(alpha: .3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selectedVillage == null
+                          ? Theme.of(context).dividerColor
+                          : kGold,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on_outlined,
+                          size: 15,
+                          color: selectedVillage == null
+                              ? kInk.withValues(alpha: .7)
+                              : kGoldDark),
+                      const SizedBox(width: 4),
+                      Text(
+                        selectedVillage == null
+                            ? 'Villages'
+                            : 'Villages: $selectedVillage',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: selectedVillage == null
+                              ? FontWeight.w500
+                              : FontWeight.w700,
+                          color: selectedVillage == null
+                              ? kInk.withValues(alpha: .7)
+                              : kGoldDark,
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -502,14 +706,59 @@ class _PawnDetailState extends State<_PawnDetail> {
   List<Map<String, Object?>> _items = [];
   List<Map<String, Object?>> _transactions = [];
   late Map<String, Object?> _loan;
+  Map<String, Object?> _customer = {};
   bool _dragActive = false;
 
   @override
   void initState() {
     super.initState();
     _loan = widget.loan;
+    _loadCustomer();
     _loadItems();
     _loadTransactions();
+  }
+
+  String get _name =>
+      (_customer['customer_name'] ?? _loan['customer_name'] ?? '-').toString();
+
+  String get _village {
+    final saved = (_customer['village'] ?? '').toString().trim();
+    return saved.isNotEmpty
+        ? saved
+        : (_loan['village'] ?? '').toString().trim();
+  }
+
+  String get _address => (_customer['address'] ?? '').toString().trim();
+
+  String get _phone {
+    final saved = (_customer['phone'] ?? '').toString().trim();
+    return saved.isNotEmpty ? saved : (_loan['phone'] ?? '').toString().trim();
+  }
+
+  String get _bookId {
+    final saved = (_customer['customer_id'] ?? '').toString().trim();
+    return saved.isNotEmpty ? saved : widget.customerId.trim();
+  }
+
+  String get _photo => (_customer['photo_path'] ?? '').toString().trim();
+  String get _kycFront => (_customer['id_photo_front'] ?? '').toString().trim();
+  String get _kycBack => (_customer['id_photo_back'] ?? '').toString().trim();
+
+  Future<void> _loadCustomer() async {
+    final db = context.read<AppState>().db;
+    Map<String, Object?>? found;
+    final uuid = _loan['customer_uuid']?.toString() ?? '';
+    if (uuid.isNotEmpty) found = await db.byUuid('customers', uuid);
+    if (found == null) {
+      final rows = await db.query(
+        'customers',
+        where: 'customer_name = ?',
+        whereArgs: [_loan['customer_name']],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) found = rows.first;
+    }
+    if (mounted) setState(() => _customer = found ?? {});
   }
 
   Future<void> _loadItems() async {
@@ -1167,15 +1416,28 @@ class _PawnDetailState extends State<_PawnDetail> {
               padding: const EdgeInsets.all(16).copyWith(bottom: 96),
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: kGold.withValues(alpha: .15),
-                        borderRadius: BorderRadius.circular(8),
+                    GestureDetector(
+                      key: const ValueKey('pawn-customer-photo'),
+                      onTap: () => _expandPhoto(_photo, _name),
+                      child: CircleAvatar(
+                        radius: 26,
+                        backgroundColor: kGold.withValues(alpha: .16),
+                        foregroundImage:
+                            _hasPhoto(_photo) ? FileImage(File(_photo)) : null,
+                        child: _hasPhoto(_photo)
+                            ? null
+                            : Text(
+                                _name.isEmpty
+                                    ? '?'
+                                    : _name.characters.first.toUpperCase(),
+                                style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: kGoldDark),
+                              ),
                       ),
-                      child: const Icon(Icons.diamond_outlined,
-                          color: kGoldDark, size: 24),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1187,14 +1449,33 @@ class _PawnDetailState extends State<_PawnDetail> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: kGoldDark)),
-                          Text(loan['customer_name']?.toString() ?? '-',
+                          Text(_name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(fontWeight: FontWeight.bold)),
+                          if (_village.isNotEmpty)
+                            Row(
+                              children: [
+                                Icon(Icons.location_on_outlined,
+                                    size: 13, color: mutedOf(context)),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Text(_village,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: mutedOf(context))),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
@@ -1219,66 +1500,96 @@ class _PawnDetailState extends State<_PawnDetail> {
                 Card(
                   elevation: 0,
                   color: Theme.of(context).cardColor,
+                  clipBehavior: Clip.antiAlias,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                     side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
                   ),
-                  child: ListTile(
-                    dense: true,
+                  child: ExpansionTile(
+                    key: const ValueKey('pawn-kyc-tile'),
                     leading: const Icon(Icons.badge_outlined, color: kGoldDark),
                     title: const Text('Customer KYC & Details',
                         style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text((() {
-                      final id = widget.customerId;
-                      final phone = (loan['phone'] ?? '') as String;
-                      final village = (loan['village'] ?? '') as String;
-                      return [
-                        if (id.isNotEmpty) 'ID $id',
-                        if (phone.isNotEmpty) phone,
-                        if (village.isNotEmpty) village,
-                      ].join(' · ');
-                    })()),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () async {
-                      final custUuid = loan['customer_uuid']?.toString();
-                      if (custUuid != null && custUuid.isNotEmpty) {
-                        final db = context.read<AppState>().db;
-                        final cust = await db.byUuid('customers', custUuid);
-                        if (!context.mounted) return;
-                        if (cust != null) {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CustomerForm(
-                                existing: cust,
-                                initialType:
-                                    cust['customer_type']?.toString() ??
-                                        'General',
-                              ),
-                            ),
-                          );
-                          if (mounted) _loadTransactions();
-                        }
-                      }
-                    },
+                    subtitle: Text([
+                      if (_bookId.isNotEmpty) 'ID $_bookId',
+                      if (_phone.isNotEmpty) _phone,
+                      if (_village.isNotEmpty) _village,
+                    ].join(' · ')),
+                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _kv('ID', _bookId.isEmpty ? '-' : _bookId),
+                      _kv('Customer Name', _name),
+                      _kv('Village', _village.isEmpty ? '-' : _village),
+                      _kv('Address', _address.isEmpty ? '-' : _address),
+                      _kv('Mobile Number', _phone.isEmpty ? '-' : _phone),
+                      if (_hasPhoto(_kycFront) || _hasPhoto(_kycBack)) ...[
+                        const SizedBox(height: 10),
+                        Text('KYC photos',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: mutedOf(context))),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            if (_hasPhoto(_kycFront))
+                              Expanded(
+                                  child:
+                                      _kycThumb(_kycFront, 'Front', 'front')),
+                            if (_hasPhoto(_kycFront) && _hasPhoto(_kycBack))
+                              const SizedBox(width: 8),
+                            if (_hasPhoto(_kycBack))
+                              Expanded(
+                                  child: _kycThumb(_kycBack, 'Back', 'back')),
+                          ],
+                        ),
+                      ],
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _openCustomerEdit,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit customer'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const Divider(height: 24),
-                _kv('Principal (investment)',
-                    '₹${moneyText(PawnMath.principalOut(loan))}'),
-                _kv('Interest basis',
-                    loan['interest_basis']?.toString() ?? '-'),
-                _kv('Rate', '${loan['interest_rate'] ?? '-'} %/month'),
-                _kv('Loan date', fmtDate(loan['loan_date'])),
-                _kv('Due date', fmtDate(loan['due_date'])),
-                _kv('Status', loan['status']?.toString() ?? 'Active'),
-                _kv('Interest due (today)',
-                    '₹${moneyText(PawnMath.interestDue(loan))}'),
-                _kv('Total payable',
-                    '₹${moneyText(PawnMath.principalOut(loan) + PawnMath.interestDue(loan))}'),
-                _kv('Amount paid',
-                    '₹${moneyText(loan['amount_paid'] as num?)}'),
-                _kv('Outstanding', '₹${moneyText(PawnMath.outstanding(loan))}'),
+                const SizedBox(height: 12),
+                Card(
+                  key: const ValueKey('pawn-loan-details'),
+                  elevation: 0,
+                  color: Theme.of(context).cardColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Loan Details',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 6),
+                        _kv('Principal',
+                            '₹${moneyText(PawnMath.principalOut(loan))}'),
+                        _kv(
+                          'Interest Rate',
+                          '${loan['interest_rate'] ?? '-'} %/month'
+                              '${(loan['interest_basis']?.toString() ?? '').isEmpty ? '' : ' · ${loan['interest_basis']}'}',
+                        ),
+                        _kv('Loan Date', fmtDate(loan['loan_date'])),
+                        _kv('Due Date', fmtDate(loan['due_date'])),
+                        _kv('Amount Paid',
+                            '₹${moneyText(loan['amount_paid'] as num?)}'),
+                        _kv('Outstanding',
+                            '₹${moneyText(PawnMath.outstanding(loan))}'),
+                      ],
+                    ),
+                  ),
+                ),
                 const Divider(height: 24),
                 Text('Items', style: Theme.of(context).textTheme.titleMedium),
                 // v1.0.8: every pawn entry is deletable by dragging it to the
@@ -1307,31 +1618,40 @@ class _PawnDetailState extends State<_PawnDetail> {
                   ),
                 if (!released) ...[
                   const SizedBox(height: 16),
-                  // v1.0.8: pawn operations — "Amount Paying" / "Amount Requesting"
-                  // / "Interest Paid", each with a single amount box + a past or
-                  // future date. Every action also logs a row in the pawn ledger.
-                  FilledButton.icon(
-                    onPressed: _amountPaying,
-                    icon: const Icon(Icons.currency_rupee),
-                    label: const Text('Amount Paying'),
-                  ),
+                  Text('Loan Actions',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _amountRequesting,
-                    icon: const Icon(Icons.add_card),
-                    label: const Text('Amount Requesting'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _interestPaid,
-                    icon: const Icon(Icons.percent),
-                    label: const Text('Interest Paid'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: _release,
-                    icon: const Icon(Icons.lock_open),
-                    label: const Text('Release (principal + interest)'),
+                  // Order agreed with the shop: interest first, then the two
+                  // principal movements, release last. Every action logs a row
+                  // in the pawn ledger.
+                  Column(
+                    key: const ValueKey('pawn-actions'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _interestPaid,
+                        icon: const Icon(Icons.percent),
+                        label: const Text('Interest Paying'),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: _amountPaying,
+                        icon: const Icon(Icons.currency_rupee),
+                        label: const Text('Amount Paying'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _amountRequesting,
+                        icon: const Icon(Icons.add_card),
+                        label: const Text('Amount Requesting'),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: _release,
+                        icon: const Icon(Icons.lock_open),
+                        label: const Text('Release'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
@@ -1474,13 +1794,110 @@ class _PawnDetailState extends State<_PawnDetail> {
     );
   }
 
+  bool _hasPhoto(String path) => path.isNotEmpty && File(path).existsSync();
+
+  Widget _kycThumb(String path, String label, String slot) => GestureDetector(
+        key: ValueKey('pawn-kyc-$slot'),
+        onTap: () => _expandPhoto(path, _name),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(File(path),
+                  height: 96, width: double.infinity, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 3),
+            Text(label,
+                style: TextStyle(fontSize: 11, color: mutedOf(context))),
+          ],
+        ),
+      );
+
+  /// Full-screen photo viewer (pinch to zoom), used by the avatar and KYC
+  /// images so a small thumbnail never hides the details.
+  void _expandPhoto(String path, String name) {
+    final hasPhoto = _hasPhoto(path);
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.pop(ctx),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  maxScale: 5,
+                  child: hasPhoto
+                      ? Image.file(File(path))
+                      : Container(
+                          width: 160,
+                          height: 160,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: kGold.withValues(alpha: .2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                              name.isEmpty
+                                  ? '?'
+                                  : name.characters.first.toUpperCase(),
+                              style: const TextStyle(
+                                  fontSize: 64,
+                                  fontWeight: FontWeight.w800,
+                                  color: kGoldDark)),
+                        ),
+                ),
+              ),
+              Positioned(
+                top: 40 + MediaQuery.of(ctx).padding.top,
+                right: 16,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCustomerEdit() async {
+    final custUuid = _loan['customer_uuid']?.toString() ?? '';
+    var customer = _customer.isNotEmpty ? _customer : null;
+    if (customer == null && custUuid.isNotEmpty) {
+      customer =
+          await context.read<AppState>().db.byUuid('customers', custUuid);
+    }
+    if (!mounted || customer == null) return;
+    final existing = customer;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerForm(
+          existing: existing,
+          initialType: existing['customer_type']?.toString() ?? 'General',
+        ),
+      ),
+    );
+    if (mounted) _loadCustomer();
+  }
+
   Widget _kv(String key, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(key, style: const TextStyle(color: Colors.grey)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(value,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
           ],
         ),
       );
