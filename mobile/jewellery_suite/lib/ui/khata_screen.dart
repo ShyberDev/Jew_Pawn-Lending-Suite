@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/migration_v11.dart';
 import '../data/migration_v12.dart';
@@ -271,11 +272,20 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
     if (customers.any((c) => _khataOf(c) == null)) {
       addKhata('General', 'General');
     }
-    // Loss Khata: always visible even when empty, so a moved customer always
-    // has somewhere to be found. villagers named 'Loss' adopt the same tile.
     if (!built.any((k) => MigrationV12.isLossKhata(k['name']?.toString()))) {
       addKhata(MigrationV12.lossVillageName, 'Loss');
     }
+    // Loss Khata is always pinned to the very bottom of all Khatas.
+    built.sort((a, b) {
+      final aLoss = MigrationV12.isLossKhata(a['name']?.toString()) ||
+          a['type'] == 'Loss';
+      final bLoss = MigrationV12.isLossKhata(b['name']?.toString()) ||
+          b['type'] == 'Loss';
+      if (aLoss && !bLoss) return 1;
+      if (!aLoss && bLoss) return -1;
+      return 0;
+    });
+
     overdue = built.fold<int>(0, (s, k) => s + (k['overdue'] as int));
 
     if (mounted) {
@@ -691,14 +701,14 @@ class KhataCreateScreen extends StatefulWidget {
 class _KhataCreateScreenState extends State<KhataCreateScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
+  final _typeController = TextEditingController(text: 'Village Location');
   final _notes = TextEditingController();
-  String _type = 'Village Location';
   double? _latitude;
   double? _longitude;
 
   @override
   void dispose() {
-    for (final c in [_name, _notes]) {
+    for (final c in [_name, _typeController, _notes]) {
       c.dispose();
     }
     super.dispose();
@@ -707,7 +717,14 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
   Future<void> _pickLocation() async {
     final result = await Navigator.push<LatLng>(
       context,
-      MaterialPageRoute(builder: (_) => const LocationPickerScreen()),
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initial: (_latitude != null && _longitude != null)
+              ? LatLng(_latitude!, _longitude!)
+              : null,
+          title: 'Pin Khata Location',
+        ),
+      ),
     );
     if (result != null && mounted) {
       setState(() {
@@ -726,7 +743,9 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
       uuid: newUuid(),
       data: {
         'village_name': _name.text.trim(),
-        'khata_type': _type,
+        'khata_type': _typeController.text.trim().isNotEmpty
+            ? _typeController.text.trim()
+            : 'Village Location',
         'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         'latitude': _latitude,
         'longitude': _longitude,
@@ -751,7 +770,7 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
             SectionCard(title: 'Khata details', children: [
               TextFormField(
                 controller: _name,
-                decoration: fieldDecoration('Khata name *  (e.g. Pallipatti)'),
+                decoration: fieldDecoration('Khata name *  (e.g. Lolugu or Shyam)'),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return 'Required';
                   if (MigrationV12.isLossVillageName(v)) {
@@ -760,17 +779,33 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: _type,
-                decoration: fieldDecoration('Khata type'),
-                items: const ['Village Location', 'Personal', 'Business']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-                onChanged: (v) => setState(() => _type = v ?? _type),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _typeController,
+                decoration: fieldDecoration('Khata type * (Editable)'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: ['Village Location', 'Personal', 'Business'].map((t) {
+                  final selected = _typeController.text.trim() == t;
+                  return ChoiceChip(
+                    label: Text(t,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: selected ? Colors.white : inkOf(context))),
+                    selected: selected,
+                    selectedColor: kGoldDark,
+                    backgroundColor: surfaceOf(context),
+                    onSelected: (_) =>
+                        setState(() => _typeController.text = t),
+                  );
+                }).toList(),
               ),
             ]),
-            SectionCard(title: 'Location (optional)', children: [
+            SectionCard(title: 'Location', children: [
               Material(
                 color: kBg,
                 borderRadius: BorderRadius.circular(12),
@@ -789,11 +824,26 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            _latitude != null
-                                ? 'Pinned: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}'
-                                : 'Set khata location on the map',
-                            style: const TextStyle(fontSize: 13.5),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _latitude != null
+                                    ? 'Pinned: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}'
+                                    : 'Set khata location on the map',
+                                style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _latitude != null
+                                    ? 'Tap to adjust pin location'
+                                    : 'Default center: Lolugu / Kadapa region',
+                                style: TextStyle(
+                                    fontSize: 11, color: mutedOf(context)),
+                              ),
+                            ],
                           ),
                         ),
                         const Icon(Icons.chevron_right, size: 20),
@@ -802,11 +852,46 @@ class _KhataCreateScreenState extends State<KhataCreateScreen> {
                   ),
                 ),
               ),
+              if (_latitude != null && _longitude != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kGoldDark,
+                          side: const BorderSide(color: kGoldDark),
+                        ),
+                        icon: const Icon(Icons.map_outlined, size: 18),
+                        label: const Text('Open in Google Maps',
+                            style: TextStyle(fontSize: 12)),
+                        onPressed: () async {
+                          final uri = Uri.parse(
+                              'https://www.google.com/maps/search/?api=1&query=$_latitude,$_longitude');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Clear location',
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() {
+                        _latitude = null;
+                        _longitude = null;
+                      }),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 10),
               TextFormField(
                 controller: _notes,
                 maxLines: 2,
-                decoration: fieldDecoration('Notes'),
+                decoration: fieldDecoration('Notes (Landmarks, directions, info)'),
               ),
             ]),
             const SizedBox(height: 60),
@@ -850,6 +935,8 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   late Future<List<_MemberRow>> _rowsFuture;
   List<_MemberRow> _lastRows = const [];
   Timer? _debounce;
+  double? _villageLat;
+  double? _villageLng;
 
   @override
   void initState() {
@@ -885,6 +972,17 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
 
   Future<List<Map<String, Object?>>> _load() async {
     final db = context.read<AppState>().db;
+    if (widget.khataName != 'General') {
+      try {
+        final vRows = await db.query('villages',
+            where: 'village_name = ?', whereArgs: [widget.khataName], limit: 1);
+        if (vRows.isNotEmpty) {
+          final row = vRows.first;
+          _villageLat = (row['latitude'] as num?)?.toDouble();
+          _villageLng = (row['longitude'] as num?)?.toDouble();
+        }
+      } catch (_) {}
+    }
     final term = _search.trim();
     if (term.isEmpty) {
       return db.query('customers', orderBy: 'customer_name asc');
@@ -1165,7 +1263,24 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgOf(context),
-      appBar: AppBar(title: Text(widget.khataName)),
+      appBar: AppBar(
+        title: Text(widget.khataName),
+        actions: [
+          if (_villageLat != null && _villageLng != null)
+            IconButton(
+              icon: const Icon(Icons.location_on_outlined),
+              tooltip: 'Open in Google Maps',
+              onPressed: () async {
+                final uri = Uri.parse(
+                    'https://www.google.com/maps/search/?api=1&query=$_villageLat,$_villageLng');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri,
+                      mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+        ],
+      ),
       // v1.0.11: a plain "+" — simpler and less crowded on big phones.
       floatingActionButton: FloatingActionButton(
         onPressed: _openAdd,

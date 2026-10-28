@@ -29,8 +29,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
-    // Default: Pallipatti town (Kadapa district) — falls back to AP centre.
-    _center = widget.initial ?? const LatLng(14.4681, 78.0167);
+    // Default: Lolugu (Srikakulam district) — falls back to AP centre.
+    _center = widget.initial ?? const LatLng(18.3900, 83.9200);
   }
 
   void _confirm() {
