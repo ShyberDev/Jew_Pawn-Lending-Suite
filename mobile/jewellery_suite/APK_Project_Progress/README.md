@@ -127,7 +127,7 @@ Screenshot: (if visual)
 - `flutter analyze`: clean. **284 tests pass** (276 old + 8 new).
 - Same-day ledger ordering fixed (`ledgerWhen`) so a refinance transfer sits below the new loan.
 - Built **v1.1.1 / versionCode 26** APK; awaiting device connection for install and verification.
-- Committed as `c8295c8` on `develop` (not pushed).
+- Committed as `82835f7` on `develop` (not pushed).
 - APK `mobile/jewellery_suite-release.apk`, SHA-256 `549a6110…29cc5a1`, still **debug-signed** — release signing remains #027/#028.
 
 ### 2026-10-28 — v1.1.0 installed for testing
