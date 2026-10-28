@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../util/app_size.dart';
 import '../util/app_version.dart';
 import 'palette.dart';
 import 'settings_screen.dart' show comingSoon;
@@ -14,7 +15,6 @@ class AboutAppScreen extends StatelessWidget {
 
   /// Read from the installed APK — never typed in by hand. See AppVersion.
   static String get appVersion => AppVersion.value;
-  static const apkSizeMb = 95;
 
   String _fmtBytes(int bytes) {
     if (bytes <= 0) return '0 B';
@@ -63,7 +63,10 @@ class AboutAppScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _card(context, [
-            _row(context, 'App size (APK)', '≈ $apkSizeMb MB'),
+            _rightFuture(
+                'App size (APK)',
+                AppSize.apkBytes().then((bytes) => bytes ?? 0),
+                (bytes) => bytes <= 0 ? 'Unavailable' : _fmtBytes(bytes)),
             _rightFuture('App data (your records)', state.appDataBytes(),
                 (v) => _fmtBytes(v)),
           ]),
@@ -89,28 +92,6 @@ class AboutAppScreen extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         child: Column(children: children),
-      ),
-    );
-  }
-
-  Widget _row(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: inkOf(context))),
-          ),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: kGoldDark)),
-        ],
       ),
     );
   }

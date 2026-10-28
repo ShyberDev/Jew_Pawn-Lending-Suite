@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'state/app_state.dart';
-import 'ui/home_screen.dart';
-import 'ui/login_screen.dart';
+import 'ui/admin_password_gate.dart';
 
 class JewelleryApp extends StatelessWidget {
   const JewelleryApp({super.key});
@@ -11,7 +10,6 @@ class JewelleryApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final loggedIn = state.loggedIn;
     final dark = state.darkMode;
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFFB98A1F),
@@ -57,7 +55,9 @@ class JewelleryApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: loggedIn ? const HomeScreen() : const LoginScreen(),
+      // The gate first forces the shipped default admin password to be
+      // replaced, then routes to Home/Login exactly as before.
+      home: const AdminPasswordGate(),
     );
   }
 }

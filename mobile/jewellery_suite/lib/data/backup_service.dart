@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'local_db.dart';
+import 'migration_v15.dart';
 
 /// One backup file on disk.
 class BackupInfo {
@@ -49,6 +50,25 @@ class BackupResult {
     required this.verified,
     required this.counts,
     this.problem,
+  });
+}
+
+/// Outcome of [BackupService.restoreBackup].
+class RestoreResult {
+  final bool restored;
+  final String? problem;
+
+  /// The verified backup taken immediately before the live data was replaced.
+  final BackupInfo? safetyBackup;
+
+  /// Photo files copied out of the archive.
+  final int restoredPhotos;
+
+  const RestoreResult({
+    required this.restored,
+    this.problem,
+    this.safetyBackup,
+    this.restoredPhotos = 0,
   });
 }
 
@@ -97,9 +117,16 @@ class BackupService {
     'khatabook_collections',
     'khatabook_given',
     'khatabook_refinances',
+    'khatabook_allocations',
+    'khatabook_installments',
+    'cashbook_entries',
     'customer_id_pool',
     'history_log',
     'qr_codes',
+    'settings',
+    'outbox',
+    'photo_queue',
+    'migration_log',
   ];
 
   Future<Directory> backupDir() async {
@@ -116,8 +143,15 @@ class BackupService {
       final dir = Directory(p.join(docs.path, photoFolder));
       if (!await dir.exists()) return const [];
       final out = <File>[];
+      // A file reachable twice (symlink / hard link / repeated listing) must
+      // still appear once in the archive. Duplicate photo entries made old
+      // restores copy the same image over itself and inflated the backup.
+      final seen = <String>{};
       await for (final f in dir.list(followLinks: false)) {
-        if (f is File) out.add(f);
+        if (f is! File) continue;
+        final key = p.normalize(p.absolute(f.path));
+        if (!seen.add(key)) continue;
+        out.add(f);
       }
       out.sort((a, b) => a.path.compareTo(b.path)); // stable archive order
       return out;
@@ -207,9 +241,188 @@ class BackupService {
     }
   }
 
+  /// Restores a backup in place.
+  ///
+  /// Safety rules, in order:
+  /// 1. the archive is validated against SQLite before anything is touched;
+  /// 2. a fresh, verified safety backup of the CURRENT data is taken;
+  /// 3. only then is the live database closed, replaced and reopened;
+  /// 4. the archive schema may be older (migrations run on reopen) but never
+  ///    newer than this app — a future schema would be silently corrupted.
+  ///
+  /// The caller is responsible for reloading [AppState] after a successful
+  /// restore; [db] is already pointing at the restored file.
+  Future<RestoreResult> restoreBackup(String zipPath) async {
+    Directory? work;
+    var closed = false;
+    try {
+      final problem =
+          await validateArchive(zipPath, compareWithLive: false);
+      if (problem != null) {
+        return RestoreResult(restored: false, problem: problem);
+      }
+      final manifest = await readManifest(zipPath);
+      if (manifest == null ||
+          manifest['format'] != 'jewellery-suite-backup') {
+        return const RestoreResult(
+            restored: false, problem: 'This file is not a Jewellery Suite backup.');
+      }
+      final format = (manifest['format_version'] as num?)?.toInt() ?? 1;
+      if (format > formatVersion) {
+        return const RestoreResult(
+            restored: false,
+            problem: 'This backup was made by a newer app version.');
+      }
+
+      // A restore is destructive, so the current data gets its own verified
+      // backup first. If that cannot be produced, nothing is replaced.
+      final safety = await createBackup(includePhotos: true);
+      if (!safety.verified) {
+        return RestoreResult(
+            restored: false,
+            problem: 'Could not make a safety backup first: ${safety.problem}');
+      }
+
+      final archive = ZipDecoder()
+          .decodeBytes(await File(zipPath).readAsBytes(), verify: true);
+      final entry = archive.files.firstWhere((f) => f.name == dbEntry);
+      final bytes = entry.readBytes();
+      if (bytes == null || bytes.isEmpty) {
+        return RestoreResult(
+            restored: false,
+            problem: 'The archived database is empty.',
+            safetyBackup: safety.info);
+      }
+
+      work = await Directory.systemTemp.createTemp('js_restore_');
+      final extracted = File(p.join(work.path, 'restore.db'))
+        ..writeAsBytesSync(bytes, flush: true);
+
+      // Prove the extracted file is a healthy database and not from the
+      // future. This duplicates the archive check on purpose: the bytes that
+      // will actually be written are the ones validated.
+      Database? check;
+      try {
+        check = await openDatabase(extracted.path, readOnly: true);
+        final verdictRows = await check.rawQuery('PRAGMA integrity_check');
+        final verdict = verdictRows.isEmpty
+            ? ''
+            : '${verdictRows.first.values.first}';
+        if (verdict.toLowerCase() != 'ok') {
+          return RestoreResult(
+              restored: false,
+              problem: 'The backup failed SQLite\'s integrity check.',
+              safetyBackup: safety.info);
+        }
+        final versionRows = await check.rawQuery('PRAGMA user_version');
+        final version = versionRows.isEmpty
+            ? 0
+            : ((versionRows.first.values.first as num?)?.toInt() ?? 0);
+        if (version > MigrationV15.version) {
+          return RestoreResult(
+              restored: false,
+              problem: 'The backup database is newer than this app.',
+              safetyBackup: safety.info);
+        }
+      } catch (_) {
+        return RestoreResult(
+            restored: false,
+            problem: 'The backup database could not be opened.',
+            safetyBackup: safety.info);
+      } finally {
+        await check?.close();
+      }
+
+      // Stage photos beside the validated database, with a traversal guard.
+      final stagedPhotos = Directory(p.join(work.path, 'photos'));
+      await stagedPhotos.create(recursive: true);
+      var photoCount = 0;
+      for (final f in archive.files) {
+        if (!f.isFile || !f.name.startsWith('$photoFolder/')) continue;
+        final rel = f.name.substring(photoFolder.length + 1);
+        if (rel.isEmpty || p.isAbsolute(rel) || rel.contains('..')) continue;
+        final data = f.readBytes();
+        if (data == null) continue;
+        final target = File(p.join(stagedPhotos.path, p.basename(rel)));
+        await target.writeAsBytes(data, flush: true);
+        photoCount++;
+      }
+
+      final livePath = db.path;
+      if (livePath == null) {
+        return RestoreResult(
+            restored: false,
+            problem: 'The live database path is unknown.',
+            safetyBackup: safety.info);
+      }
+
+      await db.close();
+      closed = true;
+      try {
+        await File(livePath).writeAsBytes(
+            await extracted.readAsBytes(),
+            flush: true);
+        for (final suffix in const ['-wal', '-shm', '-journal']) {
+          final side = File('$livePath$suffix');
+          if (await side.exists()) await side.delete();
+        }
+
+        // Replace the photo folder only when the archive says it contains
+        // photos (even zero), so a database-only backup never deletes images
+        // that were not part of it.
+        final includesPhotos = manifest['includes_photos'] == true;
+        if (includesPhotos) {
+          final docs = _root ?? await getApplicationDocumentsDirectory();
+          final livePhotos = Directory(p.join(docs.path, photoFolder));
+          if (await livePhotos.exists()) {
+            await livePhotos.delete(recursive: true);
+          }
+          await livePhotos.create(recursive: true);
+          await for (final f in stagedPhotos.list()) {
+            if (f is! File) continue;
+            await f.copy(p.join(livePhotos.path, p.basename(f.path)));
+          }
+        }
+      } catch (_) {
+        // Put the app back on whatever file is there now; the safety backup is
+        // named in the error so the shop can retry.
+        await db.reopen();
+        closed = false;
+        return RestoreResult(
+            restored: false,
+            problem: 'The data could not be replaced. The safety backup '
+                '${safety.info.fileName} is intact.',
+            safetyBackup: safety.info);
+      }
+
+      await db.reopen();
+      closed = false;
+      return RestoreResult(
+        restored: true,
+        safetyBackup: safety.info,
+        restoredPhotos: photoCount,
+      );
+    } catch (_) {
+      if (closed) {
+        try {
+          await db.reopen();
+        } catch (_) {/* reported below */}
+      }
+      return const RestoreResult(
+          restored: false, problem: 'The restore could not be completed.');
+    } finally {
+      if (work != null) await _deleteQuietly(work);
+    }
+  }
+
   /// Reads a finished archive back and checks that it is restorable. Returns
   /// an error message, or null when the archive is sound.
-  Future<String?> validateArchive(String zipPath) async {
+  ///
+  /// [compareWithLive] is true for a backup that was just created (its counts
+  /// must match the live database). A restore validates an OLDER snapshot, so
+  /// it passes false — the counts are expected to differ from today's.
+  Future<String?> validateArchive(String zipPath,
+      {bool compareWithLive = true}) async {
     if (!await File(zipPath).exists()) {
       return 'The backup file does not exist.';
     }
@@ -234,7 +447,8 @@ class BackupService {
       if (bytes == null) return 'The archived database is empty.';
       final extracted = File(p.join(work.path, 'check.db'))
         ..writeAsBytesSync(bytes, flush: true);
-      return await _checkDatabase(extracted.path, await liveCounts());
+      return await _checkDatabase(
+          extracted.path, compareWithLive ? await liveCounts() : const {});
     } catch (_) {
       return 'The archived database could not be verified.';
     } finally {

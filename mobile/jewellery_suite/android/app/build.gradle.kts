@@ -1,7 +1,45 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// #027/#028: release builds are signed with the shop's own keystore, read from
+// android/key.properties. Both files are gitignored and must be backed up —
+// losing the keystore means Play cannot accept an update.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
+
+// Never fall back to the debug key. Any task whose name contains "Release"
+// (assembleRelease, bundleRelease, …) stops here unless the key file is present,
+// complete, and points at a real keystore. Debug builds are unaffected.
+gradle.taskGraph.whenReady {
+    if (allTasks.none { it.name.contains("Release") }) return@whenReady
+    if (!hasReleaseKeystore) {
+        throw GradleException(
+            "Release signing is not configured: android/key.properties is missing.\n" +
+                "Create it with storePassword, keyPassword, keyAlias and storeFile, " +
+                "and keep the .jks file backed up."
+        )
+    }
+    val required = listOf("storePassword", "keyPassword", "keyAlias", "storeFile")
+    val missing = required.filter { keystoreProperties.getProperty(it).isNullOrBlank() }
+    if (missing.isNotEmpty()) {
+        throw GradleException(
+            "android/key.properties is incomplete — missing: ${missing.joinToString()}"
+        )
+    }
+    val store = file(keystoreProperties.getProperty("storeFile"))
+    if (!store.exists()) {
+        throw GradleException("Release keystore not found at ${store.path}")
+    }
 }
 
 android {
@@ -15,10 +53,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.shyberdev.jewellery_suite"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
@@ -29,11 +64,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (hasReleaseKeystore) signingConfigs.getByName("release") else null
             // R8 rules live in proguard-rules.pro (Flutter wrapper + the ML Kit
             // Latin-only text-recognition dontwarn rules).
             proguardFiles(

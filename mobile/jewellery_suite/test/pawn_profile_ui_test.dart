@@ -173,6 +173,22 @@ void main() {
     expect(find.text('Suresh'), findsNothing);
   });
 
+  testWidgets('metal filter narrows the loan list, not only the summary',
+      (tester) async {
+    await seedPawnLoans();
+    await pumpPawn(tester);
+
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Gold'));
+    await settleWithDb(tester);
+
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsNothing,
+        reason: '#033: the Silver loan must leave the list, not just the total');
+  });
+
   testWidgets(
       'pawn profile expands KYC details, shows loan fields and action order',
       (tester) async {

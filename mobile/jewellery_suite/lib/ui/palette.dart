@@ -44,3 +44,15 @@ Color mutedOf(BuildContext context) => isDark(context)
 Color lineOf(BuildContext context) => isDark(context)
     ? Colors.white.withValues(alpha: .12)
     : kInk.withValues(alpha: .08);
+
+// Soft status fills: pale tints in light mode, deep muted tints in dark mode,
+// so a coloured chip never reads as a bright white patch at night.
+Color redSoftOf(BuildContext context) => isDark(context)
+    ? const Color(0xFF3B2020)
+    : kRedSoft;
+Color greenSoftOf(BuildContext context) => isDark(context)
+    ? const Color(0xFF1F2F20)
+    : kGreenSoft;
+Color blueSoftOf(BuildContext context) => isDark(context)
+    ? const Color(0xFF1B2838)
+    : kBlueSoft;

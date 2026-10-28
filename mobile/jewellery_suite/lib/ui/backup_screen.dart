@@ -131,6 +131,89 @@ class _BackupScreenState extends State<BackupScreen> {
         bad: problem != null);
   }
 
+  /// Replaces the live data with the contents of [info].
+  ///
+  /// Three separate confirmations stand between the tap and the replace:
+  /// the explicit warning dialog, the admin password (when enabled), and the
+  /// archive validation performed inside [BackupService.restoreBackup]. A
+  /// verified safety backup of the current data is taken first, so even a
+  /// mistaken restore can be undone.
+  Future<void> _restore(BackupInfo info) async {
+    if (_busy) return;
+    final when = DateFormat('d MMM yyyy, HH:mm').format(info.createdAt);
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore this backup?'),
+        content: SingleChildScrollView(
+          child: Text(
+            'Backup: ${info.fileName}\n'
+            'Taken: $when\n'
+            'Size: ${_size(info.bytes)}'
+            '${info.photoCount > 0 ? ' · ${info.photoCount} photo(s)' : ''}\n\n'
+            'Your current customers, loans, collections, pawn records and '
+            'cashbook will be REPLACED by the data in this file. '
+            'A verified safety backup of the current data is taken first, so '
+            'you can restore it if this was a mistake.\n\n'
+            'This cannot be undone from inside the app.',
+            style: const TextStyle(fontSize: 13, height: 1.45),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+
+    final state = context.read<AppState>();
+    final granted = await askPasswordIfEnabled(
+      context,
+      state,
+      actionId: 'backup_restore',
+      action: 'restore this backup',
+      detail: info.fileName,
+      confirmLabel: 'Restore',
+    );
+    if (!mounted) return;
+    if (!granted) {
+      _toast('Restore cancelled / wrong password.');
+      return;
+    }
+
+    setState(() => _busy = true);
+    final result = await _backups!.restoreBackup(info.path);
+    if (!mounted) return;
+    if (!result.restored) {
+      setState(() => _busy = false);
+      _toast('Restore failed: ${result.problem}', bad: true);
+      return;
+    }
+
+    // The database file was replaced while AppState kept its old in-memory
+    // caches (counts, logged-in user, cached lists). Reload everything from
+    // the restored file before any screen reads a stale number.
+    await state.load();
+    await _reload();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _report = null;
+    });
+    _toast(
+        'Restored ${info.fileName}'
+        '${result.restoredPhotos > 0 ? ' with ${result.restoredPhotos} photo(s)' : ''}. '
+        'Safety backup: ${result.safetyBackup?.fileName ?? 'created'}',
+        bad: false);
+  }
+
   // ------------------------------------------------------------ sample data
 
   Future<void> _inspectSamples() async {
@@ -270,11 +353,12 @@ class _BackupScreenState extends State<BackupScreen> {
             title: 'If you ever need to restore',
             children: [
               Text(
-                'Open the backup file and copy the folder named '
-                '"db" out of it. That file replaces the app database; keep the '
-                'app closed while doing it. Photos sit in the "photos" folder '
-                'next to it. Use "Check" on a backup first — it confirms the '
-                'file is complete before you rely on it.',
+                'Open the ⋮ menu on a saved backup and choose "Restore this '
+                'backup". The app validates the file, takes a verified safety '
+                'backup of the current data, then replaces the database and '
+                'the customer photos if the backup includes them. '
+                'Use "Check" first if you want to confirm the file is '
+                'complete without changing anything.',
                 style: TextStyle(
                     fontSize: 12, color: mutedOf(context), height: 1.45),
               ),
@@ -328,15 +412,49 @@ class _BackupScreenState extends State<BackupScreen> {
             icon: const Icon(Icons.verified_outlined, size: 19),
             onPressed: _busy ? null : () => _verify(f),
           ),
-          IconButton(
-            tooltip: 'Save or share',
-            icon: const Icon(Icons.ios_share, size: 19),
-            onPressed: () => _share(f),
-          ),
-          IconButton(
-            tooltip: 'Delete backup',
-            icon: const Icon(Icons.delete_outline, size: 19),
-            onPressed: () => _delete(f),
+          PopupMenuButton<String>(
+            tooltip: 'Backup actions',
+            enabled: !_busy,
+            onSelected: (value) {
+              switch (value) {
+                case 'restore':
+                  _restore(f);
+                  break;
+                case 'share':
+                  _share(f);
+                  break;
+                case 'delete':
+                  _delete(f);
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(
+                value: 'restore',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.settings_backup_restore,
+                      color: kGoldDark),
+                  title: Text('Restore this backup'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.ios_share),
+                  title: Text('Save or share'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.delete_outline, color: kRed),
+                  title: Text('Delete backup'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

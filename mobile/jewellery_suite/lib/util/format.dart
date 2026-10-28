@@ -103,36 +103,41 @@ class Num {
 // Display helpers (khata-style: DD-MM-YY dates, whole rupees, Indian grouping)
 // ---------------------------------------------------------------------------
 
-/// Whole rupees with Indian digit grouping, no paise — e.g. 1600 -> "1,600".
+/// Whole rupees with Indian digit grouping, no paise — e.g. 1600 -> "1,600",
+/// 8333500 -> "83,33,500".
 String moneyWhole(num? value) {
   final d = (Num.toDouble(value)).round();
-  final negative = d < 0;
-  final s = d.abs().toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(s[i]);
-  }
-  return '${negative ? '-' : ''}${buffer.toString()}';
+  return _groupedRupees(d);
 }
 
 /// "₹1,600" — whole rupees with Indian grouping.
 String inr(num? value) => '₹${moneyWhole(value)}';
 
-/// Whole rupees with Indian grouping, TRUNCATED (10000.90 → "10,000").
+/// Whole rupees with Indian digit grouping, TRUNCATED (10000.90 → "10,000").
 ///
 /// KHATA-ONLY display: matches the truncate-on-write rule so a legacy paise
 /// row can never render a rupee that was rounded up. Pawn keeps [moneyWhole].
 String moneyWholeDown(num? value) {
   final d = Num.toDouble(value).truncate();
-  final negative = d < 0;
-  final s = d.abs().toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(s[i]);
+  return _groupedRupees(d);
+}
+
+/// Lakh/crore grouping: the last three digits stay together, then every two
+/// digits gets a comma (83,33,500 — not Western 8,333,500).
+String _groupedRupees(int value) {
+  final negative = value < 0;
+  final digits = value.abs().toString();
+  if (digits.length <= 3) return '${negative ? '-' : ''}$digits';
+
+  final last3 = digits.substring(digits.length - 3);
+  var head = digits.substring(0, digits.length - 3);
+  final parts = <String>[];
+  while (head.length > 2) {
+    parts.insert(0, head.substring(head.length - 2));
+    head = head.substring(0, head.length - 2);
   }
-  return '${negative ? '-' : ''}${buffer.toString()}';
+  if (head.isNotEmpty) parts.insert(0, head);
+  return '${negative ? '-' : ''}${parts.join(',')},$last3';
 }
 
 /// "16-08-26" — DD-MM-YY for ISO date/datetime strings.

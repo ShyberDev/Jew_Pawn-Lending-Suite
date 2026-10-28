@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- #029 audit: photos use the system camera / Photo Picker intents
+         (image_picker) and the ML Kit document scanner runs inside Google Play
+         services. None of those need CAMERA or storage/media permissions, so
+         none are declared. INTERNET is the only permission. Cleartext HTTP is
+         deliberately kept for the LAN server until HTTPS lands (#042). -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Jewellery Suite"

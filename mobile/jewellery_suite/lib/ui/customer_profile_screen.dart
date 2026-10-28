@@ -532,8 +532,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_youGaveHint(loan, type),
-                    style: TextStyle(
-                        fontSize: 12, color: kInk.withValues(alpha: .7))),
+                    style: TextStyle(fontSize: 12, color: mutedOf(context))),
                 const SizedBox(height: 12),
                 TextField(
                     controller: amountCtl,
@@ -1262,11 +1261,15 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             const Icon(Icons.notifications_outlined,
                 size: 14, color: kGoldDark),
             const SizedBox(width: 5),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: kGoldDark)),
+            Flexible(
+              child: Text(label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: kGoldDark)),
+            ),
           ],
         ),
       ),
@@ -1301,8 +1304,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Remind to collect on:',
-                  style: TextStyle(
-                      fontSize: 12.5, color: kInk.withValues(alpha: .7))),
+                  style: TextStyle(fontSize: 12.5, color: mutedOf(context))),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -1541,39 +1543,78 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       backgroundColor: bgOf(context),
       appBar: AppBar(
         title: const Text('Customer'),
+        // One overflow action keeps the title readable on a 320 dp phone.
+        // Call / SMS / WhatsApp / Move / Edit are all secondary to the
+        // Collect and You Gave buttons pinned at the bottom.
         actions: [
-          IconButton(
-            tooltip: 'Call',
-            icon: const Icon(Icons.phone_outlined),
-            onPressed: _call,
-          ),
-          IconButton(
-            tooltip: 'SMS',
-            icon: const Icon(Icons.sms_outlined),
-            onPressed: _sms,
-          ),
-          IconButton(
-            tooltip: 'WhatsApp',
-            icon: Image.asset('assets/whatsapp.png',
-                width: 20, height: 20, fit: BoxFit.contain),
-            onPressed: _whatsapp,
-          ),
-          IconButton(
-            tooltip: 'Move to another khata',
-            icon: const Icon(Icons.swap_horiz_outlined),
-            onPressed: _moveCustomer,
-          ),
-          IconButton(
-            tooltip: 'Edit',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => CustomerForm(existing: _customer)),
-              );
-              if (mounted) _refresh();
+          PopupMenuButton<String>(
+            tooltip: 'More actions',
+            onSelected: (value) async {
+              switch (value) {
+                case 'call':
+                  _call();
+                  break;
+                case 'sms':
+                  _sms();
+                  break;
+                case 'whatsapp':
+                  _whatsapp();
+                  break;
+                case 'move':
+                  _moveCustomer();
+                  break;
+                case 'edit':
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => CustomerForm(existing: _customer)),
+                  );
+                  if (mounted) _refresh();
+                  break;
+              }
             },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'call',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.phone_outlined),
+                  title: Text('Call'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'sms',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.sms_outlined),
+                  title: Text('SMS'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'whatsapp',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: ImageIcon(AssetImage('assets/whatsapp.png')),
+                  title: Text('WhatsApp'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'move',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.swap_horiz_outlined),
+                  title: Text('Move to another khata'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Edit'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1581,7 +1622,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       bottomNavigationBar: _loading
           ? null
           : Container(
-              color: Colors.white,
+              color: surfaceOf(context),
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: SafeArea(
                 child: Row(children: [
@@ -1775,11 +1816,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             letterSpacing: .8,
                             color: Color(0xFFE7D48B))),
                     const SizedBox(height: 4),
-                    Text('₹${moneyWholeDown(_principal)}',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('₹${moneyWholeDown(_principal)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -1793,11 +1839,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             letterSpacing: .8,
                             color: Color(0xFFE7D48B))),
                     const SizedBox(height: 4),
-                    Text('₹${moneyWholeDown(_interest)}',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('₹${moneyWholeDown(_interest)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -1811,11 +1862,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             letterSpacing: .8,
                             color: Color(0xFFE7D48B))),
                     const SizedBox(height: 4),
-                    Text('₹${moneyWholeDown(_outstanding)}',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text('₹${moneyWholeDown(_outstanding)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -2284,6 +2340,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           await _syncLoan(upd);
           await state.touchActivity(_customer['client_uuid']?.toString());
         }
+        await state.deleteCashbookFor(
+            [r.source['client_uuid']?.toString() ?? '']);
         await db.delete('khatabook_given',
             where: 'client_uuid = ?', whereArgs: [r.source['client_uuid']]);
         if (r.source['given_type']?.toString() == 'refinance') {
@@ -2296,6 +2354,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             village: _customer['village']?.toString());
       } else if (r.kind == 'collection') {
         final loan = _loanForRef(r.source['khatabook_loan']);
+        final collectionUuid = r.source['client_uuid']?.toString() ?? '';
+        await state.deleteCashbookFor([collectionUuid]);
+        // Legacy rows referenced the loan rather than the collection.
+        final loanRef = r.source['khatabook_loan']?.toString() ?? '';
+        final collectionDay =
+            AppState.businessDay(r.source['collection_date'], DateTime.now());
+        if (loanRef.isNotEmpty && collectionUuid.isNotEmpty) {
+          await db.deleteCashbookMatching(
+            category: 'KHATA_COLLECTION',
+            referenceId: loanRef,
+            amount: Num.toDouble(r.source['amount']),
+            date: collectionDay,
+          );
+        }
         await db.delete('khatabook_collections',
             where: 'client_uuid = ?', whereArgs: [r.source['client_uuid']]);
         // Its allocation slices die with it — otherwise any later rebuild
@@ -2328,6 +2400,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       } else if (r.kind == 'loan') {
         final ref =
             (r.source['server_name'] as String?) ?? r.source['client_uuid'];
+        await state.deleteCashbookForLoan({
+          ref?.toString() ?? '',
+          r.source['client_uuid']?.toString() ?? '',
+        });
         await db.delete('khatabook_given',
             where: 'khatabook_loan = ?', whereArgs: [ref]);
         await db.delete('khatabook_collections',
@@ -2481,16 +2557,19 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(
             children: [
-              Text('Settlements — ${loan['collection_frequency']}',
-                  style: TextStyle(fontSize: 12, color: mutedOf(context))),
-              const Spacer(),
+              Expanded(
+                child: Text('Settlements — ${loan['collection_frequency']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: mutedOf(context))),
+              ),
               if (paidCount > 0)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: onTime == paidCount
-                        ? kGreenSoft
+                        ? greenSoftOf(context)
                         : const Color(0xFFFDEBD2),
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -2520,11 +2599,16 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             style: const TextStyle(
                 fontSize: 10, letterSpacing: .8, color: Color(0xFFE7D48B))),
         const SizedBox(height: 3),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: end ? Alignment.centerRight : Alignment.centerLeft,
+          child: Text(value,
+              maxLines: 1,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white)),
+        ),
       ],
     );
   }
@@ -2667,7 +2751,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     final (Color bg, Color fg, String label) = r.paid != null
         ? (r.lateDays <= 0
             ? (share >= 0.999
-                ? (kGreenSoft, kGreen, 'ON TIME')
+                ? (greenSoftOf(context), kGreen, 'ON TIME')
                 : (const Color(0xFFFDEBD2), const Color(0xFFB26A00), 'PARTIAL'))
             : (
                 const Color(0xFFFDEBD2),
@@ -2678,14 +2762,14 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               ))
         : r.due.isAfter(today)
             ? (
-                kBlueSoft,
+                blueSoftOf(context),
                 kBlue,
                 r.due.difference(today).inDays <= 7 ? 'NEXT WEEK' : 'UPCOMING'
               )
             : r.due == today
                 ? (kGold.withValues(alpha: .18), kGoldDark, 'DUE TODAY')
                 : (
-                    kRedSoft,
+                    redSoftOf(context),
                     kRed,
                     'DUE ${today.difference(r.due).inDays} '
                         'DAY${today.difference(r.due).inDays == 1 ? '' : 'S'} AGO'

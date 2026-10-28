@@ -225,105 +225,75 @@ class AppState extends ChangeNotifier {
       data: {...data, if (serverName != null) 'name': serverName},
     );
 
-    // Auto-hook: Pawn Release -> Cash IN
-    if (table == 'pawn_releases' && existing == null) {
-      final now = DateTime.now();
-      final totalPaid = Num.toDouble(data['total_paid']);
-      if (totalPaid > 0) {
-        await db.addCashbookEntry({
-          'client_uuid': newUuid(),
-          'entry_date':
-              data['release_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time':
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-          'entry_type': 'IN',
-          'amount': Num.rupees(totalPaid),
-          'payment_mode':
-              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
-          'category': 'PAWN_REPAYMENT',
-          'reference_id': uuid,
-          'party_name': data['customer']?.toString() ?? '',
-          'notes': 'Pawn loan release settlement',
-          'created_at': now.toIso8601String(),
-          'dirty': 1,
-        });
-      }
+    // Auto-hooks follow their source row: CREATE writes the entry, EDIT
+    // updates the same entry (same uuid), and setting the amount to zero
+    // removes it. v1.1.1 only handled CREATE, so an edited collection or a
+    // deleted source left cash that never happened in the Cashbook.
+    final now = DateTime.now();
+    if (table == 'pawn_releases') {
+      await _syncCashbookEntry(
+        category: 'PAWN_REPAYMENT',
+        referenceId: uuid,
+        entryType: 'IN',
+        amount: Num.toDouble(data['total_paid']),
+        date: businessDay(data['release_date'], now),
+        paymentMode:
+            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        partyName: data['customer']?.toString() ?? '',
+        notes: 'Pawn loan release settlement',
+      );
     }
 
-    // Auto-hook: Khatabook Loan -> Cash OUT (Disbursed)
-    if (table == 'khatabook_loans' && existing == null) {
-      final now = DateTime.now();
-      final principal = Num.toDouble(data['principal_amount']);
-      if (principal > 0) {
-        await db.addCashbookEntry({
-          'client_uuid': newUuid(),
-          'entry_date':
-              data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time':
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-          'entry_type': 'OUT',
-          'amount': Num.rupees(principal),
-          'payment_mode': 'CASH',
-          'category': 'KHATA_DISBURSE',
-          'reference_id': uuid,
-          'party_name': data['customer_name']?.toString() ?? '',
-          'notes': 'Khata loan disbursed',
-          'created_at': now.toIso8601String(),
-          'dirty': 1,
-        });
-      }
+    if (table == 'khatabook_loans') {
+      // A refinanced loan is not fresh cash: only its `fresh` slice moved and
+      // executeRefinance writes that as KHATA_REFINANCE. Writing a full
+      // KHATA_DISBURSE here would double-count the rolled balance.
+      final isRefinance = (data['refinanced_from']?.toString() ?? '').isNotEmpty;
+      await _syncCashbookEntry(
+        category: 'KHATA_DISBURSE',
+        referenceId: uuid,
+        entryType: 'OUT',
+        amount: isRefinance ? 0 : Num.toDouble(data['principal_amount']),
+        date: businessDay(data['loan_date'], now),
+        paymentMode: 'CASH',
+        partyName: data['customer_name']?.toString() ?? '',
+        notes: 'Khata loan disbursed',
+      );
     }
 
-    // Auto-hook: Khatabook Collection -> Cash IN
-    if (table == 'khatabook_collections' && existing == null) {
-      final now = DateTime.now();
-      final amount = Num.toDouble(data['amount']);
-      if (amount > 0) {
-        await db.addCashbookEntry({
-          'client_uuid': newUuid(),
-          'entry_date': data['collection_date']?.toString().substring(0, 10) ??
-              _isoDay(now),
-          'entry_time':
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-          'entry_type': 'IN',
-          'amount': Num.rupees(amount),
-          'payment_mode':
-              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
-          'category': 'KHATA_COLLECTION',
-          'reference_id': uuid,
-          'party_name': data['customer']?.toString() ??
-              data['customer_name']?.toString() ??
-              '',
-          'notes': 'Khata collection payment',
-          'created_at': now.toIso8601String(),
-          'dirty': 1,
-        });
-      }
+    if (table == 'khatabook_collections') {
+      await _syncCashbookEntry(
+        category: 'KHATA_COLLECTION',
+        referenceId: uuid,
+        entryType: 'IN',
+        amount: Num.toDouble(data['amount']),
+        date: businessDay(data['collection_date'], now),
+        paymentMode:
+            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        partyName: data['customer']?.toString() ??
+            data['customer_name']?.toString() ??
+            '',
+        notes: 'Khata collection payment',
+        // Rows written before v1.1.2 referenced the loan, not the collection.
+        legacyReferenceId: existing?['khatabook_loan']?.toString(),
+        legacyAmount: existing == null ? null : Num.toDouble(existing['amount']),
+        legacyDate:
+            existing == null ? null : businessDay(existing['collection_date'], now),
+      );
     }
 
-    // Auto-hook: Khatabook Given (Extra) -> Cash OUT
-    if (table == 'khatabook_given' && existing == null) {
-      final now = DateTime.now();
-      final amount = Num.toDouble(data['amount']);
-      if (amount > 0) {
-        await db.addCashbookEntry({
-          'client_uuid': newUuid(),
-          'entry_date':
-              data['given_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time':
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-          'entry_type': 'OUT',
-          'amount': Num.rupees(amount),
-          'payment_mode':
-              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
-          'category': 'KHATA_DISBURSE',
-          'reference_id': uuid,
-          'party_name': data['customer_name']?.toString() ?? '',
-          'notes': data['note']?.toString() ?? 'Khata You-Gave extra',
-          'created_at': now.toIso8601String(),
-          'dirty': 1,
-        });
-      }
+    if (table == 'khatabook_given') {
+      await _syncCashbookEntry(
+        category: 'KHATA_DISBURSE',
+        referenceId: uuid,
+        entryType: 'OUT',
+        amount: Num.toDouble(data['amount']),
+        date: businessDay(data['given_date'], now),
+        paymentMode:
+            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        partyName: data['customer_name']?.toString() ?? '',
+        notes: data['note']?.toString() ?? 'Khata You-Gave extra',
+      );
     }
 
     await refreshCounts();
@@ -359,29 +329,19 @@ class AppState extends ChangeNotifier {
       },
     );
 
-    // Auto-hook: Pawn Loan Creation -> Cash OUT (Disbursed)
-    if (existing == null) {
-      final now = DateTime.now();
-      final loanAmount = Num.toDouble(data['loan_amount']);
-      if (loanAmount > 0) {
-        await db.addCashbookEntry({
-          'client_uuid': newUuid(),
-          'entry_date':
-              data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time':
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-          'entry_type': 'OUT',
-          'amount': Num.rupees(loanAmount),
-          'payment_mode': 'CASH',
-          'category': 'PAWN_DISBURSE',
-          'reference_id': uuid,
-          'party_name': data['customer_name']?.toString() ?? '',
-          'notes': 'Pawn loan principal disbursed',
-          'created_at': now.toIso8601String(),
-          'dirty': 1,
-        });
-      }
-    }
+    // Auto-hook: Pawn Loan -> Cash OUT (Disbursed). Follows edits and removes
+    // the entry if the principal is edited down to zero.
+    final now = DateTime.now();
+    await _syncCashbookEntry(
+      category: 'PAWN_DISBURSE',
+      referenceId: uuid,
+      entryType: 'OUT',
+      amount: Num.toDouble(data['loan_amount']),
+      date: businessDay(data['loan_date'], now),
+      paymentMode: 'CASH',
+      partyName: data['customer_name']?.toString() ?? '',
+      notes: 'Pawn loan principal disbursed',
+    );
 
     await refreshCounts();
     return uuid;
@@ -849,6 +809,20 @@ class AppState extends ChangeNotifier {
     };
     await db.upsert('khatabook_loans', newLoan);
 
+    // 2b. Fresh cash physically leaves the till now. The rolled-over
+    // outstanding is an accounting transfer, not cash, so only `fresh` is
+    // written to the Cashbook. v1.1.1 wrote no entry at all.
+    await _syncCashbookEntry(
+      category: 'KHATA_REFINANCE',
+      referenceId: newLoanUuid,
+      entryType: 'OUT',
+      amount: freshMoney,
+      date: dayIso,
+      paymentMode: 'CASH',
+      partyName: oldLoan['customer_name']?.toString() ?? '',
+      notes: 'Refinance — fresh cash handed over',
+    );
+
     // 3. The refinance record links both sides and carries the breakdown the
     // tile shows: previous + fresh + interest = new obligation.
     await db.upsert('khatabook_refinances', {
@@ -989,6 +963,132 @@ class AppState extends ChangeNotifier {
   Future<void> deleteCashbookEntry(String uuid) async {
     await db.deleteCashbookEntry(uuid);
     notifyListeners();
+  }
+
+  /// Removes the automated entries that belong to deleted source rows.
+  ///
+  /// Screens call this with the loan / collection / release uuid BEFORE they
+  /// delete the source row, so a delete can never leave cash behind.
+  Future<void> deleteCashbookFor(Iterable<String> references) async {
+    await db.deleteCashbookForReferences(references);
+    notifyListeners();
+  }
+
+  /// Deletes a whole khata loan's cash traces: the disbursement, every
+  /// collection (including legacy rows whose reference was the loan uuid),
+  /// every You-Gave row and every refinance fresh-cash entry.
+  ///
+  /// Callers pass both the uuid and server name because old rows may use one
+  /// or the other.
+  Future<void> deleteCashbookForLoan(Set<String> loanRefs) async {
+    final refs = {...loanRefs};
+    final loans = <Map<String, Object?>>[];
+    for (final r in loanRefs) {
+      if (r.isEmpty) continue;
+      loans.addAll(await db.query('khatabook_loans',
+          where: 'client_uuid = ? OR server_name = ?', whereArgs: [r, r]));
+    }
+    final uuids = loans
+        .map((l) => l['client_uuid']?.toString() ?? '')
+        .where((u) => u.isNotEmpty)
+        .toSet();
+    final all = {...refs, ...uuids};
+    if (all.isEmpty) return;
+    final placeholders = List.filled(all.length, '?').join(', ');
+    final collections = await db.query('khatabook_collections',
+        where: 'khatabook_loan IN ($placeholders)', whereArgs: all.toList());
+    final givens = await db.query('khatabook_given',
+        where: 'khatabook_loan IN ($placeholders)', whereArgs: all.toList());
+    for (final row in [...collections, ...givens]) {
+      final uuid = row['client_uuid']?.toString() ?? '';
+      if (uuid.isNotEmpty) all.add(uuid);
+    }
+    await db.deleteCashbookForReferences(all);
+  }
+
+  /// A safe `yyyy-MM-dd` from a possibly malformed stored value.
+  static String businessDay(Object? value, DateTime fallback) {
+    final s = value?.toString().trim() ?? '';
+    return s.length >= 10 ? s.substring(0, 10) : _isoDay(fallback);
+  }
+
+  /// Creates or updates the one automated cash entry for a source row.
+  ///
+  /// The entry keeps its original uuid and clock time, so an edit changes the
+  /// amount/date/mode in place instead of writing a second movement. When the
+  /// amount becomes zero the entry is removed.
+  ///
+  /// [legacyReferenceId] handles collection entries written before v1.1.2,
+  /// which stored the loan uuid instead of the collection uuid.
+  Future<void> _syncCashbookEntry({
+    required String category,
+    required String referenceId,
+    required String entryType,
+    required double amount,
+    required String date,
+    required String paymentMode,
+    required String partyName,
+    required String notes,
+    String? legacyReferenceId,
+    double? legacyAmount,
+    String? legacyDate,
+  }) async {
+    var existing =
+        await db.cashbookForReference(referenceId, category: category);
+    Map<String, Object?>? legacy;
+    if (existing.isEmpty &&
+        legacyReferenceId != null &&
+        legacyReferenceId.isNotEmpty &&
+        legacyReferenceId != referenceId &&
+        legacyAmount != null &&
+        legacyDate != null) {
+      final rows = await db.db.query(
+        'cashbook_entries',
+        where: 'category = ? AND reference_id = ? AND amount = ? '
+            'AND entry_date = ?',
+        whereArgs: [category, legacyReferenceId, legacyAmount, legacyDate],
+      );
+      if (rows.isNotEmpty) legacy = rows.first;
+    }
+
+    if (amount <= 0) {
+      final ids = <String>{
+        ...existing.map((r) => r['client_uuid']?.toString() ?? ''),
+        if (legacy != null) legacy['client_uuid']?.toString() ?? '',
+      }..removeWhere((id) => id.isEmpty);
+      for (final id in ids) {
+        await db.deleteCashbookEntry(id);
+      }
+      return;
+    }
+
+    final found = existing.isNotEmpty ? existing.first : legacy;
+    final now = DateTime.now();
+    final newUuidValue = found?['client_uuid']?.toString() ?? newUuid();
+    await db.addCashbookEntry({
+      'client_uuid': newUuidValue,
+      'server_name': found?['server_name'],
+      'dirty': 1,
+      'entry_date': date,
+      'entry_time': found?['entry_time']?.toString() ??
+          '${now.hour.toString().padLeft(2, '0')}:'
+              '${now.minute.toString().padLeft(2, '0')}:'
+              '${now.second.toString().padLeft(2, '0')}',
+      'entry_type': entryType,
+      'amount': Num.rupees(amount),
+      'payment_mode': paymentMode,
+      'category': category,
+      'reference_id': referenceId,
+      'party_name': partyName,
+      'notes': notes,
+      'created_at': found?['created_at']?.toString() ?? now.toIso8601String(),
+    });
+
+    // A migrated legacy row must not survive next to its new copy.
+    if (legacy != null &&
+        (legacy['client_uuid']?.toString() ?? '') != newUuidValue) {
+      await db.deleteCashbookEntry(legacy['client_uuid']?.toString() ?? '');
+    }
   }
 
   Future<List<Map<String, Object?>>> getCashbookEntries({
@@ -1325,7 +1425,9 @@ class AppState extends ChangeNotifier {
       'amount': Num.rupees(amount),
       'payment_mode': mode.toUpperCase(),
       'category': 'KHATA_COLLECTION',
-      'reference_id': loanUuid,
+      // The collection row is the source, so deleting/editing that row can
+      // find its cash entry. Older builds stored the loan uuid here.
+      'reference_id': collectionUuid,
       'party_name': loan['customer_name']?.toString() ?? '',
       'notes': 'Khata collection payment',
       'created_at': now.toIso8601String(),
