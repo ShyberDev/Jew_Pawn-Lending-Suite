@@ -2,7 +2,7 @@
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
 **Last updated:** 2026-10-28
-**App version installed for testing:** v1.1.1 (versionCode 26, debug-signed) — verified 2026-10-28
+**App version installed for testing:** v1.1.1 (versionCode 27, debug-signed) — verified 2026-10-28
 **Next target:** v1.1.2 — reminders, export/charts, HTTPS, Jewellery module (v1.1.1 is fixes only)
 
 ---
@@ -56,6 +56,24 @@ Screenshot: (if visual)
 > - **#003** — live install: ₹63,000 new-loan row on top; transfer tile below shows ₹33,000 refinanced, with “New loan ₹63,000 • Fresh cash ₹25,000”.
 > - **#004** — live install: `Bal ₹…` on every ledger row.
 > - **#005** — live install: Pawn filter shows the empty state and zero tally; Khatabook + Cash shows the two entries and the same ₹608 / ₹10,000 tally.
+
+---
+
+## 1a. UI/UX round 2 — approved 2026-10-28 (v1.1.1 fixes)
+
+| # | Status | Area | Page / option | Request | Planned change |
+|---|---|---|---|---|---|
+| **#050** | ✅ DONE | System UI | **Customer Profile → Remind → Collection Reminder** | The **Calendar…** chip duplicates the **Pick date** button. | Remove the **Calendar…** chip. Keep the four quick choices and **Pick date**. The preview always shows the exact date picked. |
+| **#051** | ✅ DONE | Pawn list | **Pawn Loans → loan rows** | Rows show only the customer name. They should show **Customer Name + Village**, keep **ID / loan date / item / amount**, and add the customer photo like Khatabooks. | Customer photo thumbnail; name + village; second line with ID, loan date, item and amount. Falls back to the customer’s saved village when the loan row has none. |
+| **#052** | ✅ DONE | Pawn profile | **Pawn Loans → tap loan → Customer Pawn Profile** | Consolidate customer details and make them expandable; add a clear six-field loan section; keep items; reorder actions; photo should expand. | Header photo thumbnail opens a full-screen viewer. **Customer KYC & Details** expands to ID, name, village, address, mobile, KYC photos and **Edit customer**. Loan card shows Principal, Interest Rate, Loan Date, Due Date, Amount Paid, Outstanding. Actions in order: **Interest Paying, Amount Paying, Amount Requesting, Release**. **Delete Loan** stays separate. |
+| **#053** | ✅ DONE | Pawn filters | **Pawn Loans → filter row** | Add a **Villages** filter beside **Active / Released**; the **All** chip is unnecessary. | Filter row becomes **Active · Released · Villages ▾** with **All villages** inside the menu. The chosen village filters the list and the summary figures. Default view is Active. |
+
+> **All four were verified on the phone on 2026-10-28 (v1.1.1 / versionCode 27).**
+>
+> - **#050** — Collection Reminder shows only Today / Tomorrow / Next week / Next month plus **Pick date**. Picking 18 Nov 2026 changed the preview to `Remind 18-11-26 Wed`; the dialog was cancelled without saving.
+> - **#051** — a temporary ₹1,000 pawn loan for `Sample_InLoss` displayed `Loss · ID A11` above `28-10-26 · Gold · ₹1,000`, with the avatar thumbnail. The temporary loan was deleted afterwards; totals returned to ₹15,000 / ₹900 / ₹15,900. The shop’s own pawn customer has no photo or village, so the initial + ID-only fallback is what shows for that row.
+> - **#052** — the header avatar opened the full-screen viewer; **Customer KYC & Details** expanded to ID, name, village, address, mobile and **Edit customer**; the loan card showed the six agreed fields; actions ran **Interest Paying → Amount Paying → Amount Requesting → Release**, with **Delete Loan** separate below. Items stayed visible.
+> - **#053** — the filter row is **Active · Released · Villages ▾** (no **All**); the menu held **All villages**, Loss and Pallipatti. Choosing Pallipatti showed `Villages: Pallipatti`, zeroed the summary and the list; **All villages** restored ₹15,000 / ₹900 / ₹15,900. Active is the default view.
 
 ---
 
@@ -125,6 +143,17 @@ Screenshot: (if visual)
 ---
 
 ## 5. Change log
+
+### 2026-10-28 — v1.1.1 development round 2 — verified on phone
+- Added **#050–#053** (UI/UX round 2), implemented in `lib/ui/customer_profile_screen.dart` and `lib/ui/pawn_screen.dart`.
+- **#050:** removed the duplicate **Calendar…** chip; the four quick choices and **Pick date** now share one date value, and the preview follows the picked date.
+- **#051:** pawn rows show the customer photo/initial, name, village and book ID above loan date, metal and amount. Village falls back to the customer’s saved village.
+- **#052:** the profile header avatar opens a full-screen viewer; **Customer KYC & Details** expands to ID, name, village, address, mobile, KYC photos and **Edit customer**; the loan card shows the six agreed fields; actions are **Interest Paying → Amount Paying → Amount Requesting → Release**, with **Delete Loan** separate below.
+- **#053:** the filter row is **Active · Released · Villages ▾** (no **All**); the chosen village filters both the list and the summary. Active is the default view.
+- Added 3 widget tests in `test/pawn_profile_ui_test.dart` (row + village filter, profile layout/action order, reminder preview).
+- `flutter analyze`: clean. **287 tests pass**.
+- Final APK **v1.1.1 / versionCode 27**, `mobile/jewellery_suite-release.apk`, SHA-256 `f52b6f22bb155b146b5f07bc8a8e98dfd82cc8e251cdde8373e7efe075f757c1`; still **debug-signed** — release signing remains #027/#028.
+- Committed on `develop` (not pushed).
 
 ### 2026-10-28 — v1.1.1 development round 1 — verified on phone
 - Added **#001–#006** (this round).
