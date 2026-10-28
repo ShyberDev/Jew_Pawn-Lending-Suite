@@ -164,7 +164,7 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
                   _quickTile(Icons.gpp_good_outlined,
                       'Released & settled',
                       '${_r['released']} released · '
-                          '₹${_r['realised']} interest realised',
+                          '₹${moneyWhole(_r['realised'] as num?)} interest realised',
                       () => _openPawn('released')),
                   const SizedBox(height: 30),
                 ],
@@ -198,17 +198,24 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
               style: TextStyle(
                   fontSize: 11, letterSpacing: 1, color: Color(0xFFE7D48B))),
           const SizedBox(height: 4),
-          Text('₹${_r['principal']}',
-              style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text('₹${moneyWhole(_r['principal'] as num?)}',
+                maxLines: 1,
+                style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white)),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _heroStat('Interest due', '₹${_r['interest']}'),
+              _heroStat('Interest due',
+                  '₹${moneyWhole(_r['interest'] as num?)}'),
               const SizedBox(width: 22),
-              _heroStat('Total receivable', '₹${_r['receivable']}'),
+              _heroStat('Total receivable',
+                  '₹${moneyWhole(_r['receivable'] as num?)}'),
             ],
           ),
         ],
@@ -220,15 +227,26 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(value,
-            style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value,
+              maxLines: 1,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
+        ),
         Text(label,
             style: TextStyle(
                 fontSize: 11, color: Colors.white.withValues(alpha: .75))),
       ],
     );
   }
+
+  /// Three-decimal weight, never a raw binary-float tail.
+  static String _weightText(Object? value) =>
+      Num.round3(Num.toDouble(value)).toStringAsFixed(3);
 
   Widget _statCard(String value, String label, {String? unit}) {
     return Container(
@@ -256,10 +274,12 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
     return Row(children: [
       Expanded(child: _statCard('${_r['active']}', 'Active pawns')),
       const SizedBox(width: 8),
-      Expanded(child: _statCard('${_r['gold']}', 'Gold reserve', unit: ' g')),
+      Expanded(
+          child: _statCard(_weightText(_r['gold']), 'Gold reserve', unit: ' g')),
       const SizedBox(width: 8),
       Expanded(
-          child: _statCard('${_r['silver']}', 'Silver reserve', unit: ' g')),
+          child:
+              _statCard(_weightText(_r['silver']), 'Silver reserve', unit: ' g')),
     ]);
   }
 
@@ -276,8 +296,10 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: key == '12M+'
-                      ? kRedSoft
-                      : Colors.white,
+                      ? (isDark(context)
+                          ? kRed.withValues(alpha: .18)
+                          : redSoftOf(context))
+                      : surfaceOf(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -287,7 +309,7 @@ class _PawnDashboardScreenState extends State<PawnDashboardScreen> {
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             color:
-                                key == '12M+' ? kRed : kInk)),
+                                key == '12M+' ? kRed : inkOf(context))),
                     Text(key,
                         style: TextStyle(
                             fontSize: 10,

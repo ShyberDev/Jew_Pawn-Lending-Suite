@@ -89,16 +89,14 @@ void main() {
   });
 
   group('Reports money formatting', () {
-    // NOTE: moneyWhole's doc comment says "Indian digit grouping" but it
-    // actually groups in threes from the right (Western: 8,333,500), not by
-    // lakh/crore (Indian: 83,33,500). Asserted here as-is so the app cannot
-    // drift silently; switching to lakh grouping is an OPEN DECISION because
-    // it changes every rupee figure on every screen.
-    test('whole rupees with grouping, no fake paise', () {
+    // moneyWhole uses lakh/crore grouping: the last three digits together,
+    // then every two digits (83,33,500 — not Western 8,333,500).
+    test('whole rupees with Indian grouping, no fake paise', () {
       // The bug printed "₹8333500.0" — ungrouped AND with a decimal.
-      expect(moneyWhole(8333500), '8,333,500');
+      expect(moneyWhole(8333500), '83,33,500');
       expect(moneyWhole(0), '0');
-      expect(moneyWhole(100002000), '100,002,000');
+      expect(moneyWhole(1600), '1,600');
+      expect(moneyWhole(100002000), '10,00,02,000');
     });
 
     test('never renders a decimal point', () {

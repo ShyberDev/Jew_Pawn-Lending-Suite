@@ -23,9 +23,8 @@ class PasswordSettingsScreen extends StatefulWidget {
 
 class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   Map<String, bool> _toggles = {};
-  String _current = kDefaultAdminPassword;
   bool _loading = true;
-  bool _revealed = false;
+  bool _isDefault = false;
 
   @override
   void initState() {
@@ -40,12 +39,12 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       // Never saved counts as ON — a new action is password-gated by default.
       toggles[a.id] = await state.db.getSetting(pwdToggleKey(a.id)) != '0';
     }
-    final current = await state.db.getSetting(kAdminPasswordKey) ??
-        kDefaultAdminPassword;
+    await ensureAdminPassword(state);
+    final isDefault = await adminPasswordIsDefault(state);
     if (!mounted) return;
     setState(() {
       _toggles = toggles;
-      _current = current;
+      _isDefault = isDefault;
       _loading = false;
     });
   }
@@ -60,33 +59,45 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     final state = context.read<AppState>();
     final currentCtl = TextEditingController();
     final nextCtl = TextEditingController();
+    final repeatCtl = TextEditingController();
     try {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Change deletion password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentCtl,
-                obscureText: true,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
-                  border: OutlineInputBorder(),
+          title: const Text('Change admin password'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentCtl,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Current password',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nextCtl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New password',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nextCtl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New password (6+ characters)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: repeatCtl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Repeat new password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -99,9 +110,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
         ),
       );
       if (ok != true || !mounted) return;
-      final saved = await state.db.getSetting(kAdminPasswordKey) ??
-          kDefaultAdminPassword;
-      if (currentCtl.text.trim().toLowerCase() != saved.toLowerCase()) {
+      if (!await verifyAdminPassword(state, currentCtl.text)) {
         if (mounted) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
@@ -111,16 +120,25 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
         return;
       }
       final next = nextCtl.text.trim();
-      if (next.isEmpty) {
+      if (next != repeatCtl.text.trim()) {
         if (mounted) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
-                const SnackBar(content: Text('New password is empty.')));
+                const SnackBar(content: Text('The new passwords do not match.')));
         }
         return;
       }
-      await state.db.setSetting(kAdminPasswordKey, next);
+      try {
+        await setAdminPassword(state, next);
+      } on FormatException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(e.message)));
+        }
+        return;
+      }
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -130,6 +148,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     } finally {
       currentCtl.dispose();
       nextCtl.dispose();
+      repeatCtl.dispose();
     }
   }
 
@@ -172,31 +191,23 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                   ],
                 ),
                 SectionCard(
-                  title: 'Deletion password',
+                  title: 'Admin password',
                   children: [
                     Row(
                       children: [
+                        const Icon(Icons.lock_outline, color: kGoldDark),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _revealed
-                                ? 'Current: $_current'
-                                : 'Current: ${'•' * _current.length}',
-                            style: const TextStyle(fontSize: 13.5),
+                            _isDefault
+                                ? 'Still using the default password — change it now.'
+                                : 'Stored as a salted hash. It cannot be viewed.',
+                            style: const TextStyle(fontSize: 13),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: _revealed ? 'Hide' : 'Show',
-                          icon: Icon(
-                              _revealed
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: kGoldDark),
-                          onPressed: () =>
-                              setState(() => _revealed = !_revealed),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: _changePassword,
                       icon: const Icon(Icons.lock_reset_outlined, size: 18),
@@ -204,7 +215,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Changing needs the current password first.',
+                      'Changing needs the current password first. Minimum 6 '
+                      'characters; the default "admin" is refused.',
                       style:
                           TextStyle(fontSize: 11, color: mutedOf(context)),
                     ),

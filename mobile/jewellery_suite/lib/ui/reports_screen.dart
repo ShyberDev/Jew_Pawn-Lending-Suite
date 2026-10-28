@@ -25,6 +25,47 @@ String _m(Object? value) =>
 String _plural(int n, String one) =>
     n == 1 ? '$n $one' : '$n ${one}s';
 
+/// What the shop can collect TODAY on one loan, used by Reports' overdue
+/// figure and its overdue list.
+///
+/// #020: Reports used to sum the whole outstanding balance as "overdue",
+/// which made a ₹1,00,000 loan two weeks late look ₹1,00,000 overdue when only
+/// two installments had actually come due. This mirrors the To Collect engine:
+/// only scheduled installments whose date has arrived, with the remaining
+/// amount after collections. Interest-only loans use their billed periods.
+///
+/// Exposed for tests so the report figure cannot silently drift back to
+/// "whole balance".
+double dueNowForReports({
+  required Map<String, Object?> loan,
+  required List<Map<String, Object?>> interestPeriods,
+  required DateTime today,
+  required double outstanding,
+}) {
+  if (MigrationV11.isInterestOnly(loan)) {
+    final day = DateTime(today.year, today.month, today.day);
+    var due = 0.0;
+    for (final p in interestPeriods) {
+      final remaining = Num.toDouble(p['remaining_amount']);
+      final dueDate = parseIso(p['due_date']);
+      if (remaining <= 0 || dueDate == null) continue;
+      if (!DateTime(dueDate.year, dueDate.month, dueDate.day).isAfter(day)) {
+        due += remaining;
+      }
+    }
+    return Num.rupees(due);
+  }
+  return Num.rupees(KhataSchedule.dueRemaining(
+    expectedRepayment: Num.toDouble(loan['total_payable']),
+    collected: Num.toDouble(loan['total_collected']),
+    count: (loan['installment_count'] as num?)?.toInt() ?? 0,
+    start: parseIso(loan['start_date'] ?? loan['loan_date']),
+    frequency: loan['collection_frequency']?.toString() ?? '',
+    today: today,
+    fallbackOutstanding: outstanding,
+  ));
+}
+
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, this.initialTab = 0});
 
@@ -83,6 +124,12 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     final loans = await db.query('khatabook_loans');
     final collections = await db.query('khatabook_collections');
     final customers = await db.query('customers');
+    final installments = await db.query('khatabook_installments');
+    final periodsByLoan = <String, List<Map<String, Object?>>>{};
+    for (final p in installments) {
+      final ref = p['khatabook_loan']?.toString() ?? '';
+      (periodsByLoan[ref] ??= <Map<String, Object?>>[]).add(p);
+    }
     final today = DateTime.now();
     final todayStr = today.toIso8601String().substring(0, 10);
     final weekAgo = today.subtract(const Duration(days: 7));
@@ -123,6 +170,21 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     final villageCount = <String, int>{};
     final customerMap = <String, double>{};
     final overdueRows = <Map<String, Object?>>[];
+
+    // "Overdue accounts" is a COLLECTION figure: what the shop can collect
+    // today, not the whole balance. It uses the same To Collect engine as the
+    // khata list (scheduled installments whose date has arrived), so a
+    // ₹1,00,000 loan two weeks late reports the missed installments — never
+    // the entire outstanding principal.
+    double dueNowFor(Map<String, Object?> l, double outstanding) =>
+        dueNowForReports(
+          loan: l,
+          interestPeriods: periodsByLoan[l['client_uuid']?.toString() ?? ''] ??
+              const [],
+          today: today,
+          outstanding: outstanding,
+        );
+
     for (final l in loans) {
       totalGiven += Num.toDouble(l['principal_amount']);
       final active = isActiveKhataStatus(l['status']);
@@ -147,8 +209,11 @@ class _KhataReportsViewState extends State<KhataReportsView> {
             Num.money((customerMap[customer] ?? 0) + Num.toDouble(out));
         if (loanBucket(l, today) == LoanBucket.overdue) {
           overdueCount++;
-          overdueAmt += Num.toDouble(out);
-          overdueRows.add(l);
+          final due = dueNowFor(l, out);
+          overdueAmt += due;
+          // Carry the due figure under `amount` so the shared list row shows
+          // what is collectable now; the full balance stays available too.
+          overdueRows.add({...l, 'amount': due, 'outstanding': out});
         }
       }
     }

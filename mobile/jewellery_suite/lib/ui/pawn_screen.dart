@@ -427,6 +427,15 @@ class _PawnScreenState extends State<PawnScreen> {
     final uuid = row['client_uuid'] as String?;
     final ref = (row['server_name'] as String?) ?? uuid;
     if (uuid == null) return false;
+    // Releases have their own Cash IN entry; remove them with the loan so a
+    // delete cannot leave cash that never came in.
+    final releases = await db.query('pawn_releases',
+        where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+    await state.deleteCashbookFor({
+      uuid,
+      if (ref != null) ref,
+      for (final r in releases) r['client_uuid']?.toString() ?? '',
+    });
     await db.delete('pawn_loans', where: 'client_uuid = ?', whereArgs: [uuid]);
     await db.delete('pawn_items', where: 'loan_uuid = ?', whereArgs: [uuid]);
     await db.delete('pawn_transactions',
@@ -935,6 +944,10 @@ class _PawnDetailState extends State<_PawnDetail> {
     var nPaid = Num.toDouble(_loan['amount_paid']);
 
     if (type == 'release') {
+      final releases = await db.query('pawn_releases',
+          where: 'pawn_loan = ?', whereArgs: [ref]);
+      await state.deleteCashbookFor(
+          releases.map((r) => r['client_uuid']?.toString() ?? ''));
       await db
           .delete('pawn_releases', where: 'pawn_loan = ?', whereArgs: [ref]);
       np = Num.money(np + Num.toDouble(t['principal_part']));
@@ -1675,6 +1688,15 @@ class _PawnDetailState extends State<_PawnDetail> {
                       final uuid = loan['client_uuid'] as String?;
                       final ref = (loan['server_name'] as String?) ?? uuid;
                       if (uuid == null) return;
+                      final releases = await db.query('pawn_releases',
+                          where: 'pawn_loan = ? OR pawn_loan = ?',
+                          whereArgs: [ref, uuid]);
+                      await state.deleteCashbookFor({
+                        uuid,
+                        if (ref != null) ref,
+                        for (final r in releases)
+                          r['client_uuid']?.toString() ?? '',
+                      });
                       await db.delete('pawn_loans',
                           where: 'client_uuid = ?', whereArgs: [uuid]);
                       await db.delete('pawn_items',

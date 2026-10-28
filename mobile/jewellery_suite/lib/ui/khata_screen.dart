@@ -119,26 +119,28 @@ class _Chip {
 /// - Today → red DUE TODAY. Past → red DUE X DAYS AGO.
 /// The amount is the member's due figure (today + arrears), never the full
 /// outstanding.
-_Chip _dueChip(_MemberRow r) {
+_Chip _dueChip(BuildContext context, _MemberRow r) {
   final next = r.nextDue == null
       ? null
       : DateTime(r.nextDue!.year, r.nextDue!.month, r.nextDue!.day);
-  if (next == null) return _Chip('ON TIME', kGreenSoft, kGreen);
+  if (next == null) {
+    return _Chip('ON TIME', greenSoftOf(context), kGreen);
+  }
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   if (next.isAfter(today)) {
     // Future date: name the upcoming installment, not today's (zero) dues.
     final amount = '₹${moneyWholeDown(r.upcoming)}';
-    return _Chip(
-        'DUE ${fmtDate(next.toIso8601String())} $amount', kBlueSoft, kBlue);
+    return _Chip('DUE ${fmtDate(next.toIso8601String())} $amount',
+        blueSoftOf(context), kBlue);
   }
   final amount = '₹${moneyWholeDown(r.due)}';
   if (next == today) {
-    return _Chip('DUE TODAY $amount', kRedSoft, kRed);
+    return _Chip('DUE TODAY $amount', redSoftOf(context), kRed);
   }
   final late = today.difference(next).inDays;
-  return _Chip(
-      'DUE $late DAY${late == 1 ? '' : 'S'} AGO $amount', kRedSoft, kRed);
+  return _Chip('DUE $late DAY${late == 1 ? '' : 'S'} AGO $amount',
+      redSoftOf(context), kRed);
 }
 
 // ---------------------------------------------------------------------------
@@ -400,11 +402,16 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                             letterSpacing: 1,
                             color: Color(0xFFE7D48B))),
                     const SizedBox(height: 4),
-                    Text('₹${moneyWholeDown(_totalPrincipal)}',
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('₹${moneyWholeDown(_totalPrincipal)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -418,11 +425,16 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                             letterSpacing: 1,
                             color: Color(0xFFE7D48B))),
                     const SizedBox(height: 4),
-                    Text('₹${moneyWholeDown(_totalOutstanding)}',
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('₹${moneyWholeDown(_totalOutstanding)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -457,9 +469,10 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              _miniStat('$_totalMembers', 'Members'),
+              Expanded(child: _miniStat('$_totalMembers', 'Members')),
               const SizedBox(width: 18),
-              _miniStat('$_overdueToday', 'Overdue accounts'),
+              Expanded(
+                  child: _miniStat('$_overdueToday', 'Overdue accounts')),
             ],
           ),
         ],
@@ -471,12 +484,19 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value,
+              maxLines: 1,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
+        ),
         Text(label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
                 fontSize: 11, color: Colors.white.withValues(alpha: .7))),
       ],
@@ -551,6 +571,7 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
+                    flex: 5,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -585,33 +606,46 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('₹${moneyWholeDown(k['outstanding'] as num?)}',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: inkOf(context))),
-                      const SizedBox(height: 3),
-                      if (overdue > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: kRedSoft,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text('$overdue overdue',
-                              style: const TextStyle(
-                                  fontSize: 10.5,
+                  Flexible(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                              '₹${moneyWholeDown(k['outstanding'] as num?)}',
+                              maxLines: 1,
+                              style: TextStyle(
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: kRed)),
-                        )
-                      else
-                        const Text('All clear',
-                            style: TextStyle(fontSize: 10.5, color: kGreen)),
-                    ],
+                                  color: inkOf(context))),
+                        ),
+                        const SizedBox(height: 3),
+                        if (overdue > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: redSoftOf(context),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text('$overdue overdue',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: kRed)),
+                          )
+                        else
+                          const Text('All clear',
+                              maxLines: 1,
+                              style:
+                                  TextStyle(fontSize: 10.5, color: kGreen)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -653,6 +687,10 @@ class _KhataGroupsScreenState extends State<KhataGroupsScreen> {
           where: 'customer = ? OR customer_name = ?', whereArgs: [cu, cn]);
       for (final l in loans) {
         final ref = (l['server_name'] as String?) ?? l['client_uuid'];
+        await state.deleteCashbookForLoan({
+          ref?.toString() ?? '',
+          l['client_uuid']?.toString() ?? '',
+        });
         await db.delete('khatabook_given',
             where: 'khatabook_loan = ?', whereArgs: [ref]);
         await db.delete('khatabook_collections',
@@ -1254,7 +1292,9 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
       case _MemberFilter.upcoming:
         return _isUpcoming(r);
       case _MemberFilter.noDueDate:
-        // No Due Date = no reminder set in the Customer Profile Page.
+        // This filter has always meant "no reminder date set on the Customer
+        // Profile", not "no loan schedule". The old label ("No Due Date")
+        // claimed the second thing and misled the shopkeeper.
         return !r.reminderSet;
     }
   }
@@ -1447,7 +1487,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
   Widget _dividerV() => Container(
         width: 1,
         height: 30,
-        color: kInk.withValues(alpha: .1),
+        color: inkOf(context).withValues(alpha: .1),
       );
 
   Widget _chipRow() {
@@ -1455,7 +1495,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
       ('All', _MemberFilter.all),
       ('Due', _MemberFilter.due),
       ('Upcoming', _MemberFilter.upcoming),
-      ('No Due Date', _MemberFilter.noDueDate),
+      ('No reminder', _MemberFilter.noDueDate),
     ];
     // Always ONE row: the chips scroll sideways instead of wrapping, so a big
     // font / Zoom setting can never push them onto a second line.
@@ -1494,7 +1534,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
     final inLoss = MigrationV12.isLossKhata(widget.khataName);
     final origin =
         inLoss ? (c['previous_village']?.toString() ?? '').trim() : '';
-    final chip = _dueChip(r);
+    final chip = _dueChip(context, r);
     return DragToDeleteTile(
       onDragChanged: (v) => setState(() => _dragActive = v),
       payload: DeletePayload(
@@ -1565,15 +1605,14 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                fontSize: 10.5,
-                                color: Colors.grey.shade600)),
+                                fontSize: 10.5, color: mutedOf(context))),
                       );
                     }),
                     const SizedBox(height: 5),
                     Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                          color: kInk.withValues(alpha: .04),
+                          color: inkOf(context).withValues(alpha: .04),
                           borderRadius: BorderRadius.circular(6)),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
@@ -1584,7 +1623,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                                   .clamp(0.0, 1.0)
                               : 0,
                           minHeight: 5,
-                          backgroundColor: kInk.withValues(alpha: .08),
+                          backgroundColor: inkOf(context).withValues(alpha: .08),
                           valueColor:
                               const AlwaysStoppedAnimation<Color>(kGold),
                         ),
@@ -1641,6 +1680,10 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
     var deleted = 0.0;
     for (final l in loans) {
       final ref = (l['server_name'] as String?) ?? l['client_uuid'];
+      await state.deleteCashbookForLoan({
+        ref?.toString() ?? '',
+        l['client_uuid']?.toString() ?? '',
+      });
       await db.delete('khatabook_given',
           where: 'khatabook_loan = ?', whereArgs: [ref]);
       await db.delete('khatabook_collections',

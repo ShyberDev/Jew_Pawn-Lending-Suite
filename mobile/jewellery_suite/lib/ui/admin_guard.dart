@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
+import '../util/secret_hash.dart';
 
 /// Password-gated destructive actions.
 ///
-/// This is an **accident guard for the shopkeeper, not security**: the string
-/// ships inside the app, so anyone holding the APK can read it. Real
-/// authentication is a separate decision; see the open items in the release
-/// notes.
+/// This is an **accident guard for the shopkeeper, not remote authentication**:
+/// the hash ships on the device, so a determined attacker with the unlocked
+/// phone can still clear app data. What it must never do is store the password
+/// itself. v1.1.1 kept `admin` in plain text in `settings`; this file now
+/// stores only a random salt + stretched hash.
 ///
 /// Everything password-related lives here, in one place:
 /// - the registry of gated actions (add a line here and it automatically
 ///   appears as a toggle in Password Settings),
-/// - the stored password (settings table, default `admin`, changeable),
+/// - the stored hash/salt (settings table),
 /// - the single gate every screen calls.
+///
+/// The old plain-text key is read once, migrated, then erased. `admin` remains
+/// only as the legacy default so a first launch can detect it and force a
+/// change; it is never accepted once a real password is set.
 const kDefaultAdminPassword = 'admin';
+
+const kAdminPasswordHashKey = 'admin_password_hash';
+const kAdminPasswordSaltKey = 'admin_password_salt';
+const kLegacyAdminPasswordKey = 'admin_password';
 
 /// Every destructive action in the app, in one registry.
 ///
@@ -31,19 +41,76 @@ const adminGatedActions = <({String id, String label})>[
   (id: 'pawn_release', label: 'Pawn Release'),
   (id: 'history_clear', label: 'History Clear'),
   (id: 'sample_remove', label: 'Sample Data Remove'),
+  (id: 'backup_restore', label: 'Backup Restore'),
 ];
-
-/// Settings key holding the current password (default [kDefaultAdminPassword]).
-const kAdminPasswordKey = 'admin_password';
 
 /// Settings key prefix holding one toggle per action id (`pwd_<id>` = '1').
 String pwdToggleKey(String actionId) => 'pwd_$actionId';
+
+/// Makes sure a hashed password exists. A database upgraded from v1.1.1 may
+/// still hold the plain-text key; it is read exactly once, hashed, and then
+/// removed. Never returns the password itself.
+Future<void> ensureAdminPassword(AppState state) async {
+  final db = state.db;
+  final existingHash = await db.getSetting(kAdminPasswordHashKey);
+  final existingSalt = await db.getSetting(kAdminPasswordSaltKey);
+  if (existingHash != null &&
+      existingHash.isNotEmpty &&
+      existingSalt != null &&
+      existingSalt.isNotEmpty) {
+    // Clean up a legacy row even if a previous run already wrote the hash.
+    if (await db.getSetting(kLegacyAdminPasswordKey) != null) {
+      await db.setSetting(kLegacyAdminPasswordKey, null);
+    }
+    return;
+  }
+  final legacy = await db.getSetting(kLegacyAdminPasswordKey);
+  final seed = (legacy == null || legacy.trim().isEmpty)
+      ? kDefaultAdminPassword
+      : legacy;
+  final salt = randomSalt();
+  await db.setSetting(kAdminPasswordSaltKey, salt);
+  await db.setSetting(kAdminPasswordHashKey, hashSecret(seed, salt));
+  await db.setSetting(kLegacyAdminPasswordKey, null);
+}
+
+/// True while the password is still the shipped default (`admin`). The startup
+/// gate uses this to force a change before the shop can be used.
+Future<bool> adminPasswordIsDefault(AppState state) async {
+  await ensureAdminPassword(state);
+  return verifyAdminPassword(state, kDefaultAdminPassword);
+}
+
+/// Checks [input] against the stored salted hash.
+Future<bool> verifyAdminPassword(AppState state, String input) async {
+  await ensureAdminPassword(state);
+  final hash = await state.db.getSetting(kAdminPasswordHashKey) ?? '';
+  final salt = await state.db.getSetting(kAdminPasswordSaltKey) ?? '';
+  if (hash.isEmpty || salt.isEmpty) return false;
+  return constantTimeEquals(hashSecret(input, salt), hash);
+}
+
+/// Replaces the password with a fresh salt + hash. Rejects the shipped default
+/// and anything shorter than six characters, so the "force change" gate cannot
+/// immediately undo itself.
+Future<void> setAdminPassword(AppState state, String next) async {
+  final trimmed = next.trim();
+  if (trimmed.length < 6) {
+    throw const FormatException('Use at least 6 characters.');
+  }
+  if (trimmed.toLowerCase() == kDefaultAdminPassword) {
+    throw const FormatException('Do not use the default password.');
+  }
+  final salt = randomSalt();
+  await state.db.setSetting(kAdminPasswordSaltKey, salt);
+  await state.db.setSetting(kAdminPasswordHashKey, hashSecret(trimmed, salt));
+  await state.db.setSetting(kLegacyAdminPasswordKey, null);
+}
 
 /// The single gate every destructive action calls.
 ///
 /// Returns true when the action may proceed: either its toggle (and the master
 /// switch) is off, or the shopkeeper typed the current password.
-/// Comparison is case-insensitive.
 Future<bool> askPasswordIfEnabled(
   BuildContext context,
   AppState state, {
@@ -57,36 +124,34 @@ Future<bool> askPasswordIfEnabled(
   // A toggle never saved counts as ON (password asked) — safe default.
   final enabled = master && toggle != '0';
   if (!enabled) return true;
-  final current = await state.db.getSetting(kAdminPasswordKey) ??
-      kDefaultAdminPassword;
-  // The screen can be popped while the two reads above are in flight. This is a
-  // destructive action, so it fails CLOSED: no screen, no password prompt, no
-  // delete. Never grant an unlock to a context that no longer exists.
+  // The screen can be popped while the read above is in flight. This is a
+  // destructive action, so it fails CLOSED: no screen, no prompt, no delete.
   if (!context.mounted) return false;
-  return confirmAdmin(context,
-      action: action,
-      detail: detail,
-      confirmLabel: confirmLabel,
-      expected: current);
+  return confirmAdmin(
+    context,
+    action: action,
+    detail: detail,
+    confirmLabel: confirmLabel,
+    verify: (typed) => verifyAdminPassword(state, typed),
+  );
 }
 
 /// Asks for the password before a destructive [action].
 ///
-/// Returns true only when the correct password is typed. [detail] names what
+/// Returns true only when [verify] accepts what was typed. [detail] names what
 /// is being acted on (a customer, a khata) and appears in the question.
 /// [confirmLabel] is the button the user presses to go ahead.
-/// [expected] is the password to check against (default [kAdminPassword]).
 Future<bool> confirmAdmin(
   BuildContext context, {
   required String action,
   String? detail,
   String confirmLabel = 'Delete',
-  String expected = kDefaultAdminPassword,
+  required Future<bool> Function(String typed) verify,
 }) async {
   final pw = TextEditingController();
   final subject = detail == null || detail.isEmpty ? '' : ' $detail';
   try {
-    final ok = await showDialog<bool>(
+    final typed = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Are you sure to $action$subject?'),
@@ -101,19 +166,18 @@ Future<bool> confirmAdmin(
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed: () => Navigator.pop(ctx, null),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(
-                ctx, pw.text.trim().toLowerCase() == expected.toLowerCase()),
+            onPressed: () => Navigator.pop(ctx, pw.text),
             child: Text(confirmLabel),
           ),
         ],
       ),
     );
-    return ok ?? false;
+    if (typed == null) return false;
+    return await verify(typed);
   } finally {
     pw.dispose();
   }
 }
-

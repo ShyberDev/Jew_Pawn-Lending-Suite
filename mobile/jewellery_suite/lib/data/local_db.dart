@@ -38,12 +38,35 @@ class LocalDb {
             ? 'jewellery_suite.db'
             : p.join(await getDatabasesPath(), 'jewellery_suite.db'));
     path = file;
+    await _open(file);
+  }
+
+  Future<void> _open(String file) async {
     _db = await openDatabase(
       file,
       version: MigrationV15.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
+  }
+
+  /// Closes the connection before a restore replaces the file. Screens keep
+  /// the same [LocalDb] instance; [reopen] brings it back on the new bytes.
+  Future<void> close() async {
+    final open = _db;
+    _db = null;
+    await open?.close();
+  }
+
+  /// Re-opens the database at the path already recorded by [init]. On an
+  /// upgrade, SQLite runs the same migrations as a normal launch.
+  Future<void> reopen() async {
+    final file = path;
+    if (file == null) {
+      await init();
+      return;
+    }
+    await _open(file);
   }
 
   Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
@@ -360,6 +383,17 @@ class LocalDb {
       )
     ''');
 
+    // Fresh installs never run the v9 upgrade, so create its audit table here
+    // too. Backups track it and must see a real (possibly empty) table.
+    await db.execute('''
+      CREATE TABLE migration_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version INTEGER, ran_at TEXT, linked_by_uuid INTEGER,
+        linked_by_unique_name INTEGER, already_linked INTEGER,
+        needs_review INTEGER, detail TEXT
+      )
+    ''');
+
     await db
         .execute('CREATE INDEX idx_pawn_items_loan ON pawn_items(loan_uuid)');
     await db.execute(
@@ -659,5 +693,63 @@ class LocalDb {
   Future<void> deleteCashbookEntry(String uuid) async {
     await db.delete('cashbook_entries',
         where: 'client_uuid = ?', whereArgs: [uuid]);
+  }
+
+  /// Cash entries created by one source row (a loan, collection, release…).
+  ///
+  /// `reference_id` is not globally unique across modules by accident: every
+  /// automated entry stores the uuid of the row that caused it. The optional
+  /// [category] narrows this to one module when a source can have more than
+  /// one entry (for example a refinance writes only the fresh-cash OUT).
+  Future<List<Map<String, Object?>>> cashbookForReference(
+    String referenceId, {
+    String? category,
+  }) {
+    return db.query(
+      'cashbook_entries',
+      where: category == null
+          ? 'reference_id = ?'
+          : 'reference_id = ? AND category = ?',
+      whereArgs: category == null
+          ? [referenceId]
+          : [referenceId, category],
+      orderBy: 'entry_date asc, entry_time asc',
+    );
+  }
+
+  /// Removes every automated entry that points at one of [references].
+  ///
+  /// Used by the delete hooks. Manual entries are never touched because they
+  /// have no source reference.
+  Future<void> deleteCashbookForReferences(Iterable<String> references) async {
+    final refs = references
+        .map((r) => r.trim())
+        .where((r) => r.isNotEmpty)
+        .toSet()
+        .toList();
+    if (refs.isEmpty) return;
+    final placeholders = List.filled(refs.length, '?').join(', ');
+    await db.delete('cashbook_entries',
+        where: 'reference_id IN ($placeholders)', whereArgs: refs);
+  }
+
+  /// Removes a legacy automated entry identified by its category, reference,
+  /// amount and business date.
+  ///
+  /// Before v1.1.2 a collection hook stored the *loan* uuid in `reference_id`;
+  /// the row can still be found without guessing because amount + date + loan
+  /// are all known from the collection being deleted.
+  Future<void> deleteCashbookMatching({
+    required String category,
+    required String referenceId,
+    required double amount,
+    required String date,
+  }) async {
+    await db.delete(
+      'cashbook_entries',
+      where: 'category = ? AND reference_id = ? AND amount = ? '
+          'AND entry_date = ?',
+      whereArgs: [category, referenceId, amount, date],
+    );
   }
 }

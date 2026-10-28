@@ -249,4 +249,69 @@ void main() {
       expect(counts.values.every((v) => v >= 0), isTrue);
     });
   });
+
+  group('restoreBackup (#036)', () {
+    test('round-trips the database and photos, with a safety backup', () async {
+      await addPhoto('front.jpg', 'original-photo');
+      final backup = await backups.createBackup(includePhotos: true);
+      expect(backup.verified, isTrue, reason: backup.problem ?? '');
+
+      // Move the live data on: rename the customer, add another one, delete
+      // the photo. Restoring must undo all three.
+      await db.upsert('customers', {
+        'client_uuid': 'c1',
+        'customer_name': 'Ravi After Edit',
+        'customer_id': 'A-01',
+        'phone': '9000000001',
+        'village': 'Pallipatti',
+      });
+      await db.upsert('customers', {
+        'client_uuid': 'c2',
+        'customer_name': 'Added Later',
+        'customer_id': 'A-02',
+      });
+      await File(p.join(root.path, 'photos', 'front.jpg')).delete();
+
+      final result = await backups.restoreBackup(backup.info.path);
+      expect(result.restored, isTrue, reason: result.problem ?? '');
+      expect(result.safetyBackup, isNotNull);
+      expect(result.restoredPhotos, 1);
+
+      final customer = (await db.byUuid('customers', 'c1'))!;
+      expect(customer['customer_name'], 'Ravi Kumar');
+      expect(await db.byUuid('customers', 'c2'), isNull,
+          reason: 'data added after the backup is replaced');
+      expect(await File(p.join(root.path, 'photos', 'front.jpg')).readAsString(),
+          'original-photo');
+
+      // The pre-restore state is itself recoverable.
+      expect(result.safetyBackup!.bytes, greaterThan(0));
+      final files = await backups.listBackups();
+      expect(files.length, 2);
+      expect(files.map((f) => f.path), contains(result.safetyBackup!.path));
+    });
+
+    test('refuses a file that is not a backup and changes nothing', () async {
+      final fake = File(p.join(root.path, 'not-a-backup.zip'))
+        ..writeAsStringSync('hello');
+      final result = await backups.restoreBackup(fake.path);
+      expect(result.restored, isFalse);
+      expect(result.problem, isNotNull);
+      final customer = (await db.byUuid('customers', 'c1'))!;
+      expect(customer['customer_name'], 'Ravi Kumar',
+          reason: 'the live data must be untouched');
+    });
+
+    test('a database-only restore leaves existing photos alone', () async {
+      await addPhoto('front.jpg', 'keep-me');
+      final backup = await backups.createBackup(includePhotos: false);
+      expect(backup.verified, isTrue, reason: backup.problem ?? '');
+
+      final result = await backups.restoreBackup(backup.info.path);
+      expect(result.restored, isTrue, reason: result.problem ?? '');
+      expect(await File(p.join(root.path, 'photos', 'front.jpg')).readAsString(),
+          'keep-me',
+          reason: 'a backup without photos must not delete the photo folder');
+    });
+  });
 }

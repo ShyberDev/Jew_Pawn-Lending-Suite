@@ -263,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(4),
               child: CircleAvatar(
                 radius: 20,
-                backgroundColor: Colors.white,
+                backgroundColor: surfaceOf(context),
                 backgroundImage: state.userPhoto.isNotEmpty
                     ? photoProvider(state.userPhoto)
                     : null,

@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'app_lock_settings_screen.dart';
 import 'backup_screen.dart';
 import 'palette.dart';
 import 'photo_local.dart';
@@ -58,6 +59,15 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Notifications', onTap: () => comingSoon(context)),
               _tile(context, icon: Icons.alarm, title: 'Reminders',
                   onTap: () => comingSoon(context)),
+              _tile(context,
+                  icon: Icons.lock_outline,
+                  title: 'App lock (PIN)',
+                  subtitle: 'Ask for a 4–6 digit PIN when the app opens',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AppLockSettingsScreen()),
+                  )),
               const Divider(height: 24),
               // v1.0.12: backups and the sample-data clean-up. Nothing here
               // runs by itself — the shopkeeper creates a backup or removes

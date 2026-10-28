@@ -1,0 +1,5 @@
+# Flutter defaults to one test isolate per CPU core. On high-core machines the
+# sqflite FFI helpers and the widget-test bindings can keep the runner alive
+# after every test has passed (#025): the suite prints "All tests passed!" and
+# then never exits. Two workers keeps the run parallel while exiting cleanly.
+concurrency: 2

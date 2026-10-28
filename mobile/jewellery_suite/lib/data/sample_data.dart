@@ -302,6 +302,16 @@ class SampleDataService {
       'villages',
       'customers',
     ];
+    // Every source row that can own a Cashbook entry. Collect the references
+    // BEFORE deleting so the automated cash rows go with their source: a
+    // sample loan's disbursement, its collections and a refinance's fresh
+    // cash must not survive in the shop's real cashbook.
+    final cashRefs = <String>{
+      for (final rows in report.byTable.values)
+        for (final r in rows)
+          if (r.uuid.isNotEmpty) r.uuid,
+    };
+
     for (final table in order) {
       final rows = report.byTable[table];
       if (rows == null || rows.isEmpty) continue;
@@ -317,6 +327,8 @@ class SampleDataService {
         await db.deleteWhere(table, '$pk = ?', [value]);
       }
     }
+
+    await db.deleteCashbookForReferences(cashRefs);
     // A final read proves nothing is left behind.
     return inspect();
   }
