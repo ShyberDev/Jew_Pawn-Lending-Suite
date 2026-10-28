@@ -25,13 +25,14 @@ void main() {
         businessDate: '2026-10-01',
         entryAt: '2026-10-01T19:47:12.345',
       );
-      expect(r.when, DateTime(2026, 10, 1));
+      expect(r.when, DateTime(2026, 10, 1, 19, 47, 12, 345));
       // Same day: the clock is what separates two entries, so it is kept.
       expect(r.stamp, contains('47'));
     });
 
     test('falls back to the entry time when there is no business date', () {
-      final r = ledgerWhen(businessDate: null, entryAt: '2026-10-01T09:05:00.0');
+      final r =
+          ledgerWhen(businessDate: null, entryAt: '2026-10-01T09:05:00.0');
       // With no business date the entry timestamp IS the truth, time and all.
       expect(r.when, DateTime(2026, 10, 1, 9, 5));
       expect(r.stamp, isNotEmpty);

@@ -232,11 +232,14 @@ class AppState extends ChangeNotifier {
       if (totalPaid > 0) {
         await db.addCashbookEntry({
           'client_uuid': newUuid(),
-          'entry_date': data['release_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_date':
+              data['release_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'IN',
           'amount': Num.rupees(totalPaid),
-          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+          'payment_mode':
+              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
           'category': 'PAWN_REPAYMENT',
           'reference_id': uuid,
           'party_name': data['customer']?.toString() ?? '',
@@ -254,8 +257,10 @@ class AppState extends ChangeNotifier {
       if (principal > 0) {
         await db.addCashbookEntry({
           'client_uuid': newUuid(),
-          'entry_date': data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_date':
+              data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'OUT',
           'amount': Num.rupees(principal),
           'payment_mode': 'CASH',
@@ -276,14 +281,19 @@ class AppState extends ChangeNotifier {
       if (amount > 0) {
         await db.addCashbookEntry({
           'client_uuid': newUuid(),
-          'entry_date': data['collection_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_date': data['collection_date']?.toString().substring(0, 10) ??
+              _isoDay(now),
+          'entry_time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'IN',
           'amount': Num.rupees(amount),
-          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+          'payment_mode':
+              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
           'category': 'KHATA_COLLECTION',
           'reference_id': uuid,
-          'party_name': data['customer']?.toString() ?? data['customer_name']?.toString() ?? '',
+          'party_name': data['customer']?.toString() ??
+              data['customer_name']?.toString() ??
+              '',
           'notes': 'Khata collection payment',
           'created_at': now.toIso8601String(),
           'dirty': 1,
@@ -298,11 +308,14 @@ class AppState extends ChangeNotifier {
       if (amount > 0) {
         await db.addCashbookEntry({
           'client_uuid': newUuid(),
-          'entry_date': data['given_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_date':
+              data['given_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'OUT',
           'amount': Num.rupees(amount),
-          'payment_mode': (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+          'payment_mode':
+              (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
           'category': 'KHATA_DISBURSE',
           'reference_id': uuid,
           'party_name': data['customer_name']?.toString() ?? '',
@@ -353,8 +366,10 @@ class AppState extends ChangeNotifier {
       if (loanAmount > 0) {
         await db.addCashbookEntry({
           'client_uuid': newUuid(),
-          'entry_date': data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
-          'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+          'entry_date':
+              data['loan_date']?.toString().substring(0, 10) ?? _isoDay(now),
+          'entry_time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
           'entry_type': 'OUT',
           'amount': Num.rupees(loanAmount),
           'payment_mode': 'CASH',
@@ -929,8 +944,10 @@ class AppState extends ChangeNotifier {
           whereArgs: ['Active', 'ACTIVE']),
       'collected_today': await db.sum('khatabook_collections', 'amount',
           where: 'collection_date = ?', whereArgs: [today]),
-      'cashbook_in': (await db.getCashbookDailySummary(today))['total_in'] ?? 0.0,
-      'cashbook_out': (await db.getCashbookDailySummary(today))['total_out'] ?? 0.0,
+      'cashbook_in':
+          (await db.getCashbookDailySummary(today))['total_in'] ?? 0.0,
+      'cashbook_out':
+          (await db.getCashbookDailySummary(today))['total_out'] ?? 0.0,
       'cashbook_net': (await db.getCashbookDailySummary(today))['net'] ?? 0.0,
     };
   }
@@ -978,12 +995,19 @@ class AppState extends ChangeNotifier {
     String? date,
     String? mode,
     String? type,
+    String? source,
   }) =>
-      db.getCashbookEntries(date: date, mode: mode, type: type);
+      db.getCashbookEntries(date: date, mode: mode, type: type, source: source);
 
-  Future<Map<String, double>> getCashbookDailySummary([String? date]) {
+  Future<Map<String, double>> getCashbookDailySummary(
+    String? date, {
+    String? mode,
+    String? type,
+    String? source,
+  }) {
     final d = date ?? _isoDay(DateTime.now());
-    return db.getCashbookDailySummary(d);
+    return db.getCashbookDailySummary(d,
+        mode: mode, type: type, source: source);
   }
 
   // ---------------------------------------------------------- customer IDs
@@ -1295,7 +1319,8 @@ class AppState extends ChangeNotifier {
     await db.addCashbookEntry({
       'client_uuid': newUuid(),
       'entry_date': _isoDay(receivedOn),
-      'entry_time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+      'entry_time':
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
       'entry_type': 'IN',
       'amount': Num.rupees(amount),
       'payment_mode': mode.toUpperCase(),
@@ -1426,8 +1451,7 @@ class AppState extends ChangeNotifier {
       // from anywhere in Khatabook. Reuse the shop's Pallipatti khata when it
       // is there, otherwise create one for the sample set.
       const sampleVillage = 'Pallipatti';
-      final villageRows =
-          await db.query('villages', columns: ['village_name']);
+      final villageRows = await db.query('villages', columns: ['village_name']);
       final villageName = villageRows
           .map((v) => (v['village_name']?.toString() ?? '').trim())
           .firstWhere((v) => v.toLowerCase() == sampleVillage.toLowerCase(),
@@ -1726,10 +1750,8 @@ class AppState extends ChangeNotifier {
           'start_date': _isoDay(start),
           'end_date': s.$11
               ? null
-              : _isoDay(_addSteps(
-                  DateTime(start.year, start.month, start.day),
-                  s.$6 * KhataSchedule.intervalDays(s.$7),
-                  s.$7)),
+              : _isoDay(_addSteps(DateTime(start.year, start.month, start.day),
+                  s.$6 * KhataSchedule.intervalDays(s.$7), s.$7)),
           'principal_amount': s.$4,
           'interest_amount': s.$5,
           'total_payable': total,

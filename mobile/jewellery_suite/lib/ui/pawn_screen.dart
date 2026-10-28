@@ -1174,7 +1174,8 @@ class _PawnDetailState extends State<_PawnDetail> {
                         color: kGold.withValues(alpha: .15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.diamond_outlined, color: kGoldDark, size: 24),
+                      child: const Icon(Icons.diamond_outlined,
+                          color: kGoldDark, size: 24),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1182,16 +1183,25 @@ class _PawnDetailState extends State<_PawnDetail> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('Customer Pawn Profile',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kGoldDark)),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: kGoldDark)),
                           Text(loan['customer_name']?.toString() ?? '-',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: released ? kGreen.withValues(alpha: .15) : kGold.withValues(alpha: .2),
+                        color: released
+                            ? kGreen.withValues(alpha: .15)
+                            : kGold.withValues(alpha: .2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -1216,7 +1226,8 @@ class _PawnDetailState extends State<_PawnDetail> {
                   child: ListTile(
                     dense: true,
                     leading: const Icon(Icons.badge_outlined, color: kGoldDark),
-                    title: const Text('Customer KYC & Details', style: TextStyle(fontWeight: FontWeight.w600)),
+                    title: const Text('Customer KYC & Details',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text((() {
                       final id = widget.customerId;
                       final phone = (loan['phone'] ?? '') as String;
@@ -1240,7 +1251,9 @@ class _PawnDetailState extends State<_PawnDetail> {
                             MaterialPageRoute(
                               builder: (_) => CustomerForm(
                                 existing: cust,
-                                initialType: cust['customer_type']?.toString() ?? 'General',
+                                initialType:
+                                    cust['customer_type']?.toString() ??
+                                        'General',
                               ),
                             ),
                           );
@@ -1331,7 +1344,8 @@ class _PawnDetailState extends State<_PawnDetail> {
                       final granted = await askPasswordIfEnabled(context, state,
                           actionId: 'pawn_delete',
                           action: 'delete',
-                          detail: loan['customer_name']?.toString() ?? 'pawn loan');
+                          detail:
+                              loan['customer_name']?.toString() ?? 'pawn loan');
                       if (!context.mounted) return;
                       if (granted != true) {
                         _toast(context, 'Delete cancelled / wrong password.');
@@ -1341,20 +1355,25 @@ class _PawnDetailState extends State<_PawnDetail> {
                       final uuid = loan['client_uuid'] as String?;
                       final ref = (loan['server_name'] as String?) ?? uuid;
                       if (uuid == null) return;
-                      await db.delete('pawn_loans', where: 'client_uuid = ?', whereArgs: [uuid]);
-                      await db.delete('pawn_items', where: 'loan_uuid = ?', whereArgs: [uuid]);
+                      await db.delete('pawn_loans',
+                          where: 'client_uuid = ?', whereArgs: [uuid]);
+                      await db.delete('pawn_items',
+                          where: 'loan_uuid = ?', whereArgs: [uuid]);
                       await db.delete('pawn_transactions',
-                          where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
+                          where: 'pawn_loan = ? OR pawn_loan = ?',
+                          whereArgs: [ref, uuid]);
                       await db.delete('pawn_releases',
-                          where: 'pawn_loan = ? OR pawn_loan = ?', whereArgs: [ref, uuid]);
-                      await state.logEvent(
-                          'pawn', 'delete', 'Pawn loan deleted — ${loan['customer_name'] ?? ''}',
+                          where: 'pawn_loan = ? OR pawn_loan = ?',
+                          whereArgs: [ref, uuid]);
+                      await state.logEvent('pawn', 'delete',
+                          'Pawn loan deleted — ${loan['customer_name'] ?? ''}',
                           amount: Num.toDouble(loan['loan_amount']));
                       if (!context.mounted) return;
                       Navigator.pop(context, true);
                     },
                     icon: const Icon(Icons.delete_outline, color: kRed),
-                    label: const Text('Delete Loan', style: TextStyle(color: kRed)),
+                    label: const Text('Delete Loan',
+                        style: TextStyle(color: kRed)),
                   ),
                 ],
                 const Divider(height: 28),
@@ -1544,6 +1563,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   final _phone = TextEditingController();
   final _customerId = TextEditingController();
   bool _scanning = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -1573,11 +1593,12 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       if ((customer['id_proof_number']?.toString() ?? '').isNotEmpty) {
         _idNumber.text = customer['id_proof_number'].toString();
       }
-      if (customer['id_front'] != null) {
-        _idFront = customer['id_front'] as String?;
+      if ((customer['id_photo_front'] ?? customer['id_front']) != null) {
+        _idFront =
+            (customer['id_photo_front'] ?? customer['id_front']) as String?;
       }
-      if (customer['id_back'] != null) {
-        _idBack = customer['id_back'] as String?;
+      if ((customer['id_photo_back'] ?? customer['id_back']) != null) {
+        _idBack = (customer['id_photo_back'] ?? customer['id_back']) as String?;
       }
       _setBasis(_basis, _customers);
     });
@@ -1797,7 +1818,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
           ? customer['gold_interest_rate']
           : (basis == 'Silver'
               ? customer['silver_interest_rate']
-              : (customer['gold_interest_rate'] ?? customer['silver_interest_rate']));
+              : (customer['gold_interest_rate'] ??
+                  customer['silver_interest_rate']));
       final value = Num.toDouble(override);
       _rate.text = (value > 0
               ? value
@@ -1825,134 +1847,153 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_saving) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+            content: Text('Please fill the required fields marked *.')));
+      return;
+    }
     final state = context.read<AppState>();
-    if (_customerUuid == null || _customerUuid!.isEmpty) {
-      final typedName = (_customerName?.trim().isNotEmpty == true)
-          ? _customerName!.trim()
-          : _customerNameController.text.trim();
-      if (typedName.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select or type a customer name')));
-        return;
+    setState(() => _saving = true);
+    try {
+      if (_customerUuid == null || _customerUuid!.isEmpty) {
+        final typedName = (_customerName?.trim().isNotEmpty == true)
+            ? _customerName!.trim()
+            : _customerNameController.text.trim();
+        if (typedName.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Please select or type a customer name')));
+          return;
+        }
+        final newUuidVal = newUuid();
+        final newId = await state.claimCustomerId(_customerId.text.trim());
+        await state.saveEntity(
+          table: 'customers',
+          doctype: 'Pawn Customer',
+          uuid: newUuidVal,
+          data: {
+            'customer_name': typedName,
+            'customer_id': newId,
+            'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+            'village':
+                _address.text.trim().isEmpty ? null : _address.text.trim(),
+            'id_proof_type': _idProofType,
+            'id_proof_number':
+                _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
+            'id_photo_front': _idFront,
+            'id_photo_back': _idBack,
+            'customer_type': 'General',
+          },
+        );
+        _customerUuid = newUuidVal;
+        _customerName = typedName;
       }
-      final newUuidVal = newUuid();
-      final newId = _customerId.text.trim().isNotEmpty
-          ? await state.claimCustomerId(_customerId.text.trim())
-          : await state.claimCustomerId('A01');
-      await state.saveEntity(
-        table: 'customers',
-        doctype: 'Pawn Customer',
-        uuid: newUuidVal,
+      final items = _items.map((e) => e.toMap()).toList();
+      double totalGross = 0, totalNet = 0, hallmarked = 0, marketValue = 0;
+      for (final item in items) {
+        final gross = Num.toDouble(item['gross_weight']);
+        final net = Num.toDouble(item['net_weight']);
+        totalGross += gross;
+        totalNet += net;
+        if (item['hallmarked'] == 1) hallmarked += net;
+        marketValue += Num.toDouble(item['market_value']);
+      }
+      final loanAmount = Num.money(parseMoney(_amount.text));
+      final parsedRate = parseMoney(_rate.text);
+      final rate = parsedRate == 0 ? 3.0 : parsedRate;
+      final loanUuid = newUuid();
+      final due = _dueDate ?? _loanDate.add(const Duration(days: 90));
+      final days = due.difference(_loanDate).inDays;
+      final interest = Num.simpleInterest(
+          principal: loanAmount, ratePerMonth: rate, days: days);
+
+      // v1.0.9: the Customer ID typed here is the customer's book number — keep
+      // the customer's record in step (duplicate IDs are rejected).
+      if (_customerUuid != null && _customerId.text.trim().isNotEmpty) {
+        // Read the row from the store, not the list loaded when the screen
+        // opened: a customer created during this save is not in that list yet,
+        // and spreading an empty map used to insert a ghost row with no uuid.
+        final customerRow = await state.db.byUuid('customers', _customerUuid!);
+        final current = customerRow?['customer_id']?.toString() ?? '';
+        final typed = _customerId.text.trim();
+        if (customerRow != null && typed.isNotEmpty && typed != current) {
+          try {
+            final claimed =
+                await state.claimCustomerId(typed, excludeUuid: _customerUuid);
+            await state.db
+                .upsert('customers', {...customerRow, 'customer_id': claimed});
+          } on StateError catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(e.message)));
+            }
+            return;
+          }
+        }
+      }
+
+      await state.savePawnLoan(
+        uuid: loanUuid,
         data: {
-          'customer_name': typedName,
-          'customer_id': newId,
-          'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          'customer': _customerName,
+          'customer_name': _customerName,
+          // v9: identity is the uuid; the name is only a display cache.
+          'customer_uuid': _customerUuid,
           'village': _address.text.trim().isEmpty ? null : _address.text.trim(),
+          'status': 'Active',
+          'loan_date': _loanDate.toIso8601String().substring(0, 10),
+          'interest_basis': _basis,
+          'loan_amount': loanAmount,
+          'interest_rate': rate,
+          'due_date': due.toIso8601String().substring(0, 10),
+          'total_gross_weight': Num.round3(totalGross),
+          'total_net_weight': Num.round3(totalNet),
+          'hallmarked_weight': Num.round3(hallmarked),
+          'non_hallmarked_weight': Num.round3(totalNet - hallmarked),
+          'total_market_value': Num.money(marketValue),
+          // LTV always uses the same 2-decimal rounding (Num.roundPct), so the
+          // create screen, an item edit and the server can never disagree.
+          'ltv': marketValue > 0
+              ? Num.roundPct(loanAmount / marketValue * 100)
+              : 0,
+          'interest_accrued': interest,
+          // v1.0.9: the stored interest runs UP TO the due date, so the accrual
+          // anchor starts at the due date. PawnMath adds interest from here on.
+          'last_interest_date': due.toIso8601String().substring(0, 10),
+          'total_payable': Num.money(loanAmount + interest),
+          'amount_paid': 0,
+          'balance': Num.money(loanAmount + interest),
+          'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          // v1.0.9: ID proof captured on the loan itself.
           'id_proof_type': _idProofType,
           'id_proof_number':
               _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
           'id_front': _idFront,
           'id_back': _idBack,
-          'customer_type': 'General',
         },
+        items: items,
       );
-      _customerUuid = newUuidVal;
-      _customerName = typedName;
-    }
-    final items = _items.map((e) => e.toMap()).toList();
-    double totalGross = 0, totalNet = 0, hallmarked = 0, marketValue = 0;
-    for (final item in items) {
-      final gross = Num.toDouble(item['gross_weight']);
-      final net = Num.toDouble(item['net_weight']);
-      totalGross += gross;
-      totalNet += net;
-      if (item['hallmarked'] == 1) hallmarked += net;
-      marketValue += Num.toDouble(item['market_value']);
-    }
-    final loanAmount = Num.money(parseMoney(_amount.text));
-    final parsedRate = parseMoney(_rate.text);
-    final rate = parsedRate == 0 ? 3.0 : parsedRate;
-    final loanUuid = newUuid();
-    final due = _dueDate ?? _loanDate.add(const Duration(days: 90));
-    final days = due.difference(_loanDate).inDays;
-    final interest = Num.simpleInterest(
-        principal: loanAmount, ratePerMonth: rate, days: days);
 
-    // v1.0.9: the Customer ID typed here is the customer's book number — keep
-    // the customer's record in step (duplicate IDs are rejected).
-    if (_customerUuid != null && _customerId.text.trim().isNotEmpty) {
-      final current = _customers
-              .where((c) => c['client_uuid'] == _customerUuid)
-              .map((c) => c['customer_id']?.toString() ?? '')
-              .firstOrNull ??
-          '';
-      final typed = _customerId.text.trim();
-      if (typed.isNotEmpty && typed != current) {
-        try {
-          final claimed =
-              await state.claimCustomerId(typed, excludeUuid: _customerUuid);
-          await state.db.upsert('customers', {
-            ..._customers.firstWhere((c) => c['client_uuid'] == _customerUuid,
-                orElse: () => {}),
-            'customer_id': claimed,
-            'dirty': 1,
-          });
-        } on StateError catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(e.message)));
-          }
-          return;
-        }
+      // Item photos are stored on the pawn_items rows inside savePawnLoan —
+      // no separate photo write needed. (Previously this loop wrote to a
+      // non-existent pawn_loans.photo_path column and aborted the whole save.)
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      // A failed write must never look like a dead button. Show the reason and
+      // keep the form open so nothing typed is lost.
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text('Could not save pawn loan: $error'),
+            duration: const Duration(seconds: 6),
+          ));
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    await state.savePawnLoan(
-      uuid: loanUuid,
-      data: {
-        'customer': _customerName,
-        'customer_name': _customerName,
-        // v9: identity is the uuid; the name is only a display cache.
-        'customer_uuid': _customerUuid,
-        'village': _address.text.trim().isEmpty ? null : _address.text.trim(),
-        'status': 'Active',
-        'loan_date': _loanDate.toIso8601String().substring(0, 10),
-        'interest_basis': _basis,
-        'loan_amount': loanAmount,
-        'interest_rate': rate,
-        'due_date': due.toIso8601String().substring(0, 10),
-        'total_gross_weight': Num.round3(totalGross),
-        'total_net_weight': Num.round3(totalNet),
-        'hallmarked_weight': Num.round3(hallmarked),
-        'non_hallmarked_weight': Num.round3(totalNet - hallmarked),
-        'total_market_value': Num.money(marketValue),
-        // LTV always uses the same 2-decimal rounding (Num.roundPct), so the
-        // create screen, an item edit and the server can never disagree.
-        'ltv':
-            marketValue > 0 ? Num.roundPct(loanAmount / marketValue * 100) : 0,
-        'interest_accrued': interest,
-        // v1.0.9: the stored interest runs UP TO the due date, so the accrual
-        // anchor starts at the due date. PawnMath adds interest from here on.
-        'last_interest_date': due.toIso8601String().substring(0, 10),
-        'total_payable': Num.money(loanAmount + interest),
-        'amount_paid': 0,
-        'balance': Num.money(loanAmount + interest),
-        'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-        // v1.0.9: ID proof captured on the loan itself.
-        'id_proof_type': _idProofType,
-        'id_proof_number':
-            _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
-        'id_front': _idFront,
-        'id_back': _idBack,
-      },
-      items: items,
-    );
-
-    // Item photos are stored on the pawn_items rows inside savePawnLoan —
-    // no separate photo write needed. (Previously this loop wrote to a
-    // non-existent pawn_loans.photo_path column and aborted the whole save.)
-    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -1974,7 +2015,15 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 : const Icon(Icons.document_scanner_outlined, color: kGoldDark),
             onPressed: _scanning ? null : _scanSlip,
           ),
-          TextButton(onPressed: _save, child: const Text('SAVE')),
+          TextButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: kGoldDark))
+                  : const Text('SAVE')),
         ],
       ),
       body: Form(
@@ -1987,19 +2036,23 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                 children: [
                   Expanded(
                     child: Autocomplete<Map<String, Object?>>(
-                      initialValue: TextEditingValue(text: _customerNameController.text),
+                      initialValue:
+                          TextEditingValue(text: _customerNameController.text),
                       displayStringForOption: (option) =>
                           option['customer_name']?.toString() ?? '',
                       optionsBuilder: (TextEditingValue textEditingValue) {
-                        final query = textEditingValue.text.trim().toLowerCase();
+                        final query =
+                            textEditingValue.text.trim().toLowerCase();
                         if (query.isEmpty) {
                           return _customers.take(15);
                         }
                         final matches = _customers.where((c) {
-                          final name =
-                              (c['customer_name']?.toString() ?? '').toLowerCase();
-                          final phone = (c['phone']?.toString() ?? '').toLowerCase();
-                          final id = (c['customer_id']?.toString() ?? '').toLowerCase();
+                          final name = (c['customer_name']?.toString() ?? '')
+                              .toLowerCase();
+                          final phone =
+                              (c['phone']?.toString() ?? '').toLowerCase();
+                          final id = (c['customer_id']?.toString() ?? '')
+                              .toLowerCase();
                           return name.contains(query) ||
                               phone.contains(query) ||
                               id.contains(query);
@@ -2022,17 +2075,19 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                       },
                       onSelected: (option) {
                         if (option['_isNew'] == true) {
-                          final name = option['customer_name']?.toString() ?? '';
+                          final name =
+                              option['customer_name']?.toString() ?? '';
                           _customerNameController.text = name;
                           _onCustomerTyped(name);
                         } else {
                           _onCustomerSelected(option);
                         }
                       },
-                      fieldViewBuilder:
-                          (context, textController, focusNode, onFieldSubmitted) {
+                      fieldViewBuilder: (context, textController, focusNode,
+                          onFieldSubmitted) {
                         textController.addListener(() {
-                          if (_customerNameController.text != textController.text) {
+                          if (_customerNameController.text !=
+                              textController.text) {
                             _customerNameController.text = textController.text;
                             _customerName = textController.text;
                           }
@@ -2058,35 +2113,44 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
                                 maxHeight: 250,
-                                maxWidth: MediaQuery.of(context).size.width - 48,
+                                maxWidth:
+                                    MediaQuery.of(context).size.width - 48,
                               ),
                               child: ListView.separated(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
                                 shrinkWrap: true,
                                 itemCount: options.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
                                 itemBuilder: (context, index) {
                                   final opt = options.elementAt(index);
                                   final isNew = opt['_isNew'] == true;
                                   if (isNew) {
                                     return ListTile(
                                       dense: true,
-                                      leading: const Icon(Icons.add_circle, color: kGoldDark),
-                                      title: Text('+ Create "${opt['customer_name']}"',
+                                      leading: const Icon(Icons.add_circle,
+                                          color: kGoldDark),
+                                      title: Text(
+                                          '+ Create "${opt['customer_name']}"',
                                           style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                               color: kGoldDark)),
                                       onTap: () => onSelected(opt),
                                     );
                                   }
-                                  final name = opt['customer_name']?.toString() ?? '';
-                                  final id = opt['customer_id']?.toString() ?? '';
+                                  final name =
+                                      opt['customer_name']?.toString() ?? '';
+                                  final id =
+                                      opt['customer_id']?.toString() ?? '';
                                   final phone = opt['phone']?.toString() ?? '';
                                   return ListTile(
                                     dense: true,
-                                    leading: const Icon(Icons.person_outline, size: 20),
+                                    leading: const Icon(Icons.person_outline,
+                                        size: 20),
                                     title: Text(name,
-                                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600)),
                                     subtitle: Text(
                                         [
                                           if (id.isNotEmpty) 'ID $id',
@@ -2116,7 +2180,8 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               if (_customers.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
-                  child: Text('No customers yet — type name or tap + to add one.',
+                  child: Text(
+                      'No customers yet — type name or tap + to add one.',
                       style: TextStyle(fontSize: 12, color: Color(0xFF8A6D14))),
                 ),
               const SizedBox(height: 10),
@@ -2158,13 +2223,18 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      for (final b in const ['Gold', 'Silver', 'Gold & Silver']) ...[
+                      for (final b in const [
+                        'Gold',
+                        'Silver',
+                        'Gold & Silver'
+                      ]) ...[
                         Expanded(
                           child: ChoiceChip(
                             label: Center(
                               child: Text(b,
                                   style: const TextStyle(
-                                      fontSize: 11.5, fontWeight: FontWeight.w600)),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600)),
                             ),
                             selected: _basis == b,
                             selectedColor: kGold.withValues(alpha: .25),
