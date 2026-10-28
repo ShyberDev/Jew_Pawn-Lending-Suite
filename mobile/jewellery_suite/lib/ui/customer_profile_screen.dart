@@ -280,7 +280,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   children: [
                     for (final mode in const ['Cash', 'UPI', 'Bank']) ...[
                       ChoiceChip(
-                        label: Text(mode, style: const TextStyle(fontSize: 12.5)),
+                        label:
+                            Text(mode, style: const TextStyle(fontSize: 12.5)),
                         selected: paymentMode == mode,
                         selectedColor: kGold.withValues(alpha: .25),
                         onSelected: (_) => setDlg(() => paymentMode = mode),
@@ -301,8 +302,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         ('future', 'Future Interest'),
                       ])
                         ChoiceChip(
-                          label:
-                              Text(label, style: const TextStyle(fontSize: 12.5)),
+                          label: Text(label,
+                              style: const TextStyle(fontSize: 12.5)),
                           selected: kind == v,
                           selectedColor: kGold.withValues(alpha: .25),
                           onSelected: (_) => setDlg(() => kind = v),
@@ -517,6 +518,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     String type = 'late_fee';
     var givenOn = DateTime.now();
     String paymentMode = 'Cash';
+    String? amountError;
     // v1.0.23: returns the chosen TYPE and PAYMENT MODE. "Refinance" is not an
     // amount added inside this dialog - it is a different dialog entirely.
     final picked = await showDialog<({String type, String paymentMode})>(
@@ -537,7 +539,18 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     controller: amountCtl,
                     keyboardType: TextInputType.number,
                     autofocus: true,
+                    onChanged: (_) {
+                      if (amountError != null) {
+                        setDlg(() => amountError = null);
+                      }
+                    },
                     decoration: fieldDecoration('Amount')),
+                if (amountError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(amountError!,
+                        style: const TextStyle(fontSize: 11.5, color: kRed)),
+                  ),
                 const SizedBox(height: 10),
                 Text('Payment Mode',
                     style: TextStyle(
@@ -549,7 +562,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   children: [
                     for (final mode in const ['Cash', 'UPI', 'Bank']) ...[
                       ChoiceChip(
-                        label: Text(mode, style: const TextStyle(fontSize: 12.5)),
+                        label:
+                            Text(mode, style: const TextStyle(fontSize: 12.5)),
                         selected: paymentMode == mode,
                         selectedColor: kGold.withValues(alpha: .25),
                         onSelected: (_) => setDlg(() => paymentMode = mode),
@@ -606,8 +620,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         ('refinance', 'Refinance'),
                       ]) ...[
                         ChoiceChip(
-                          label:
-                              Text(label, style: const TextStyle(fontSize: 12.5)),
+                          label: Text(label,
+                              style: const TextStyle(fontSize: 12.5)),
                           selected: type == value,
                           selectedColor: kGold.withValues(alpha: .25),
                           onSelected: (_) {
@@ -616,7 +630,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                             // dialog and open that one straight away, instead of leaving the
                             // shopkeeper to type an amount here that would be ignored.
                             if (value == 'refinance') {
-                              Navigator.pop(ctx, (type: 'refinance', paymentMode: paymentMode));
+                              Navigator.pop(ctx, (
+                                type: 'refinance',
+                                paymentMode: paymentMode
+                              ));
                               return;
                             }
                             setDlg(() => type = value);
@@ -639,7 +656,17 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx, (type: type, paymentMode: paymentMode)),
+                onPressed: () {
+                  final needsAmount = type != 'unpaid' &&
+                      type != 'unavailable' &&
+                      type != 'refinance';
+                  if (needsAmount && parseMoney(amountCtl.text) <= 0) {
+                    setDlg(
+                        () => amountError = 'Enter an amount greater than 0.');
+                    return;
+                  }
+                  Navigator.pop(ctx, (type: type, paymentMode: paymentMode));
+                },
                 child: const Text('Add')),
           ],
         ),
@@ -648,30 +675,73 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     if (picked == null) return;
     type = picked.type;
     paymentMode = picked.paymentMode;
-    if (type == 'refinance') {
-      // One shared dialog + one shared writer, so refinance can never mean
-      // something different here than on the loan sheet. Reached by tapping
-      // the Refinance chip, which closed the You Gave dialog and handed over.
-      if (!mounted) return;
-      final params = await showRefinanceDialog(context, loan);
-      if (params == null) return;
-      await state.executeRefinance(
-        oldLoan: loan,
-        fresh: params.fresh,
-        interest: params.interest,
-        paymentType: params.paymentType,
-        frequency: params.frequency,
-        count: params.count,
-        collectionAmount: params.collectionAmount,
-        note: params.note,
-      );
-      if (mounted) _refresh();
-      return;
-    }
-    // Unpaid / Unavailable markers carry NO money: a red history rectangle
-    // plus an auto-reminder for tomorrow (only when none is set). Balances,
-    // To Collect math and the schedule never see them.
-    if (type == 'unpaid' || type == 'unavailable') {
+    try {
+      if (type == 'refinance') {
+        // One shared dialog + one shared writer, so refinance can never mean
+        // something different here than on the loan sheet. Reached by tapping
+        // the Refinance chip, which closed the You Gave dialog and handed over.
+        if (!mounted) return;
+        final params = await showRefinanceDialog(context, loan);
+        if (params == null) return;
+        await state.executeRefinance(
+          oldLoan: loan,
+          fresh: params.fresh,
+          interest: params.interest,
+          paymentType: params.paymentType,
+          frequency: params.frequency,
+          count: params.count,
+          collectionAmount: params.collectionAmount,
+          note: params.note,
+        );
+        if (mounted) _refresh();
+        return;
+      }
+      // Unpaid / Unavailable markers carry NO money: a red history rectangle
+      // plus an auto-reminder for tomorrow (only when none is set). Balances,
+      // To Collect math and the schedule never see them.
+      if (type == 'unpaid' || type == 'unavailable') {
+        await state.saveEntity(
+          table: 'khatabook_given',
+          doctype: 'Khatabook Given',
+          uuid: newUuid(),
+          data: {
+            'customer': loan['customer_name'],
+            'customer_name': loan['customer_name'],
+            'customer_uuid': loan['customer_uuid'],
+            'village': loan['village'],
+            'khatabook_loan': loan['server_name'] ?? loan['client_uuid'],
+            'given_date': givenOn.toIso8601String().substring(0, 10),
+            'amount': 0,
+            'given_type': type,
+            'payment_mode': paymentMode,
+            'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
+          },
+        );
+        final reminder = (_customer['reminder_date']?.toString() ?? '').trim();
+        final customerUuid = _customer['client_uuid']?.toString() ?? '';
+        if (reminder.isEmpty && customerUuid.isNotEmpty) {
+          final tomorrow = DateTime.now().add(const Duration(days: 1));
+          await state.saveEntity(
+            table: 'customers',
+            doctype: 'Pawn Customer',
+            uuid: customerUuid,
+            data: {
+              ..._customer,
+              'reminder_date': '${tomorrow.year.toString().padLeft(4, '0')}-'
+                  '${tomorrow.month.toString().padLeft(2, '0')}-'
+                  '${tomorrow.day.toString().padLeft(2, '0')}',
+            },
+          );
+        }
+        await state.touchActivity(_customer['client_uuid']?.toString());
+        await state.logEvent('khata', 'marker', 'Marked $type — $_name',
+            village: loan['village']?.toString(),
+            ref: loan['server_name']?.toString());
+        if (mounted) _refresh();
+        return;
+      }
+      final amount = Num.rupees(parseMoney(amountCtl.text));
+      if (amount <= 0) return;
       await state.saveEntity(
         table: 'khatabook_given',
         doctype: 'Khatabook Given',
@@ -683,72 +753,35 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           'village': loan['village'],
           'khatabook_loan': loan['server_name'] ?? loan['client_uuid'],
           'given_date': givenOn.toIso8601String().substring(0, 10),
-          'amount': 0,
+          'amount': amount,
           'given_type': type,
           'payment_mode': paymentMode,
           'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
         },
       );
-      final reminder = (_customer['reminder_date']?.toString() ?? '').trim();
-      final customerUuid = _customer['client_uuid']?.toString() ?? '';
-      if (reminder.isEmpty && customerUuid.isNotEmpty) {
-        final tomorrow = DateTime.now().add(const Duration(days: 1));
-        await state.saveEntity(
-          table: 'customers',
-          doctype: 'Pawn Customer',
-          uuid: customerUuid,
-          data: {
-            ..._customer,
-            'reminder_date':
-                '${tomorrow.year.toString().padLeft(4, '0')}-'
-                '${tomorrow.month.toString().padLeft(2, '0')}-'
-                '${tomorrow.day.toString().padLeft(2, '0')}',
-          },
-        );
+      // A principal "You Gave" is fresh cash handed over; a late-fee / interest
+      // one adds to what they owe. Both raise the amount to recover.
+      final updated = Map<String, Object?>.from(loan);
+      updated['total_payable'] =
+          Num.rupees(Num.toDouble(loan['total_payable']) + amount);
+      if (type == 'principal') {
+        updated['principal_amount'] =
+            Num.rupees(Num.toDouble(loan['principal_amount']) + amount);
       }
-      await state.touchActivity(_customer['client_uuid']?.toString());
-      await state.logEvent('khata', 'marker', 'Marked $type — $_name',
+      await _syncLoan(updated);
+      await state.touchActivity(_customer['client_uuid']?.toString() ??
+          loan['customer_uuid']?.toString());
+      await state.logEvent('khata', 'given', 'You Gave — $_name ($type)',
+          amount: amount,
           village: loan['village']?.toString(),
           ref: loan['server_name']?.toString());
       if (mounted) _refresh();
-      return;
+    } catch (error) {
+      // A failed write must never look like a dead button.
+      if (mounted) {
+        _toast('Could not save You Gave entry: $error');
+      }
     }
-    final amount = Num.rupees(parseMoney(amountCtl.text));
-    if (amount <= 0) return;
-    await state.saveEntity(
-      table: 'khatabook_given',
-      doctype: 'Khatabook Given',
-      uuid: newUuid(),
-      data: {
-        'customer': loan['customer_name'],
-        'customer_name': loan['customer_name'],
-        'customer_uuid': loan['customer_uuid'],
-        'village': loan['village'],
-        'khatabook_loan': loan['server_name'] ?? loan['client_uuid'],
-        'given_date': givenOn.toIso8601String().substring(0, 10),
-        'amount': amount,
-        'given_type': type,
-        'payment_mode': paymentMode,
-        'note': noteCtl.text.trim().isEmpty ? null : noteCtl.text.trim(),
-      },
-    );
-    // A principal "You Gave" is fresh cash handed over; a late-fee / interest
-    // one adds to what they owe. Both raise the amount to recover.
-    final updated = Map<String, Object?>.from(loan);
-    updated['total_payable'] =
-        Num.rupees(Num.toDouble(loan['total_payable']) + amount);
-    if (type == 'principal') {
-      updated['principal_amount'] =
-          Num.rupees(Num.toDouble(loan['principal_amount']) + amount);
-    }
-    await _syncLoan(updated);
-    await state.touchActivity(
-        _customer['client_uuid']?.toString() ?? loan['customer_uuid']?.toString());
-    await state.logEvent('khata', 'given', 'You Gave — $_name ($type)',
-        amount: amount,
-        village: loan['village']?.toString(),
-        ref: loan['server_name']?.toString());
-    if (mounted) _refresh();
   }
 
   String _youGaveHint(Map<String, Object?> loan, String type) {
@@ -866,8 +899,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       'dirty': 0,
     });
     await _syncLoan(updated);
-    await state.touchActivity(
-        _customer['client_uuid']?.toString() ?? loan['customer_uuid']?.toString());
+    await state.touchActivity(_customer['client_uuid']?.toString() ??
+        loan['customer_uuid']?.toString());
     await state.logEvent('khata', 'loan_edit', 'Loan edited — $_name',
         amount: Num.toDouble(updated['total_payable']),
         village: _customer['village']?.toString(),
@@ -1147,8 +1180,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         updated['installment_amount'] =
             Num.rupees(Num.toDouble(updated['total_payable']) / count);
         await _syncLoan(updated);
-    await state.touchActivity(
-        _customer['client_uuid']?.toString() ?? loan['customer_uuid']?.toString());
+        await state.touchActivity(_customer['client_uuid']?.toString() ??
+            loan['customer_uuid']?.toString());
         if (refi != null) {
           await state.db.upsert('khatabook_refinances', {
             ...refi,
@@ -1172,8 +1205,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               Num.rupees(Num.toDouble(updated['principal_amount']) + amount);
         }
         await _syncLoan(updated);
-    await state.touchActivity(
-        _customer['client_uuid']?.toString() ?? loan['customer_uuid']?.toString());
+        await state.touchActivity(_customer['client_uuid']?.toString() ??
+            loan['customer_uuid']?.toString());
       }
     }
     await state.db.upsert('khatabook_given', {
@@ -1384,12 +1417,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   /// untouched, and normal collection keeps working wherever they live.
   Future<void> _moveCustomer() async {
     final state = context.read<AppState>();
-    final inLoss = MigrationV12.isLossKhata(
-        _customer['village']?.toString());
+    final inLoss = MigrationV12.isLossKhata(_customer['village']?.toString());
     if (inLoss) {
       // Move back: pick the village explicitly.
-      final villages = await state.db
-          .query('villages', orderBy: 'village_name asc');
+      final villages =
+          await state.db.query('villages', orderBy: 'village_name asc');
       final names = villages
           .map((v) => v['village_name']?.toString() ?? '')
           .where((n) => n.isNotEmpty && !MigrationV12.isLossKhata(n))
@@ -1434,8 +1466,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Are you sure you want to move to Loss Account?'),
-        content: Text(
-            '$_name will move to the Loss Khata with all loans, '
+        content: Text('$_name will move to the Loss Khata with all loans, '
             'collections and history intact.'),
         actions: [
           TextButton(
@@ -1950,8 +1981,13 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           r['refinance_date']?.toString() ?? r['updated_at']?.toString();
       final moved = Num.toDouble(r['old_outstanding']);
       if (moved <= 0) continue;
+      // The transfer happens one instant BEFORE the new loan opens. The new
+      // loan row carries the refinance timestamp, so subtracting a second here
+      // makes newest-first display put ₹63,000 (new loan) above the ₹33,000
+      // moved-out line instead of the other way round.
+      final movedAt = parseIso(rraw) ?? DateTime.now();
       entries.add((
-        when: parseIso(rraw) ?? DateTime.now(),
+        when: movedAt.subtract(const Duration(seconds: 1)),
         stamp: fmtDateTime(rraw ?? ''),
         gave: 0,
         got: moved,
@@ -2016,11 +2052,25 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     // Unpaid / Unavailable markers carry no money: a red rectangle with the
     // date, the balance at marking time and the label — history, not a debt.
     final givenType = r.source['given_type']?.toString() ?? '';
-    final isMarker =
-        r.kind == 'given' && (givenType == 'unpaid' || givenType == 'unavailable');
+    final isMarker = r.kind == 'given' &&
+        (givenType == 'unpaid' || givenType == 'unavailable');
     // A transfer is neither cash given nor cash received: old outstanding
     // moved into the new loan. Gold tile, explicit label, never red/green.
     final isTransfer = r.kind == 'transfer';
+    // Refinance display: the headline is the NEW loan's total (previous
+    // outstanding + fresh cash + new interest). The amount actually refinanced
+    // — the old outstanding that moved, not fresh money — is spelled out
+    // underneath, so ₹63,000 on top and ₹33,000 below can never be confused.
+    final movedOut =
+        isTransfer ? Num.toDouble(r.source['old_outstanding']) : 0.0;
+    final newPrincipal =
+        isTransfer ? Num.toDouble(r.source['new_principal']) : 0.0;
+    final newInterest =
+        isTransfer ? Num.toDouble(r.source['new_interest_amount']) : 0.0;
+    final newLoanTotal =
+        newPrincipal > 0 ? Num.rupees(newPrincipal + newInterest) : r.got;
+    final freshCash =
+        newPrincipal > movedOut ? Num.rupees(newPrincipal - movedOut) : 0.0;
     final color = isTransfer ? kGoldDark : (isGave ? kRed : kGreen);
     // You-Gave rows show why: "Late fee — Hello". The note always shows;
     // for type "Other" only the note is shown (no type word).
@@ -2043,7 +2093,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       // v1.0.8: refinance is a full gold rectangle tile for fast spotting —
       // identical in shape to the payment-schedule refinance rectangle.
       // Unpaid / Unavailable markers use the same rectangle in red.
-      decoration: isRefinance
+      decoration: isRefinance || isTransfer
           ? BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF3A2E0E), Color(0xFF6B5417)],
@@ -2075,7 +2125,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               Expanded(
                 child: Row(
                   children: [
-                    if (isRefinance) ...[
+                    if (isRefinance || isTransfer) ...[
                       const Icon(Icons.change_history,
                           size: 15, color: Colors.white),
                       const SizedBox(width: 4),
@@ -2090,7 +2140,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                           style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: (isRefinance || isMarker)
+                              color: (isRefinance || isMarker || isTransfer)
                                   ? Colors.white.withValues(alpha: .9)
                                   : kInk.withValues(alpha: .7))),
                     ),
@@ -2119,29 +2169,60 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
               ),
               SizedBox(
                 width: 94,
-                child: Text(
-                  !isGave ? '₹${moneyWholeDown(r.got)}' : '',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isGave ? Colors.transparent : color),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      !isGave
+                          ? '₹${moneyWholeDown(isTransfer ? newLoanTotal : r.got)}'
+                          : '',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isGave
+                              ? Colors.transparent
+                              : isTransfer
+                                  ? Colors.white
+                                  : color),
+                    ),
+                    if (isTransfer)
+                      Text('new loan',
+                          style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: .75))),
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 3),
+          if (isTransfer)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                'Refinanced amount ₹${moneyWholeDown(movedOut)}'
+                '${freshCash > 0 ? '  •  Fresh cash ₹${moneyWholeDown(freshCash)}' : ''}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFFFE082)),
+              ),
+            ),
           // Daily outstanding balance — money lent out, always red, left.
           // Markers show the balance frozen at marking time (history, not live).
-          Text('bal ₹${moneyWholeDown(r.balance)}',
+          Text('Bal ₹${moneyWholeDown(r.balance)}',
               style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: isRefinance
+                  color: isTransfer
                       ? const Color(0xFFFFE082)
-                      : isMarker
-                          ? Colors.white.withValues(alpha: .9)
-                          : kRed)),
+                      : isRefinance
+                          ? const Color(0xFFFFE082)
+                          : isMarker
+                              ? Colors.white.withValues(alpha: .9)
+                              : kRed)),
           if (note != null)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -2149,7 +2230,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   style: TextStyle(
                       fontSize: 10.5,
                       fontStyle: FontStyle.italic,
-                      color: (isRefinance || isMarker)
+                      color: (isRefinance || isMarker || isTransfer)
                           ? Colors.white.withValues(alpha: .85)
                           : color.withValues(alpha: .85))),
             ),

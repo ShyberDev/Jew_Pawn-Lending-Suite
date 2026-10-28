@@ -9,6 +9,7 @@ import 'migration_v11.dart';
 import 'migration_v12.dart';
 import 'migration_v13.dart';
 import 'migration_v14.dart';
+import 'migration_v15.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -39,7 +40,7 @@ class LocalDb {
     path = file;
     _db = await openDatabase(
       file,
-      version: MigrationV14.version,
+      version: MigrationV15.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -189,6 +190,11 @@ class LocalDb {
       // v14: cashbook module (daily in/out entries and auto-hooks).
       // See lib/data/migration_v14.dart.
       await MigrationV14.addSchema(db);
+    }
+    if (oldVersion < 15) {
+      // v15: payment mode on "You Gave" rows. Without it every You Gave save
+      // aborted on an unknown column. See lib/data/migration_v15.dart.
+      await MigrationV15.addSchema(db);
     }
     if (oldVersion < 13) {
       // v13: activity timestamp for the member-row recency display.
@@ -368,6 +374,7 @@ class LocalDb {
     await MigrationV12.addSchema(db);
     await MigrationV13.addSchema(db);
     await MigrationV14.addSchema(db);
+    await MigrationV15.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings
@@ -561,7 +568,30 @@ class LocalDb {
     String? date,
     String? mode,
     String? type,
+    String? source,
   }) async {
+    final (where, args) = _cashbookWhere(
+      date: date,
+      mode: mode,
+      type: type,
+      source: source,
+    );
+    return db.query(
+      'cashbook_entries',
+      where: where,
+      whereArgs: args,
+      orderBy: 'entry_date DESC, entry_time DESC',
+    );
+  }
+
+  /// Builds the WHERE clause shared by the list and the daily tally, so the
+  /// totals always describe exactly the rows on screen.
+  (String?, List<Object?>) _cashbookWhere({
+    String? date,
+    String? mode,
+    String? type,
+    String? source,
+  }) {
     final whereClauses = <String>[];
     final args = <Object?>[];
 
@@ -577,24 +607,44 @@ class LocalDb {
       whereClauses.add('entry_type = ?');
       args.add(type);
     }
+    if (source != null && source != 'ALL') {
+      if (source == 'MANUAL') {
+        // Everything the shopkeeper typed by hand. Source modules always use
+        // a `<MODULE>_` category prefix (KHATA_, PAWN_, JEWELLERY_).
+        whereClauses.add("category NOT LIKE 'KHATA%' "
+            "AND category NOT LIKE 'PAWN%' "
+            "AND category NOT LIKE 'JEWELLERY%'");
+      } else {
+        whereClauses.add('category LIKE ?');
+        args.add('${source.toUpperCase()}_%');
+      }
+    }
 
-    final where = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
-    return db.query(
-      'cashbook_entries',
-      where: where,
-      whereArgs: args.isEmpty ? null : args,
-      orderBy: 'entry_date DESC, entry_time DESC',
+    return (
+      whereClauses.isEmpty ? null : whereClauses.join(' AND '),
+      args,
     );
   }
 
-  Future<Map<String, double>> getCashbookDailySummary(String date) async {
+  Future<Map<String, double>> getCashbookDailySummary(
+    String date, {
+    String? mode,
+    String? type,
+    String? source,
+  }) async {
+    final (filter, args) = _cashbookWhere(
+      date: date,
+      mode: mode,
+      type: type,
+      source: source,
+    );
     final rows = await db.rawQuery('''
       SELECT 
         SUM(CASE WHEN entry_type = 'IN' THEN amount ELSE 0 END) as total_in,
         SUM(CASE WHEN entry_type = 'OUT' THEN amount ELSE 0 END) as total_out
       FROM cashbook_entries
-      WHERE entry_date = ?
-    ''', [date]);
+      WHERE ${filter ?? '1 = 1'}
+    ''', args);
 
     if (rows.isEmpty) return {'total_in': 0.0, 'total_out': 0.0, 'net': 0.0};
     final totalIn = (rows.first['total_in'] as num?)?.toDouble() ?? 0.0;

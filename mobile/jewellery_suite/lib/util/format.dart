@@ -65,8 +65,7 @@ class Num {
     required double periods,
   }) {
     if (periods <= 0) return 0;
-    return money(
-        principal * (math.pow(1 + rate / 100.0, periods) - 1));
+    return money(principal * (math.pow(1 + rate / 100.0, periods) - 1));
   }
 
   /// Calendar difference between [from] and [to] as (years, months, days).
@@ -253,11 +252,12 @@ DateTime? parseIso(Object? value) {
   if (b == null) {
     return (when: e ?? DateTime.now(), stamp: fmtDateTime(entryAt));
   }
-  if (e != null &&
-      e.year == b.year &&
-      e.month == b.month &&
-      e.day == b.day) {
-    return (when: b, stamp: fmtDateTime(entryAt));
+  if (e != null && e.year == b.year && e.month == b.month && e.day == b.day) {
+    // Same business day: the clock time is the only thing that can separate
+    // two rows, so it drives the order. Returning midnight here made every
+    // same-day entry tie and sort by uuid — which put a refinance transfer
+    // ABOVE the new loan it created, instead of directly below it.
+    return (when: e, stamp: fmtDateTime(entryAt));
   }
   return (when: b, stamp: fmtDate(businessDate));
 }

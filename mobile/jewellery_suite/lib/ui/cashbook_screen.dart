@@ -17,10 +17,15 @@ class CashbookScreen extends StatefulWidget {
 class _CashbookScreenState extends State<CashbookScreen> {
   DateTime _selectedDate = DateTime.now();
   String _selectedMode = 'ALL';
+  String _selectedSource = 'ALL';
   final String _selectedType = 'ALL';
   bool _loading = true;
   List<Map<String, Object?>> _entries = [];
-  Map<String, double> _summary = {'total_in': 0.0, 'total_out': 0.0, 'net': 0.0};
+  Map<String, double> _summary = {
+    'total_in': 0.0,
+    'total_out': 0.0,
+    'net': 0.0
+  };
 
   @override
   void initState() {
@@ -38,8 +43,14 @@ class _CashbookScreenState extends State<CashbookScreen> {
       date: dateStr,
       mode: _selectedMode,
       type: _selectedType,
+      source: _selectedSource,
     );
-    final summary = await state.getCashbookDailySummary(dateStr);
+    final summary = await state.getCashbookDailySummary(
+      dateStr,
+      mode: _selectedMode,
+      type: _selectedType,
+      source: _selectedSource,
+    );
     if (mounted) {
       setState(() {
         _entries = entries;
@@ -307,31 +318,85 @@ class _CashbookScreenState extends State<CashbookScreen> {
   }
 
   Widget _buildFilters() {
-    final modes = ['ALL', 'CASH', 'UPI', 'BANK'];
+    const sources = [
+      ('ALL', 'All'),
+      ('KHATA', 'Khatabook'),
+      ('PAWN', 'Pawn'),
+      ('JEWELLERY', 'Jewellery'),
+      ('MANUAL', 'Manual'),
+    ];
+    const modes = [
+      ('ALL', 'All modes'),
+      ('CASH', 'Cash'),
+      ('UPI', 'UPI'),
+      ('BANK', 'Bank'),
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _filterRow(
+            label: 'SOURCE',
+            values: sources,
+            selected: _selectedSource,
+            onSelected: (value) {
+              setState(() => _selectedSource = value);
+              _load();
+            },
+          ),
+          const SizedBox(height: 4),
+          _filterRow(
+            label: 'PAYMENT',
+            values: modes,
+            selected: _selectedMode,
+            onSelected: (value) {
+              setState(() => _selectedMode = value);
+              _load();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterRow({
+    required String label,
+    required List<(String, String)> values,
+    required String selected,
+    required ValueChanged<String> onSelected,
+  }) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          for (final m in modes) ...[
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .6,
+              color: mutedOf(context),
+            ),
+          ),
+          const SizedBox(width: 8),
+          for (final (value, title) in values) ...[
             ChoiceChip(
-              label: Text(m),
+              label: Text(title),
               labelStyle: TextStyle(
-                fontSize: 11.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: _selectedMode == m ? Colors.white : inkOf(context),
+                color: selected == value ? Colors.white : inkOf(context),
               ),
-              selected: _selectedMode == m,
+              visualDensity: VisualDensity.compact,
+              selected: selected == value,
               selectedColor: kGoldDark,
               backgroundColor: surfaceOf(context),
               onSelected: (val) {
-                if (val) {
-                  setState(() => _selectedMode = m);
-                  _load();
-                }
+                if (val) onSelected(value);
               },
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
           ],
         ],
       ),
@@ -339,6 +404,7 @@ class _CashbookScreenState extends State<CashbookScreen> {
   }
 
   Widget _buildEmptyState() {
+    final filtered = _selectedSource != 'ALL' || _selectedMode != 'ALL';
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -346,7 +412,7 @@ class _CashbookScreenState extends State<CashbookScreen> {
           Icon(Icons.receipt_long_outlined, size: 54, color: mutedOf(context)),
           const SizedBox(height: 12),
           Text(
-            'No transactions recorded',
+            filtered ? 'No matching transactions' : 'No transactions recorded',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -355,7 +421,9 @@ class _CashbookScreenState extends State<CashbookScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Use the buttons below to record Cash IN or OUT',
+            filtered
+                ? 'Try another source or payment filter'
+                : 'Use the buttons below to record Cash IN or OUT',
             style: TextStyle(fontSize: 12, color: mutedOf(context)),
           ),
         ],
@@ -379,6 +447,8 @@ class _CashbookScreenState extends State<CashbookScreen> {
       catIcon = Icons.menu_book_outlined;
     } else if (category.contains('PAWN')) {
       catIcon = Icons.account_balance_outlined;
+    } else if (category.contains('JEWELLERY')) {
+      catIcon = Icons.diamond_outlined;
     } else if (category.contains('EXPENSE')) {
       catIcon = Icons.shopping_bag_outlined;
     }
@@ -647,7 +717,8 @@ class _AddEntrySheetState extends State<_AddEntrySheet> {
             TextField(
               controller: _amountCtrl,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               decoration: InputDecoration(
                 prefixText: '₹ ',
