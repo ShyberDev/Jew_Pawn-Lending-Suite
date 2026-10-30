@@ -2,10 +2,10 @@
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
 **Last updated:** 2026-10-30
-**App version installed for testing:** v1.1.3 (versionCode 29, **release-signed**) — installed over the previous release build with existing data preserved
-**Release build:** v1.1.3 (versionCode 29, **release-signed**) — `mobile/jewellery_suite-release.apk`, SHA-256 `d6f0946cc278c3be9720c973e85589ae913317a2946c09cbc3f28de75d53b111`
-**App version in code:** v1.1.4 (versionCode 30) — built and unit-tested, **APK not yet built/installed**
-**Next target:** v1.1.4 — account & password centre (#055–#059), pawn list rework (#060–#064); deferred #040–#043 remain
+**App version installed for testing:** v1.1.4 (versionCode 30, **release-signed**) — installed over v1.1.3 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
+**Release build:** v1.1.4 (versionCode 30, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.5 MB), SHA-256 `0a67da8b2c647d7926ac574326192b0eb088cebc1625f7330d17843bf1f4cd29`
+**Published APK:** GitHub release **v1.1.4**, asset `jewellery_suite_v1.1.4.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
+**Next target:** v1.1.5 — hands-on phone pass over #055–#064, then deferred #040–#043 and #065 (real SMS/Gmail OTP)
 
 ---
 
@@ -130,7 +130,9 @@ Also in this release:
 ## 1d. v1.1.4 — accounts, password centre, pawn list (#055–#064)
 
 Everything below is 🟨 **CODE DONE**: implemented, `flutter analyze` clean and covered by the
-suite (326 tests). It has **not** been installed on the phone yet, so none of it is ✅ DONE.
+suite (326 tests). v1.1.4 is **installed on the phone and starts cleanly** (2026-10-30, no crash in
+logcat, schema v16 migrated in place), but each interaction below still needs a hands-on pass, so
+none is marked ✅ DONE yet.
 
 | # | Status | Area | Page / option | Request | What was changed |
 |---|---|---|---|---|---|
@@ -227,6 +229,12 @@ suite (326 tests). It has **not** been installed on the phone yet, so none of it
 ---
 
 ## 5. Change log
+
+### 2026-10-30 — v1.1.4 built, installed and published
+- **Signed release APK:** v1.1.4 / versionCode 30, 98.5 MB, `mobile/jewellery_suite-release.apk`, SHA-256 `0a67da8b2c647d7926ac574326192b0eb088cebc1625f7330d17843bf1f4cd29`, signed with the upload keystore (certificate SHA-256 `54f98332…ab61c09`).
+- **Installed over wireless debugging** at `10.235.54.6:36647` with `adb install -r`; `dumpsys package` reports **versionName 1.1.4 / versionCode 30**, and the existing data was preserved. The app launched to `MainActivity` with no crash in logcat, and the v16 schema migrated in place.
+- **Published:** GitHub release **v1.1.4** with asset `jewellery_suite_v1.1.4.apk`. The repo's `mobile/.gitignore` excludes `*.apk`, so the APK is a release asset (the v1.1.0 convention), not a tracked file.
+- Checks before the build: `flutter analyze` → **No issues found**; `flutter test` → **326 pass**, exit 0.
 
 ### 2026-10-30 — v1.1.4 code complete (account, password centre, pawn list)
 - **Customers Book (#055):** Home drawer tile and screen title renamed.
