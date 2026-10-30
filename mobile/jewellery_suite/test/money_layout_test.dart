@@ -8,8 +8,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:jewellery_suite/data/local_db.dart';
 import 'package:jewellery_suite/state/app_state.dart';
-import 'package:jewellery_suite/ui/customer_profile_screen.dart';
-import 'package:jewellery_suite/ui/khata_screen.dart';
+import 'package:jewellery_suite/features/customers/screens/customer_profile_screen.dart';
+import 'package:jewellery_suite/features/khata/screens/khata_screen.dart';
 import 'package:jewellery_suite/ui/pawn_dashboard_screen.dart';
 
 /// #021 / #024 / #034: money and weight formatting must stay readable on a

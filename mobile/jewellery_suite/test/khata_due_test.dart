@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jewellery_suite/ui/khata_screen.dart'
+import 'package:jewellery_suite/features/khata/screens/khata_screen.dart'
     show LoanBucket, loanBucket, loanNextDue;
 
 /// The shop's rule: owing money means DUE. A part-payment never clears it, and

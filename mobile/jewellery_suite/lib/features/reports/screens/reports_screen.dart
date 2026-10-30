@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import '../data/migration_v11.dart';
-import '../util/format.dart';
-import '../util/khata_loan_state.dart';
-import '../util/pawn_math.dart';
-import 'khata_screen.dart' show LoanBucket, loanBucket;
-import '../util/khata_schedule.dart';
-import 'palette.dart';
-import 'widgets.dart';
+import '../../../state/app_state.dart';
+import '../../../data/migration_v11.dart';
+import '../../../util/format.dart';
+import '../../../util/khata_loan_state.dart';
+import '../../../util/pawn_math.dart';
+import '../../../features/khata/screens/khata_screen.dart' show LoanBucket, loanBucket;
+import '../../../util/khata_schedule.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/widgets.dart';
 
 /// Reports hub — Khata reports (blueprint §17) and Pawn reports (§14).
 /// Every rupee figure in Reports goes through here.

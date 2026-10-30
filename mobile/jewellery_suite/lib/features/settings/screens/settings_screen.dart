@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import 'backup_screen.dart';
-import 'password_settings_screen.dart';
-import 'palette.dart';
-import 'photo_local.dart';
-import 'widgets.dart';
+import '../../../state/app_state.dart';
+import '../../../features/backup/screens/backup_screen.dart';
+import '../../../ui/password_settings_screen.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/photo_local.dart';
+import '../../../ui/widgets.dart';
 
 /// "Coming in a later release" — unconfigured settings never crash the app.
 void comingSoon(BuildContext context) {

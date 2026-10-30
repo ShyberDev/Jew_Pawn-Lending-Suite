@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import '../util/format.dart';
-import 'admin_guard.dart';
-import 'palette.dart';
+import '../../../state/app_state.dart';
+import '../../../util/format.dart';
+import '../../../ui/admin_guard.dart';
+import '../../../ui/palette.dart';
 
 /// History of recent activity + deleted content for both Pawn Loans and
 /// Khatabook. Village filters, retention-based auto-clear (1/3/6/12 months)

@@ -5,7 +5,7 @@ import '../state/app_state.dart';
 import '../util/app_size.dart';
 import '../util/app_version.dart';
 import 'palette.dart';
-import 'settings_screen.dart' show comingSoon;
+import '../features/settings/screens/settings_screen.dart' show comingSoon;
 
 /// Home menu → About App. Shows the app name, APK (app) size and the total
 /// app-data usage on the phone (database + photos/images), plus the legal /

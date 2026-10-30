@@ -12,11 +12,13 @@ import '../data/sync_service.dart';
 import '../util/account.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
+import '../util/secret_hash.dart';
 import '../util/khata_alloc.dart';
 import '../util/khata_loan_state.dart';
 import '../util/khata_math.dart';
 import '../util/khata_schedule.dart';
 import '../util/pawn_math.dart';
+import '../ui/admin_guard.dart' as admin;
 
 /// Single source of truth for the UI: session, local data helpers and sync.
 class AppState extends ChangeNotifier {
@@ -386,6 +388,53 @@ class AppState extends ChangeNotifier {
         where: 'client_uuid IN ($placeholders)',
         whereArgs: loanUuids);
     notifyListeners();
+  }
+
+  // ------------------------------------------------ pawn-move password
+  /// Dedicated "Move to another pawn profile" password keys.
+  static const kPawnMovePasswordHashKey = 'pawn_move_password_hash';
+  static const kPawnMovePasswordSaltKey = 'pawn_move_password_salt';
+
+  /// Sets the dedicated pawn-move secret as a salted hash. When none is set the
+  /// move action falls back to the admin password.
+  Future<void> setPawnMovePassword(String next) async {
+    final trimmed = next.trim();
+    if (trimmed.isEmpty) {
+      throw const FormatException('Enter a pawn-move secret.');
+    }
+    final salt = randomSalt();
+    await db.setSetting(kPawnMovePasswordSaltKey, salt);
+    await db.setSetting(
+        kPawnMovePasswordHashKey, hashSecret(trimmed, salt));
+    notifyListeners();
+  }
+
+  /// True when no dedicated pawn-move secret has been set yet.
+  Future<bool> pawnMovePasswordIsDefault() async {
+    final hash = await db.getSetting(kPawnMovePasswordHashKey);
+    final salt = await db.getSetting(kPawnMovePasswordSaltKey);
+    return hash == null || hash.isEmpty || salt == null || salt.isEmpty;
+  }
+
+  /// Ensures a dedicated pawn-move password exists when one has been set. When
+  /// none is set yet this is a no-op; the move action verifies against admin in
+  /// that case.
+  Future<void> ensurePawnMovePassword() async {
+    // Nothing to create eagerly — the fallback to admin is intentional.
+    return;
+  }
+
+  /// Verifies the pawn-move password. When a dedicated secret has been set it is
+  /// checked against that; otherwise it falls back to the admin password.
+  Future<bool> verifyPawnMovePassword(String input) async {
+    if (!await pawnMovePasswordIsDefault()) {
+      final hash = await db.getSetting(kPawnMovePasswordHashKey) ?? '';
+      final salt = await db.getSetting(kPawnMovePasswordSaltKey) ?? '';
+      if (hash.isNotEmpty && salt.isNotEmpty) {
+        return constantTimeEquals(hashSecret(input, salt), hash);
+      }
+    }
+    return admin.verifyAdminPassword(this, input);
   }
 
   Future<void> refreshCounts() async {

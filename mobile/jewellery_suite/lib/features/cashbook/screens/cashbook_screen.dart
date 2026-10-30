@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import '../util/format.dart';
-import 'palette.dart';
+import '../../../state/app_state.dart';
+import '../../../util/format.dart';
+import '../../../ui/palette.dart';
 
 /// Cashbook screen: daily Cash IN and Cash OUT ledger with payment mode filters
 /// (Cash / UPI / Bank) and automatic synchronization with Khata and Pawn books.

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import 'widgets.dart';
+import '../../../state/app_state.dart';
+import '../../../ui/widgets.dart';
 
 class SyncScreen extends StatefulWidget {
   const SyncScreen({super.key});

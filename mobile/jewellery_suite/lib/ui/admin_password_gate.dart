@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import 'admin_guard.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
+import '../features/home/screens/home_screen.dart';
+import '../features/authentication/screens/login_screen.dart';
 import 'palette.dart';
 
 /// Startup gate that forces the shipped `admin` password to be replaced.

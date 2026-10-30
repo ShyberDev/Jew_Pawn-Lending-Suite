@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import '../util/otp_gateway.dart';
-import 'otp_flow.dart';
-import 'palette.dart';
-import 'secret_dialogs.dart';
-import 'widgets.dart';
+import '../../../state/app_state.dart';
+import '../../../util/otp_gateway.dart';
+import '../../../ui/otp_flow.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/secret_dialogs.dart';
+import '../../../ui/widgets.dart';
 
 /// Sign in / create the shop's account.
 ///

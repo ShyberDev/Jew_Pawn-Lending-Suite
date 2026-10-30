@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../util/format.dart';
-import 'palette.dart';
-import 'widgets.dart';
+import '../../../util/format.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/widgets.dart';
 
 /// More → Interest Calculator. Simple (normal) or compound interest between a
 /// From and To date: days + Years/Months/Days are computed automatically, and
