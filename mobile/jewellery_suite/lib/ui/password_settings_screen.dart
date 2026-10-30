@@ -123,8 +123,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   // ------------------------------------------------------------ login account
   Future<void> _registerAccount() async {
     final state = context.read<AppState>();
-    final name = TextEditingController();
-    final id = TextEditingController(text: state.userName);
+    final name = TextEditingController(text: state.userName);
+    final id = TextEditingController();
     final pass = TextEditingController();
     try {
       final ok = await showDialog<bool>(
