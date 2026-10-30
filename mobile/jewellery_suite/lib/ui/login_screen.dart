@@ -124,6 +124,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         : const Text('Connect'),
                   ),
                   const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () => context.read<AppState>().continueOffline(),
+                    icon: const Icon(Icons.phonelink_off_outlined, size: 18),
+                    label: const Text('Use without a server'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'The shop ledger works fully offline on this phone. Choose '
+                    'this when the laptop server is not set up yet — you can '
+                    'connect later from Settings → System → Logout.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
                   const Text(
                     'Tip: connect to the same Wi-Fi as the laptop running the '
                     'server. First login needs network; after that the app works '

@@ -1,10 +1,10 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-10-29
-**App version installed for testing:** v1.1.1 (versionCode 27, debug-signed) — still installed; cannot be upgraded in place (signing key change)
-**Release build ready:** v1.1.2 (versionCode 28, **release-signed**) — `mobile/jewellery_suite-release.apk`, SHA-256 `1beb0a1a8f52421ade4c2f40495a66d7ed1c12716ea7609f810fb4d2959d1a3c`
-**Next target:** v1.1.3 — deferred features #040–#043, plus any phone-verification fixes from this batch
+**Last updated:** 2026-10-30
+**App version installed for testing:** v1.1.3 (versionCode 29, **release-signed**) — installed over the previous release build with existing data preserved
+**Release build:** v1.1.3 (versionCode 29, **release-signed**) — `mobile/jewellery_suite-release.apk`, SHA-256 `d6f0946cc278c3be9720c973e85589ae913317a2946c09cbc3f28de75d53b111`
+**Next target:** v1.1.4 — deferred features #040–#043, plus any issues found while checking this build
 
 ---
 
@@ -78,36 +78,51 @@ Screenshot: (if visual)
 
 ---
 
-## 1b. Bug-fix round — #020–#039 (v1.1.2, code complete)
+## 1b. Bug-fix round — #020–#039 (v1.1.3, verified on phone)
 
-All twenty items are implemented. The status is **🟨 CODE DONE** until the phone checks below are done. #025, #027, #028, #029 and #033 are fully closed.
+All twenty items are implemented and ✅ **DONE**. Phone checks were run on the v1.1.3 release build on 2026-10-29/30.
 
 **Verification already run**
 
 - `flutter analyze`: **No issues found**.
-- `flutter test`: **314 tests pass**, and the plain command now exits by itself (#025). New regressions: `reports_due_test.dart` (4), `cashbook_linkage_test.dart` (8), `secret_test.dart` (8), `money_layout_test.dart` (3), a metal-filter test, plus 3 restore tests in `backup_service_test.dart`.
-- **Signed release build:** v1.1.2 / versionCode 28, `mobile/jewellery_suite-release.apk` (97.8 MB).
-  - SHA-256 `1beb0a1a8f52421ade4c2f40495a66d7ed1c12716ea7609f810fb4d2959d1a3c`
+- `flutter test`: **325 tests pass**, exit 0, ~30 s. The plain command exits by itself (#025). New regressions: `reports_due_test.dart` (4), `cashbook_linkage_test.dart` (8), `secret_test.dart` (8), `money_layout_test.dart` (3), a metal-filter test, 3 restore tests in `backup_service_test.dart`, 4 app-lock gate tests in `app_lock_gate_test.dart`, plus offline-mode tests.
+- **Signed release build:** v1.1.3 / versionCode 29, `mobile/jewellery_suite-release.apk` (97.8 MB; About shows the installed 93.3 MB).
+  - SHA-256 `d6f0946cc278c3be9720c973e85589ae913317a2946c09cbc3f28de75d53b111`
   - Signer: `CN=Jewellery Suite, OU=Mobile, O=ShyberDev, L=India, ST=India, C=IN`
   - Certificate SHA-256 `54f9833223d1a85278a749b89ffa613cecc88e147dca25fa1cf6bad52ab61c09`
 - `android/key.properties` and `android/app/upload-keystore.jks` exist locally, are gitignored, and **must be backed up together**. Losing them means Play cannot accept an update. Credentials are never written into this tracker.
 
-**Phone checklist**
+**Phone verification — 2026-10-29/30**
 
-1. **#020** Reports → Khata → Overdue accounts shows today + arrears, not the whole balance.
-2. **#021** Profile, khata row and schedule stay readable at 320 dp / 2× text.
-3. **#022** Profile app bar title is not squeezed; ⋮ holds Call / SMS / WhatsApp / Move / Edit.
-4. **#023** Khata filter says **No reminder**.
-5. **#024 / #034** Money shows lakh/crore grouping (`₹83,33,500`); pawn weights show three decimals.
-6. **#026** Dark mode: home avatar, dialogs, khata dividers/progress and status chips.
-7. **#030–#032** Edit/zero/delete a loan or collection and confirm Cashbook follows; delete sample data and confirm demo cash is gone.
-8. **#031** Refinance writes Cash OUT for fresh cash only.
-9. **#035 / #036** Create a backup, change a customer, restore, confirm the change is undone and a safety backup exists.
-10. **#037** Enable the PIN, background and reopen the app; wrong PIN stays locked.
-11. **#038** First run demands a new admin password; `admin` and anything under 6 characters are refused.
-12. **#039** About App shows the real installed size, not 95 MB.
+1. **#020** Reports → Khata → Overdue accounts: **5 · ₹17,810**, with per-loan due-now amounts (₹960, ₹4,800, ₹1,900, ₹550, ₹9,600), not the whole outstanding.
+2. **#021** Khata profile and payment schedule readable at normal and **2× system font**; the three money columns fit.
+3. **#022** Profile ⋮ holds **Call / SMS / WhatsApp / Move to another khata / Edit**; the title is not squeezed.
+4. **#023** Khata filter chip reads **No reminder**.
+5. **#024** Indian grouping shown on live data: `₹1,63,600`, `₹8,210`, `₹1,57,500`, `₹1,57,700`.
+6. **#026** Dark mode checked on Settings, Home, Khata Books and the User Details dialog; reverted to light afterwards.
+7. **#030** Cashbook 28/10/2026 shows 8 rows including khata/pawn disbursements, collections and two **“Khata You-Gave extra”** OUT rows of ₹100 — source rows and cash rows agree.
+8. **#031** A live refinance of `Sample_Refinanced` (fresh cash ₹100) wrote exactly one Cashbook row: **OUT ₹100 · KHATA REFINANCE · “Refinance — fresh cash handed over”**. The rolled ₹64,100 did not appear as cash.
+9. **#032** **Check for sample data** reports 41 demo rows (11 customers, 13 khata loans, 11 collections, 4 You Gave, 2 refinances) and leaves them in place. The removal path is covered by `test/cashbook_linkage_test.dart`; removal itself was not run because this database is still the demo set.
+10. **#035/#036** Restore from file completed with a verified safety backup (`jewellery_suite_2026-10-29_05-36-27.zip`); the 13-customer live data plus 16 pending changes came back.
+11. **#037** Cold start locked; wrong PIN stayed locked; correct PIN opened the app. The gate was then moved above the Navigator so it also covers pushed screens, and the PIN was turned off afterwards.
+12. **#038** Forced admin-password setup completed on the phone; `admin` and short passwords are refused.
+13. **#039** About App shows the real installed size, **93.3 MB**, not the old hard-coded 95 MB.
 
-> **Upgrade warning:** the phone currently has **v1.1.1 / versionCode 27 signed with the Android debug key**. The new APK uses the shop’s release key, so Android will refuse an in-place update. Keep an exported backup (or let the installer migrate the data) before uninstalling the old build.
+> **Migration note:** the phone previously held v1.1.1 (`versionCode 27`, debug-signed), which Android cannot upgrade in place to a release-signed build. Its database and photos were exported, the app was uninstalled, v1.1.3 was installed, and the data was restored through the new in-app restore flow with a safety backup first. Future v1.1.x installs upgrade in place.
+
+---
+
+## 1c. Release-migration fixes — v1.1.3
+
+| # | Status | Area | Page / option | What was wrong | What was changed |
+|---|---|---|---|---|---|
+| **#054** | ✅ DONE | Offline / login | **Login screen** | A fresh install, or a phone restored from a backup made without a server, was stuck on the server login even though the SQLite file already held the shop’s ledger. | Added **“Use without a server”** on the Login screen. It sets `offline_mode=1`; the app opens straight into Home with sync unavailable. A real login clears the flag, and **Logout** brings the form back. Tested in `test/offline_mode_test.dart` and on the phone. |
+
+Also in this release:
+
+- **#037 follow-up** — the PIN gate now sits in `MaterialApp.builder`, above the Navigator, so backgrounding the app on **Settings, a customer profile or the Cashbook** covers that screen too. The lock screen carries its own `Overlay` for text selection. Covered by 4 tests in `test/app_lock_gate_test.dart`.
+- **Backup files** — **Save a copy to Downloads…** and **Restore from a file…** use Android’s file picker (SAF), so no storage permission was added. The manifest still declares only `INTERNET`.
+- **Restore safety** — the archive is validated, a verified safety backup is taken, then the live DB and photos are replaced; the phone’s admin password / PIN / toggles are carried across the replacement.
 
 ---
 
@@ -115,30 +130,30 @@ All twenty items are implemented. The status is **🟨 CODE DONE** until the pho
 
 | # | Status | Severity | Page / option | Problem | Suggested fix / file |
 |---|---|---|---|---|---|
-| **#020** | 🟨 CODE DONE | Critical | **Reports → Khata → Overdue accounts** | Shows the loan’s **whole outstanding**, not what is due today + arrears. Gives the shopkeeper a wrong collection figure. | Fixed: `dueNowForReports()` sums only scheduled installments / billed interest periods whose date has arrived, with collections applied oldest-first. `test/reports_due_test.dart` (4 cases). |
-| **#021** | 🟨 CODE DONE | High | **Customer Profile header, khata member header, payment schedule** | Three money columns collide at large values (e.g. `₹100,002,0₹0`). | Fixed: flexible columns + `FittedBox`/ellipsis on the profile hero, schedule stats and khata row. Widget tests at 320 dp and 2× text. |
-| **#022** | 🟨 CODE DONE | Medium | **Customer Profile app bar** | Five icons squeeze the title to `Custo…`. | Fixed: Call / SMS / WhatsApp / Move / Edit live in one ⋮ menu; the title has room again. |
-| **#023** | 🟨 CODE DONE | Medium | **Khata filter “No Due Date”** | Actually filters “no reminder set”, not “no schedule”. Misleading. | Fixed: chip renamed **No reminder**; the existing predicate was already correct. |
-| **#024** | 🟨 CODE DONE | Medium | **Every money figure** | Indian grouping missing in places (`₹8,333,500` instead of `₹83,33,500`). | Fixed: `moneyWhole` / `moneyWholeDown` now use true lakh/crore grouping; old Western-grouping test updated. |
-| **#025** | ✅ DONE | Low | `flutter test` | Full run intermittently hangs in `migration_v9_test` teardown. | Fixed: reproduced (all 314 pass, then the runner never exits at the default one-isolate-per-core setting). `dart_test.yaml` caps concurrency at 2; plain `flutter test` now exits 0. |
-| **#026** | 🟨 CODE DONE | Low | **Settings → Dark mode (Beta)** | Some screens are not fully dark. | Fixed: home avatar, dialog hints, khata dividers/progress track and red/green/blue status chips now use `surfaceOf` / `mutedOf` / `inkOf` / `redSoftOf` etc. Phone visual check pending. |
-| **#027** | ✅ DONE | Critical (Play) | **Release build** | APK is signed with the Android **debug** key. Play Store rejects it; cannot upgrade a real install. | Fixed: local upload keystore + `android/key.properties` (both gitignored). v1.1.2 APK verified with `apksigner`: `CN=Jewellery Suite, O=ShyberDev`, SHA-256 `54f9…1c09`. |
+| **#020** | ✅ DONE | Critical | **Reports → Khata → Overdue accounts** | Shows the loan’s **whole outstanding**, not what is due today + arrears. Gives the shopkeeper a wrong collection figure. | Fixed: `dueNowForReports()` sums only scheduled installments / billed interest periods whose date has arrived, with collections applied oldest-first. `test/reports_due_test.dart` (4 cases). |
+| **#021** | ✅ DONE | High | **Customer Profile header, khata member header, payment schedule** | Three money columns collide at large values (e.g. `₹100,002,0₹0`). | Fixed: flexible columns + `FittedBox`/ellipsis on the profile hero, schedule stats and khata row. Widget tests at 320 dp and 2× text. |
+| **#022** | ✅ DONE | Medium | **Customer Profile app bar** | Five icons squeeze the title to `Custo…`. | Fixed: Call / SMS / WhatsApp / Move / Edit live in one ⋮ menu; the title has room again. |
+| **#023** | ✅ DONE | Medium | **Khata filter “No Due Date”** | Actually filters “no reminder set”, not “no schedule”. Misleading. | Fixed: chip renamed **No reminder**; the existing predicate was already correct. |
+| **#024** | ✅ DONE | Medium | **Every money figure** | Indian grouping missing in places (`₹8,333,500` instead of `₹83,33,500`). | Fixed: `moneyWhole` / `moneyWholeDown` now use true lakh/crore grouping; old Western-grouping test updated. |
+| **#025** | ✅ DONE | Low | `flutter test` | Full run intermittently hangs in `migration_v9_test` teardown. | Fixed: reproduced (all 325 pass, then the runner never exits at the default one-isolate-per-core setting). `dart_test.yaml` caps concurrency at 2; plain `flutter test` now exits 0. |
+| **#026** | ✅ DONE | Low | **Settings → Dark mode (Beta)** | Some screens are not fully dark. | Fixed: home avatar, dialog hints, khata dividers/progress track and red/green/blue status chips now use `surfaceOf` / `mutedOf` / `inkOf` / `redSoftOf` etc. Checked on phone: Settings, Home, Khata Books and the User Details dialog. |
+| **#027** | ✅ DONE | Critical (Play) | **Release build** | APK is signed with the Android **debug** key. Play Store rejects it; cannot upgrade a real install. | Fixed: local upload keystore + `android/key.properties` (both gitignored). v1.1.3 APK verified with `apksigner`: `CN=Jewellery Suite, O=ShyberDev`, SHA-256 `54f9…1c09`. |
 | **#028** | ✅ DONE | Critical (Play) | **Gradle signing** | Must fail loudly if `key.properties` is absent — never silently fall back to debug. | Fixed: Gradle task-graph guard checks the file, all four keys and the `.jks` path. Verified: `assembleRelease` fails with “Release signing is not configured…” when the file is moved away. |
 | **#029** | ✅ DONE | High (Play) | **AndroidManifest** | Camera / media permissions review still pending for photo capture. | Audited with the Play policy scanner: **only `INTERNET`**. Photos use system camera / Photo Picker intents; the ML Kit scanner runs in Play services — no CAMERA or storage/media permission is required or declared. Cleartext HTTP stays for LAN (#042). |
-| **#030** | 🟨 CODE DONE | Critical | **Cashbook auto-entries** | Editing or deleting a Khatabook/Pawn source row does not update/remove its cashbook entry → duplicated or stale cash. | Fixed: create/edit/zero/delete hooks for pawn loans & releases, khata loans/collections/given, member and khata deletion. Collections reference the collection UUID; legacy loan-keyed rows are migrated. `test/cashbook_linkage_test.dart`. |
-| **#031** | 🟨 CODE DONE | High | **Refinance** | No **Cash OUT** entry is written for fresh cash handed over during refinance. | Fixed: `executeRefinance` writes `KHATA_REFINANCE` OUT for the **fresh cash only**; the rolled balance is a transfer, not cash. |
-| **#032** | 🟨 CODE DONE | High | **Backup → Remove sample data** | Removes loans but leaves cashbook rows behind. | Fixed: sample removal deletes linked cashbook rows by reference/category and leaves real rows untouched. Covered by `test/cashbook_linkage_test.dart`. |
+| **#030** | ✅ DONE | Critical | **Cashbook auto-entries** | Editing or deleting a Khatabook/Pawn source row does not update/remove its cashbook entry → duplicated or stale cash. | Fixed: create/edit/zero/delete hooks for pawn loans & releases, khata loans/collections/given, member and khata deletion. Collections reference the collection UUID; legacy loan-keyed rows are migrated. `test/cashbook_linkage_test.dart`. |
+| **#031** | ✅ DONE | High | **Refinance** | No **Cash OUT** entry is written for fresh cash handed over during refinance. | Fixed: `executeRefinance` writes `KHATA_REFINANCE` OUT for the **fresh cash only**; the rolled balance is a transfer, not cash. |
+| **#032** | ✅ DONE | High | **Backup → Remove sample data** | Removes loans but leaves cashbook rows behind. | Fixed: sample removal deletes linked cashbook rows by reference/category and leaves real rows untouched. Covered by `test/cashbook_linkage_test.dart`. |
 | **#033** | ✅ DONE | Medium | **Pawn dashboard → metal filter** | Filter only affects the reserve figure, not the loan list. | Already correct in the current code: `_metal` filters both `rows` and the summary strip in `pawn_screen.dart`. Tracker entry was stale; re-audited 2026-10-29. |
-| **#034** | 🟨 CODE DONE | Medium | **Pawn dashboard** | Raw doubles shown (e.g. `1234.5600000001`). | Fixed: money uses `moneyWhole`; weights render to three decimals. Covered by `test/money_layout_test.dart`. |
-| **#035** | 🟨 CODE DONE | High | **Backup** | Photos duplicated; several tables omitted from the snapshot. | Fixed: all 20 v15 tables tracked (including `migration_log` on fresh installs); photo paths deduped. `test/backup_service_test.dart`. |
-| **#036** | 🟨 CODE DONE | High | **Backup → Restore** | No in-app restore; user must be walked through it. | Fixed: ⋮ → **Restore this backup** validates the archive, takes a verified safety backup, replaces DB + photos, then reloads `AppState`. Covered by 3 restore tests. |
-| **#037** | 🟨 CODE DONE | Medium | **App start** | Opens already logged in; no lock. | Fixed: optional offline **4–6 digit PIN** app lock, salted hash, startup + background gate. Off by default; no recovery except clearing app data. `test/secret_test.dart`. |
-| **#038** | 🟨 CODE DONE | Critical (Play) | **Admin password** | Default is `admin`. | Fixed: forced first-run setup; minimum 6 characters; `admin` refused; salted hash stored, plain-text key removed. `test/secret_test.dart`. |
-| **#039** | 🟨 CODE DONE | Low | **About App** | APK size hard-coded as 95 MB. | Fixed: reads the installed package size from Android through the `AppSize` MethodChannel; no hard-coded claim. Phone display check pending. |
+| **#034** | ✅ DONE | Medium | **Pawn dashboard** | Raw doubles shown (e.g. `1234.5600000001`). | Fixed: money uses `moneyWhole`; weights render to three decimals. Covered by `test/money_layout_test.dart`. |
+| **#035** | ✅ DONE | High | **Backup** | Photos duplicated; several tables omitted from the snapshot. | Fixed: all 20 v15 tables tracked (including `migration_log` on fresh installs); photo paths deduped. `test/backup_service_test.dart`. |
+| **#036** | ✅ DONE | High | **Backup → Restore** | No in-app restore; user must be walked through it. | Fixed: ⋮ → **Restore this backup** validates the archive, takes a verified safety backup, replaces DB + photos, then reloads `AppState`. Covered by 3 restore tests. |
+| **#037** | ✅ DONE | Medium | **App start** | Opens already logged in; no lock. | Fixed: optional offline **4–6 digit PIN** app lock, salted hash, startup + background gate. Off by default; no recovery except clearing app data. `test/secret_test.dart` + `test/app_lock_gate_test.dart`. |
+| **#038** | ✅ DONE | Critical (Play) | **Admin password** | Default is `admin`. | Fixed: forced first-run setup; minimum 6 characters; `admin` refused; salted hash stored, plain-text key removed. `test/secret_test.dart`. |
+| **#039** | ✅ DONE | Low | **About App** | APK size hard-coded as 95 MB. | Fixed: reads the installed package size from Android through the `AppSize` MethodChannel; no hard-coded claim. Phone shows **93.3 MB**. |
 
 ---
 
-## 3. Planned features (v1.1.2 and later)
+## 3. Planned features (v1.1.4 and later)
 
 | # | Status | Area | Feature | Notes |
 |---|---|---|---|---|
@@ -146,12 +161,12 @@ All twenty items are implemented. The status is **🟨 CODE DONE** until the pho
 | **#041** | 🔵 DEFERRED | Reports | Export (PDF/Excel) and charts | Deferred from v1.1.1. |
 | **#042** | 🔵 DEFERRED | Sync / Security | Enforce HTTPS for server sync | Keep LAN HTTP working for v1.1.1; revisit certificate/pinning. |
 | **#043** | 🔵 DEFERRED | Jewellery module | Full buy/sell/stock/valuation module | The Home card currently says “coming soon”. |
-| **#044** | ⬜ TODO | Cashbook | Manual entry edit (currently add/delete only) | Useful once #030 lands. |
+| **#044** | ⬜ TODO | Cashbook | Manual entry edit (currently add/delete only) | Cashbook linkage (#030) is in place. |
 | **#045** | ⬜ TODO | Cashbook | Date-range view (“This month”, “All time”) | Today-only view today; source filter is now in place. |
 | **#046** | ⬜ TODO | Customer Profile | Show payment mode on You Gave rows | The row now stores `payment_mode`; display it. |
 | **#047** | ⬜ TODO | Pawn | Filter/search pledge list by metal, status, due date | Partly exists; complete the list side (#033). |
 | **#048** | ⬜ TODO | Backup | Scheduled/automatic local backup | Manual only today. |
-| **#049** | ⬜ TODO | Security | App lock, encrypted local DB | After #037 + #038. |
+| **#049** | ⬜ TODO | Security | Encrypted local DB | PIN lock (#037) and admin password (#038) are done; encryption is the remaining piece. |
 
 ---
 
@@ -168,6 +183,9 @@ All twenty items are implemented. The status is **🟨 CODE DONE** until the pho
 | Cashbook queries / auto-hooks | `lib/data/local_db.dart`, `lib/state/app_state.dart` |
 | Reports / overdue math | `lib/ui/reports_screen.dart` |
 | Backup / restore | `lib/ui/backup_screen.dart`, `lib/data/backup_service.dart` |
+| Save/restore through the phone file picker | `lib/util/backup_files.dart`, `android/.../MainActivity.kt` |
+| Offline login, admin gate | `lib/state/app_state.dart`, `lib/ui/login_screen.dart`, `lib/ui/admin_password_gate.dart` |
+| App lock (PIN) | `lib/ui/app_lock_gate.dart`, `lib/ui/app_lock_settings_screen.dart`, `lib/util/app_lock.dart` |
 | Number / date formatting | `lib/util/format.dart` |
 | Database schema + migrations | `lib/data/local_db.dart`, `lib/data/migration_v*.dart` |
 | Home screen KPIs / greeting | `lib/ui/home_screen.dart` |
@@ -177,6 +195,17 @@ All twenty items are implemented. The status is **🟨 CODE DONE** until the pho
 ---
 
 ## 5. Change log
+
+### 2026-10-30 — v1.1.3 verified on phone, release-signed
+- **Release migration:** exported the v1.1.1 debug database/photos, uninstalled the old app, installed the release-signed v1.1.3 build, then restored the data through the in-app flow. Live result: 13 customers, 16 pending sync changes, Home shows ₹15,000 pawn investment / ₹1,57,500 khata investment (₹1,57,700 after the live refinance check).
+- **#020–#039 all ✅ DONE** — see the phone-verification list in section 1b. Highlights: reports due-now ₹17,810 across 5 accounts; 2× font layout; ⋮ profile actions; “No reminder”; Indian grouping; dark-mode audit; cashbook linkage; backup/restore with safety copy; optional PIN lock; forced admin password; real APK size.
+- **#031 live proof:** a ₹100 fresh-cash refinance created exactly one `KHATA REFINANCE` OUT row in the 30/10/2026 Cashbook; the ₹64,100 rolled balance stayed a transfer.
+- **#037 follow-up:** `AppLockGate` moved from `MaterialApp.home` to `MaterialApp.builder`, above the Navigator, so the lock covers pushed routes (Settings, profiles, Cashbook); lock screen wrapped in its own `Overlay`. 4 regression tests.
+- **#054 offline use:** Login → **Use without a server** sets `offline_mode=1`; real login clears it. Fixes the lockout after installing/restoring a server-less backup.
+- **Backup files:** SAF **Save a copy to Downloads…** / **Restore from a file…**; no new permission (manifest still only `INTERNET`). Restore validates the archive, takes a verified safety backup, and carries the phone’s admin password / PIN / toggles across the DB replacement.
+- **Tests:** 325 pass, exit 0, ~30 s; `flutter analyze` clean.
+- **Final APK:** v1.1.3 / versionCode 29, `mobile/jewellery_suite-release.apk` (97.8 MB), SHA-256 `d6f0946cc278c3be9720c973e85589ae913317a2946c09cbc3f28de75d53b111`, release-signed with certificate SHA-256 `54f98332…ab61c09`. About App reads the installed size, **93.3 MB**.
+- Keystore: `android/app/upload-keystore.jks` + `android/key.properties` (both gitignored). Back them up together; credentials are not recorded here.
 
 ### 2026-10-29 — v1.1.2 bug-fix round (#020–#039), release-signed
 - **Reports (#020):** `dueNowForReports()` uses the To Collect schedule (installments / interest periods that have arrived) instead of the whole outstanding; 4 regression tests.

@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../data/backup_service.dart';
 import '../data/sample_data.dart';
 import '../state/app_state.dart';
+import '../util/backup_files.dart';
 import 'admin_guard.dart';
 import 'palette.dart';
 import 'widgets.dart';
@@ -92,6 +93,53 @@ class _BackupScreenState extends State<BackupScreen> {
     } catch (_) {
       _toast('Could not open the share sheet.', bad: true);
     }
+  }
+
+  /// Offers Android's own "save as" dialog, then falls back to the share sheet
+  /// on hosts without it. Cancelling changes nothing.
+  Future<void> _saveCopy(BackupInfo info) async {
+    final outcome = await BackupFiles.saveCopy(info.path, info.fileName);
+    if (!mounted) return;
+    switch (outcome) {
+      case 'saved':
+        _toast('Saved ${info.fileName}.');
+      case 'cancelled':
+        return;
+      case 'unavailable':
+        await _share(info);
+      default:
+        _toast('Could not save that copy — opening the share sheet instead.',
+            bad: true);
+        if (mounted) await _share(info);
+    }
+  }
+
+  /// Picks a `.zip` from Downloads / Drive / USB, validates it, copies it into
+  /// the app, then runs the normal restore confirmation.
+  Future<void> _importFromFile() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final picked = await BackupFiles.pickBackup();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (picked == null) {
+      _toast(BackupFiles.supported
+          ? 'No backup file chosen.'
+          : 'File picking is only available on Android. Use a saved backup '
+              'from the list below.');
+      return;
+    }
+
+    setState(() => _busy = true);
+    final imported = await _backups!.adoptBackup(picked);
+    await _reload();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!imported.imported) {
+      _toast('That file cannot be restored: ${imported.problem}', bad: true);
+      return;
+    }
+    await _restore(imported.info!);
   }
 
   Future<void> _delete(BackupInfo info) async {
@@ -201,6 +249,11 @@ class _BackupScreenState extends State<BackupScreen> {
     // caches (counts, logged-in user, cached lists). Reload everything from
     // the restored file before any screen reads a stale number.
     await state.load();
+    // A restored snapshot may predate the offline-mode setting (or come from a
+    // phone that used a server). The shopkeeper is already inside the app and
+    // chose "restore", so do not bounce them to a login wall they may not be
+    // able to pass; Logout still brings the server login back.
+    if (!state.loggedIn) await state.continueOffline();
     await _reload();
     if (!mounted) return;
     setState(() {
@@ -339,6 +392,19 @@ class _BackupScreenState extends State<BackupScreen> {
                 'it is called a success. Your data is never changed to make it.',
                 style: TextStyle(fontSize: 11, color: mutedOf(context)),
               ),
+              const Divider(height: 22),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _importFromFile,
+                icon: const Icon(Icons.folder_open_outlined, size: 18),
+                label: const Text('Restore from a file…'),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Use this after reinstalling the app: choose the .zip you saved '
+                'to Downloads, Drive or a USB stick. The app copies it in, '
+                'checks it, then asks before replacing anything.',
+                style: TextStyle(fontSize: 11, color: mutedOf(context)),
+              ),
             ],
           ),
           if (_files.isNotEmpty) ...[
@@ -358,7 +424,10 @@ class _BackupScreenState extends State<BackupScreen> {
                 'backup of the current data, then replaces the database and '
                 'the customer photos if the backup includes them. '
                 'Use "Check" first if you want to confirm the file is '
-                'complete without changing anything.',
+                'complete without changing anything.\n\n'
+                'A backup saved outside the app (Downloads, Drive, USB) can be '
+                'brought back with "Restore from a file…" above — the app keeps '
+                'a copy before restoring it.',
                 style: TextStyle(
                     fontSize: 12, color: mutedOf(context), height: 1.45),
               ),
@@ -423,6 +492,9 @@ class _BackupScreenState extends State<BackupScreen> {
                 case 'share':
                   _share(f);
                   break;
+                case 'save':
+                  _saveCopy(f);
+                  break;
                 case 'delete':
                   _delete(f);
                   break;
@@ -444,6 +516,14 @@ class _BackupScreenState extends State<BackupScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.ios_share),
                   title: Text('Save or share'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'save',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.save_alt),
+                  title: Text('Save a copy to Downloads…'),
                 ),
               ),
               PopupMenuItem(

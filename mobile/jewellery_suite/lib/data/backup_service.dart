@@ -72,6 +72,19 @@ class RestoreResult {
   });
 }
 
+/// Outcome of [BackupService.adoptBackup].
+///
+/// [info] is set only when a validated archive was copied into the backup
+/// folder; [problem] explains a refusal in words the shopkeeper can act on.
+class ImportResult {
+  final BackupInfo? info;
+  final String? problem;
+
+  const ImportResult({this.info, this.problem});
+
+  bool get imported => info != null;
+}
+
 /// Creates restorable backups of the shop's data.
 ///
 /// The rules this class exists to enforce:
@@ -356,6 +369,30 @@ class BackupService {
             safetyBackup: safety.info);
       }
 
+      // Secrets belong to THIS phone, not to the snapshot. A backup made
+      // before #038 has no password at all, and an older phone's backup carries
+      // a different one; either would force a second setup right after the
+      // restore. Carry the local password/PIN and their per-action switches
+      // across the replace instead.
+      final carriedSecrets = <String, String>{};
+      try {
+        for (final row in await db.db.query('settings')) {
+          final key = row['key'] as String? ?? '';
+          final value = row['value'] as String?;
+          if (value == null) continue;
+          if (key == 'admin_password_hash' ||
+              key == 'admin_password_salt' ||
+              key == 'app_lock_enabled' ||
+              key == 'app_lock_salt' ||
+              key == 'app_lock_hash' ||
+              key.startsWith('pwd_')) {
+            carriedSecrets[key] = value;
+          }
+        }
+      } catch (_) {
+        // An unreadable settings table must not block the data restore.
+      }
+
       await db.close();
       closed = true;
       try {
@@ -365,6 +402,23 @@ class BackupService {
         for (final suffix in const ['-wal', '-shm', '-journal']) {
           final side = File('$livePath$suffix');
           if (await side.exists()) await side.delete();
+        }
+
+        if (carriedSecrets.isNotEmpty) {
+          Database? restored;
+          try {
+            restored = await openDatabase(livePath);
+            for (final entry in carriedSecrets.entries) {
+              await restored.insert(
+                  'settings', {'key': entry.key, 'value': entry.value},
+                  conflictAlgorithm: ConflictAlgorithm.replace);
+            }
+          } catch (_) {
+            // The rows are still restorable; only the local password may need
+            // to be set again.
+          } finally {
+            await restored?.close();
+          }
         }
 
         // Replace the photo folder only when the archive says it contains
@@ -412,6 +466,54 @@ class BackupService {
           restored: false, problem: 'The restore could not be completed.');
     } finally {
       if (work != null) await _deleteQuietly(work);
+    }
+  }
+
+  /// Copies a backup that lives outside the app folder into the backup folder.
+  ///
+  /// This is the other half of the export path: after an uninstall the private
+  /// folder is gone, so a `.zip` saved to Downloads (or Drive, or a USB stick)
+  /// must be brought back in before it can be restored. The file is validated
+  /// first and never overwrites an existing backup.
+  ///
+  /// A file from a newer app version is refused: its schema may contain
+  /// columns this build would silently drop.
+  Future<ImportResult> adoptBackup(String sourcePath) async {
+    final problem = await validateArchive(sourcePath, compareWithLive: false);
+    if (problem != null) return ImportResult(problem: problem);
+
+    final manifest = await readManifest(sourcePath);
+    if (manifest == null || manifest['format'] != 'jewellery-suite-backup') {
+      return const ImportResult(
+          problem: 'This file is not a Jewellery Suite backup.');
+    }
+    final format = (manifest['format_version'] as num?)?.toInt() ?? 1;
+    if (format > formatVersion) {
+      return const ImportResult(
+          problem: 'This backup was made by a newer app version.');
+    }
+
+    try {
+      final dir = await backupDir();
+      // Keep the archive's own date in the file name; a copy made today can
+      // still contain last month's data and must not look like today's.
+      final created =
+          DateTime.tryParse('${manifest['created_at']}') ?? DateTime.now();
+      final target = await _uniquePath(dir, created);
+      await File(sourcePath).copy(target);
+      return ImportResult(
+        info: BackupInfo(
+          path: target,
+          fileName: p.basename(target),
+          createdAt: created,
+          bytes: await File(target).length(),
+          dbBytes: await _entrySize(target, dbEntry),
+          photoCount: await _entryCount(target, photoFolder),
+        ),
+      );
+    } catch (_) {
+      return const ImportResult(
+          problem: 'The backup could not be copied into the app.');
     }
   }
 

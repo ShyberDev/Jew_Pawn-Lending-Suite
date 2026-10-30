@@ -233,6 +233,67 @@ void main() {
     });
   });
 
+  group('adoptBackup', () {
+    test('copies an external archive into the backup folder', () async {
+      final made = await backups.createBackup(includePhotos: false);
+      final outside = File(p.join(scratch.path, 'from-downloads.zip'));
+      await File(made.info.path).copy(outside.path);
+      await File(made.info.path).delete(); // only the external copy may remain
+
+      final imported = await backups.adoptBackup(outside.path);
+      expect(imported.imported, isTrue, reason: imported.problem);
+      expect(imported.info!.path, isNot(outside.path));
+      expect(p.dirname(imported.info!.path), p.join(root.path, 'backups'));
+      expect(await File(imported.info!.path).exists(), isTrue);
+      expect(
+          await backups.validateArchive(imported.info!.path,
+              compareWithLive: false),
+          isNull);
+      expect((await backups.listBackups()).single.path, imported.info!.path);
+    });
+
+    test('refuses a broken file and copies nothing', () async {
+      final bad = File(p.join(scratch.path, 'bad.zip'))..writeAsString('nope');
+      final imported = await backups.adoptBackup(bad.path);
+      expect(imported.imported, isFalse);
+      expect(imported.problem, isNotNull);
+      expect(await backups.listBackups(), isEmpty);
+    });
+
+    test('importing the same file twice never overwrites', () async {
+      final made = await backups.createBackup(includePhotos: false);
+      final outside = File(p.join(scratch.path, 'twice.zip'));
+      await File(made.info.path).copy(outside.path);
+
+      final first = await backups.adoptBackup(outside.path);
+      final second = await backups.adoptBackup(outside.path);
+      expect(first.imported, isTrue, reason: first.problem);
+      expect(second.imported, isTrue, reason: second.problem);
+      expect(first.info!.path, isNot(second.info!.path));
+      expect((await backups.listBackups()).length, 3); // original + two imports
+    });
+  });
+
+  group('restore keeps local secrets', () {
+    test('the phone\'s admin password and PIN survive an older backup',
+        () async {
+      // The archive predates the password/PIN entries...
+      final made = await backups.createBackup(includePhotos: false);
+      // ...which are configured on THIS phone afterwards.
+      await db.setSetting('admin_password_hash', 'hash-now');
+      await db.setSetting('admin_password_salt', 'salt-now');
+      await db.setSetting('app_lock_enabled', '1');
+      await db.setSetting('pwd_pawn_delete', '0');
+
+      final result = await backups.restoreBackup(made.info.path);
+      expect(result.restored, isTrue, reason: result.problem);
+      expect(await db.getSetting('admin_password_hash'), 'hash-now');
+      expect(await db.getSetting('admin_password_salt'), 'salt-now');
+      expect(await db.getSetting('app_lock_enabled'), '1');
+      expect(await db.getSetting('pwd_pawn_delete'), '0');
+    });
+  });
+
   group('liveCounts', () {
     test('reports a count per tracked table', () async {
       final counts = await backups.liveCounts();
