@@ -608,12 +608,16 @@ class LocalDb {
 
   Future<List<Map<String, Object?>>> getCashbookEntries({
     String? date,
+    String? from,
+    String? to,
     String? mode,
     String? type,
     String? source,
   }) async {
     final (where, args) = _cashbookWhere(
       date: date,
+      from: from,
+      to: to,
       mode: mode,
       type: type,
       source: source,
@@ -630,6 +634,8 @@ class LocalDb {
   /// totals always describe exactly the rows on screen.
   (String?, List<Object?>) _cashbookWhere({
     String? date,
+    String? from,
+    String? to,
     String? mode,
     String? type,
     String? source,
@@ -640,6 +646,16 @@ class LocalDb {
     if (date != null && date.isNotEmpty) {
       whereClauses.add('entry_date = ?');
       args.add(date);
+    } else {
+      // A range (month / custom) instead of one day. From and to are inclusive.
+      if (from != null && from.isNotEmpty) {
+        whereClauses.add('entry_date >= ?');
+        args.add(from);
+      }
+      if (to != null && to.isNotEmpty) {
+        whereClauses.add('entry_date <= ?');
+        args.add(to);
+      }
     }
     if (mode != null && mode != 'ALL') {
       whereClauses.add('payment_mode = ?');
@@ -669,13 +685,17 @@ class LocalDb {
   }
 
   Future<Map<String, double>> getCashbookDailySummary(
-    String date, {
+    String? date, {
+    String? from,
+    String? to,
     String? mode,
     String? type,
     String? source,
   }) async {
     final (filter, args) = _cashbookWhere(
       date: date,
+      from: from,
+      to: to,
       mode: mode,
       type: type,
       source: source,

@@ -2,10 +2,10 @@
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
 **Last updated:** 2026-10-30
-**App version installed for testing:** v1.1.4 (versionCode 30, **release-signed**) — installed over v1.1.3 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
-**Release build:** v1.1.4 (versionCode 30, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.5 MB), SHA-256 `0a67da8b2c647d7926ac574326192b0eb088cebc1625f7330d17843bf1f4cd29`
-**Published APK:** GitHub release **v1.1.4**, asset `jewellery_suite_v1.1.4.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
-**Next target:** v1.1.5 — hands-on phone pass over #055–#064, then deferred #040–#043 and #065 (real SMS/Gmail OTP)
+**App version installed for testing:** v1.1.5 (versionCode 31, **release-signed**) — installed over v1.1.4 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
+**Release build:** v1.1.5 (versionCode 31, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.6 MB), SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`
+**Published APK:** GitHub release **v1.1.5**, asset `jewellery_suite_v1.1.5.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
+**Next target:** v1.2.0 — hands-on phone pass over #055–#065, then deferred #040–#043 (notifications, report export, HTTPS, jewellery module) and #066 (fingerprint). **Play Store work is parked until v2.**
 
 ---
 
@@ -155,6 +155,19 @@ none is marked ✅ DONE yet.
 
 ---
 
+## 1e. v1.1.5 — cashbook edit, ranges, payment mode, real OTP delivery
+
+All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
+
+| # | Status | Area | Page / option | What changed |
+|---|---|---|---|---|
+| **#044** | 🟨 CODE DONE | Cashbook | **Cashbook → a manual row → edit icon** | The entry sheet reopens pre-filled and saves over the same row (amount, category, mode, party, notes, date). Module-owned rows are refused with an explanation. |
+| **#045** | 🟨 CODE DONE | Cashbook | **Cashbook → VIEW chips** | **Day · This month · All time · Range**. The list and the tally both use the chosen span; `Range` opens a date-range picker. |
+| **#046** | 🟨 CODE DONE | Customer Profile | **You Gave ledger rows** | The stored payment mode is appended to the row note (`Late fee — note · UPI`). |
+| **#065** | 🟨 CODE DONE | Passwords / OTP | **Password Settings → One-time code delivery** | Optional gateway URL + SMS/E-mail channel. Codes are really sent when it is set; otherwise the on-phone fallback stays, so nobody is locked out. |
+
+---
+
 ## 2. Open bugs carried forward (from v1.0.24 audit)
 
 | # | Status | Severity | Page / option | Problem | Suggested fix / file |
@@ -190,14 +203,14 @@ none is marked ✅ DONE yet.
 | **#041** | 🔵 DEFERRED | Reports | Export (PDF/Excel) and charts | Deferred from v1.1.1. |
 | **#042** | 🔵 DEFERRED | Sync / Security | Enforce HTTPS for server sync | Keep LAN HTTP working for v1.1.1; revisit certificate/pinning. |
 | **#043** | 🔵 DEFERRED | Jewellery module | Full buy/sell/stock/valuation module | The Home card currently says “coming soon”. |
-| **#044** | ⬜ TODO | Cashbook | Manual entry edit (currently add/delete only) | Cashbook linkage (#030) is in place. |
-| **#045** | ⬜ TODO | Cashbook | Date-range view (“This month”, “All time”) | Today-only view today; source filter is now in place. |
-| **#046** | ⬜ TODO | Customer Profile | Show payment mode on You Gave rows | The row now stores `payment_mode`; display it. |
+| **#044** | 🟨 CODE DONE | Cashbook | Manual entry edit (v1.1.5) | A hand-typed row has an **edit** icon that reopens the entry sheet pre-filled (amount, category, mode, party, notes, date). Rows created by Khatabook / Pawn / Jewellery are refused — they must be corrected in their own module, so source and cash never disagree. `test/cashbook_edit_range_test.dart`. |
+| **#045** | 🟨 CODE DONE | Cashbook | Date-range view (v1.1.5) | New **VIEW** row: **Day · This month · All time · Range**. Month/range use an inclusive `from`/`to` in the database, and the tally card follows the same filter. |
+| **#046** | 🟨 CODE DONE | Customer Profile | Payment mode on You Gave rows (v1.1.5) | The ledger note now ends with the stored mode (`Late fee — note · UPI`). |
 | **#047** | ⬜ TODO | Pawn | Filter/search pledge list by metal, status, due date | Partly exists; complete the list side (#033). |
 | **#048** | ⬜ TODO | Backup | Scheduled/automatic local backup | Manual only today. |
 | **#049** | ⬜ TODO | Security | Encrypted local DB | PIN lock (#037) and admin password (#038) are done; encryption is the remaining piece. |
-| **#065** | ⬜ TODO | Login / OTP | Deliver one-time codes by real SMS / Gmail | The flow is built (#058); delivery is on-phone today. Needs an SMS/e-mail gateway or a small server endpoint, plus the shop's consent for the message cost. |
-| **#066** | ⬜ TODO | Security | Fingerprint / face unlock | The entry now lives in Password Settings (#059); the PIN is the only method until a biometric plugin and the Android permission are added. |
+| **#065** | 🟨 CODE DONE | Login / OTP | Deliver one-time codes by real SMS / Gmail | v1.1.5 adds **Password Settings → One-time code delivery**: paste an SMS/e-mail gateway URL, choose SMS or E-mail, and the app POSTs `{to, channel, purpose, code, message}`. Any 2xx counts as sent; the code is only shown on the phone when no gateway is set or the send fails. **Still needs the shop's gateway URL** (provider account) to leave the phone in production. |
+| **#066** | ⬜ TODO | Security | Fingerprint / face unlock | The entry now lives in Password Settings (#059). Deferred: `local_auth` is not in the offline pub cache and the prompt would need a `FlutterFragmentActivity` switch plus device enrolment to verify, so the PIN / Daily MPIN remains the only method for now. |
 
 ---
 
@@ -229,6 +242,20 @@ none is marked ✅ DONE yet.
 ---
 
 ## 5. Change log
+
+### 2026-10-30 — v1.1.5 built, installed and published
+- **Signed release APK:** v1.1.5 / versionCode 31, 98.6 MB (`98,554,731` bytes), `mobile/jewellery_suite-release.apk`, SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`.
+- **Installed in place** over v1.1.4 at `10.235.54.6:36647`; `dumpsys package` reports **versionName 1.1.5 / versionCode 31**, data kept. Launched to `MainActivity` with **no crash lines** in logcat.
+- **Published:** GitHub release **v1.1.5** with asset `jewellery_suite_v1.1.5.apk` (release assets are how the APK ships; `mobile/.gitignore` excludes `*.apk`).
+- **Play Store:** deliberately parked until **v2** — no listing, signing-for-Play or policy work is being done before the app is finished.
+
+### 2026-10-30 — v1.1.5 — cashbook edit/ranges, payment mode, OTP gateway
+- **Cashbook editing (#044):** manual rows get an edit action that reopens the sheet pre-filled. Automated rows (Khata / Pawn / Jewellery, or any row with a `reference_id`) are refused so the module and the cash can never disagree.
+- **Cashbook ranges (#045):** `getCashbookEntries` / `getCashbookDailySummary` accept an inclusive `from`/`to`; the screen adds **Day · This month · All time · Range** and the tally follows it.
+- **Payment mode (#046):** You Gave rows now show `· CASH / UPI / BANK` from the stored `payment_mode`.
+- **OTP delivery (#065):** new `lib/util/otp_gateway.dart` and a Password Settings card. When a gateway URL is configured the code is POSTed as JSON and **not** shown on the phone; otherwise the offline code appears as before.
+- **Tests:** new `test/cashbook_edit_range_test.dart` (4 cases: manual edit, module-owned refusal, range totals, gateway config). `flutter analyze` clean; **330 tests pass**, exit 0.
+- Deferred: **#066 biometric unlock** (needs `local_auth`, not available in the offline pub cache, and device enrolment to verify).
 
 ### 2026-10-30 — v1.1.4 built, installed and published
 - **Signed release APK:** v1.1.4 / versionCode 30, 98.5 MB, `mobile/jewellery_suite-release.apk`, SHA-256 `0a67da8b2c647d7926ac574326192b0eb088cebc1625f7330d17843bf1f4cd29`, signed with the upload keystore (certificate SHA-256 `54f98332…ab61c09`).

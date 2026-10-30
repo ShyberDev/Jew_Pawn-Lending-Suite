@@ -19,6 +19,10 @@ class _CashbookScreenState extends State<CashbookScreen> {
   String _selectedMode = 'ALL';
   String _selectedSource = 'ALL';
   final String _selectedType = 'ALL';
+
+  /// day | month | all | range (#045).
+  String _scope = 'day';
+  DateTimeRange? _range;
   bool _loading = true;
   List<Map<String, Object?>> _entries = [];
   Map<String, double> _summary = {
@@ -38,15 +42,36 @@ class _CashbookScreenState extends State<CashbookScreen> {
 
   Future<void> _load() async {
     final state = context.read<AppState>();
-    final dateStr = _dateString(_selectedDate);
+    String? date;
+    String? from;
+    String? to;
+    switch (_scope) {
+      case 'month':
+        from = _dateString(DateTime(_selectedDate.year, _selectedDate.month, 1));
+        to = _dateString(
+            DateTime(_selectedDate.year, _selectedDate.month + 1, 0));
+        break;
+      case 'all':
+        break;
+      case 'range':
+        from = _dateString(_range?.start ?? _selectedDate);
+        to = _dateString(_range?.end ?? _selectedDate);
+        break;
+      default:
+        date = _dateString(_selectedDate);
+    }
     final entries = await state.getCashbookEntries(
-      date: dateStr,
+      date: date,
+      from: from,
+      to: to,
       mode: _selectedMode,
       type: _selectedType,
       source: _selectedSource,
     );
     final summary = await state.getCashbookDailySummary(
-      dateStr,
+      date,
+      from: from,
+      to: to,
       mode: _selectedMode,
       type: _selectedType,
       source: _selectedSource,
@@ -83,6 +108,47 @@ class _CashbookScreenState extends State<CashbookScreen> {
       });
       await _load();
     }
+  }
+
+  Future<void> _pickRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDateRange: _range,
+      helpText: 'Cashbook date range',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _range = picked;
+      _scope = 'range';
+      _loading = true;
+    });
+    await _load();
+  }
+
+  /// Edits a manual row (#044). Automated rows are refused by the writer.
+  void _editEntry(Map<String, Object?> entry) {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: surfaceOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _AddEntrySheet(
+        entryType: entry['entry_type']?.toString() ?? 'IN',
+        selectedDate: DateTime.tryParse(
+                entry['entry_date']?.toString() ?? '') ??
+            _selectedDate,
+        existing: entry,
+        onAdded: () {
+          Navigator.pop(ctx);
+          _load();
+        },
+      ),
+    );
   }
 
   void _showAddEntryModal(String entryType) {
@@ -134,9 +200,22 @@ class _CashbookScreenState extends State<CashbookScreen> {
   @override
   Widget build(BuildContext context) {
     final isToday = _dateString(_selectedDate) == _dateString(DateTime.now());
-    final dateDisplay = isToday
+    final dayText = isToday
         ? 'Today (${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year})'
         : '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dateDisplay = switch (_scope) {
+      'month' => '${months[_selectedDate.month - 1]} ${_selectedDate.year}',
+      'all' => 'All time',
+      'range' => _range == null
+          ? 'Range'
+          : '${_range!.start.day} ${months[_range!.start.month - 1]} – '
+              '${_range!.end.day} ${months[_range!.end.month - 1]}',
+      _ => dayText,
+    };
 
     return Scaffold(
       backgroundColor: bgOf(context),
@@ -150,7 +229,7 @@ class _CashbookScreenState extends State<CashbookScreen> {
         elevation: 0.5,
         actions: [
           TextButton.icon(
-            onPressed: _pickDate,
+            onPressed: _scope == 'range' ? _pickRange : _pickDate,
             icon: const Icon(Icons.calendar_month, size: 18, color: kGoldDark),
             label: Text(
               dateDisplay,
@@ -337,6 +416,28 @@ class _CashbookScreenState extends State<CashbookScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _filterRow(
+            label: 'VIEW',
+            values: const [
+              ('day', 'Day'),
+              ('month', 'This month'),
+              ('all', 'All time'),
+              ('range', 'Range'),
+            ],
+            selected: _scope,
+            onSelected: (value) {
+              if (value == 'range') {
+                _pickRange();
+                return;
+              }
+              setState(() {
+                _scope = value;
+                _loading = true;
+              });
+              _load();
+            },
+          ),
+          const SizedBox(height: 4),
+          _filterRow(
             label: 'SOURCE',
             values: sources,
             selected: _selectedSource,
@@ -440,6 +541,13 @@ class _CashbookScreenState extends State<CashbookScreen> {
     final mode = entry['payment_mode']?.toString() ?? 'CASH';
     final notes = entry['notes']?.toString() ?? '';
     final uuid = entry['client_uuid']?.toString() ?? '';
+    // Manual rows can be edited from here. Rows produced by Khatabook / Pawn /
+    // Jewellery belong to that module: editing them here would leave the source
+    // row and the cash disagreeing, so they are left alone.
+    final automated = (entry['reference_id']?.toString() ?? '').isNotEmpty ||
+        category.startsWith('KHATA') ||
+        category.startsWith('PAWN') ||
+        category.startsWith('JEWELLERY');
 
     String categoryLabel = category.replaceAll('_', ' ');
     IconData catIcon = Icons.payments_outlined;
@@ -530,6 +638,13 @@ class _CashbookScreenState extends State<CashbookScreen> {
                 ],
               ),
             ),
+            if (!automated)
+              IconButton(
+                tooltip: 'Edit this entry',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.edit_outlined, size: 17),
+                onPressed: () => _editEntry(entry),
+              ),
             const SizedBox(width: 8),
             Text(
               '${isIn ? '+' : '-'}₹${moneyWhole(amount)}',
@@ -610,10 +725,14 @@ class _AddEntrySheet extends StatefulWidget {
   final DateTime selectedDate;
   final VoidCallback onAdded;
 
+  /// Non-null when editing an existing manual row (#044).
+  final Map<String, Object?>? existing;
+
   const _AddEntrySheet({
     required this.entryType,
     required this.selectedDate,
     required this.onAdded,
+    this.existing,
   });
 
   @override
@@ -631,6 +750,15 @@ class _AddEntrySheetState extends State<_AddEntrySheet> {
   void initState() {
     super.initState();
     _category = widget.entryType == 'IN' ? 'CUSTOMER_PAYMENT' : 'SHOP_EXPENSE';
+    final e = widget.existing;
+    if (e != null) {
+      _amountCtrl.text = moneyWholeDown(Num.toDouble(e['amount']));
+      _partyCtrl.text = e['party_name']?.toString() ?? '';
+      _notesCtrl.text = e['notes']?.toString() ?? '';
+      _paymentMode = (e['payment_mode']?.toString() ?? 'CASH').toUpperCase();
+      final saved = e['category']?.toString() ?? '';
+      if (saved.isNotEmpty) _category = saved;
+    }
   }
 
   @override
@@ -651,15 +779,35 @@ class _AddEntrySheetState extends State<_AddEntrySheet> {
     }
 
     final state = context.read<AppState>();
-    await state.addCashbookEntry(
-      type: widget.entryType,
-      amount: amount,
-      category: _category,
-      mode: _paymentMode,
-      date: widget.selectedDate,
-      partyName: _partyCtrl.text.trim(),
-      notes: _notesCtrl.text.trim(),
-    );
+    if (widget.existing != null) {
+      final saved = await state.updateCashbookEntry(
+        uuid: widget.existing!['client_uuid']?.toString() ?? '',
+        amount: amount,
+        category: _category,
+        mode: _paymentMode,
+        date: widget.selectedDate,
+        partyName: _partyCtrl.text.trim(),
+        notes: _notesCtrl.text.trim(),
+      );
+      if (!saved) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'This entry belongs to another module - edit it there.')));
+        }
+        return;
+      }
+    } else {
+      await state.addCashbookEntry(
+        type: widget.entryType,
+        amount: amount,
+        category: _category,
+        mode: _paymentMode,
+        date: widget.selectedDate,
+        partyName: _partyCtrl.text.trim(),
+        notes: _notesCtrl.text.trim(),
+      );
+    }
 
     widget.onAdded();
   }
@@ -704,7 +852,9 @@ class _AddEntrySheetState extends State<_AddEntrySheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isIn ? 'Record Cash IN' : 'Record Cash OUT',
+                  widget.existing == null
+                      ? (isIn ? 'Record Cash IN' : 'Record Cash OUT')
+                      : (isIn ? 'Edit Cash IN' : 'Edit Cash OUT'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -730,7 +880,9 @@ class _AddEntrySheetState extends State<_AddEntrySheet> {
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
-              initialValue: _category,
+              initialValue: categories.any((c) => c.$1 == _category)
+                  ? _category
+                  : categories.first.$1,
               decoration: InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(

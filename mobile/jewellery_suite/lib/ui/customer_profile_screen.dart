@@ -2127,6 +2127,12 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           : noteText.isEmpty
               ? typeLabel
               : '$typeLabel — $noteText';
+      // #046: the mode the money actually moved by (Cash / UPI / Bank).
+      final mode = (r.source['payment_mode']?.toString() ?? '').trim();
+      if (mode.isNotEmpty) {
+        final label = mode.toUpperCase();
+        note = note == null ? label : '$note · $label';
+      }
     }
     final tile = AnimatedContainer(
       duration: const Duration(milliseconds: 150),

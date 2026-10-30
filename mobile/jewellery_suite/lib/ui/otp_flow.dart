@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../state/app_state.dart';
+import '../util/otp_gateway.dart';
 import 'palette.dart';
 
 /// One-time-code confirmation shared by every "Forgot password" entry point.
@@ -73,11 +74,14 @@ Future<bool> confirmWithOtp(
   if (proceed != true) return false;
 
   final code = await state.issueOtp(purpose);
+  // Try the configured SMS / e-mail gateway first. Only when nothing is
+  // configured (or the send fails) is the code shown on the phone.
+  final delivered = await OtpGateway.send(
+      db: state.db, to: identifier, code: code, purpose: purpose);
   if (!context.mounted) return false;
 
-  // Step 2 — show the code (offline delivery) and verify it.
-  final entered =
-      await askOtpCodeDialog(context, code: code, identifier: identifier);
+  final entered = await askOtpCodeDialog(context,
+      code: code, identifier: identifier, delivered: delivered);
   if (entered == null || !context.mounted) return false;
   final ok = await state.verifyOtp(purpose, entered);
   if (!ok && context.mounted) {
@@ -95,6 +99,7 @@ Future<String?> askOtpCodeDialog(
   BuildContext context, {
   required String code,
   required String identifier,
+  bool delivered = false,
 }) async {
   final ctl = TextEditingController();
   try {
@@ -114,25 +119,43 @@ Future<String?> askOtpCodeDialog(
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: kGold.withValues(alpha: .5)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Offline code (valid 10 minutes)',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  SelectableText(code,
-                      style: const TextStyle(
-                          fontSize: 26,
-                          letterSpacing: 6,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text(
-                    'This phone has no SMS / e-mail gateway configured, so the '
-                    'code appears here instead of going to $identifier.',
-                    style: TextStyle(fontSize: 10.5, color: mutedOf(ctx)),
-                  ),
-                ],
-              ),
+              child: delivered
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Code sent',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'A 6-digit code was sent to $identifier. It is valid '
+                          'for 10 minutes.',
+                          style:
+                              TextStyle(fontSize: 10.5, color: mutedOf(ctx)),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Offline code (valid 10 minutes)',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        SelectableText(code,
+                            style: const TextStyle(
+                                fontSize: 26,
+                                letterSpacing: 6,
+                                fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'No SMS / e-mail gateway is configured (or the send '
+                          'failed), so the code appears here instead of going '
+                          'to $identifier.',
+                          style: TextStyle(fontSize: 10.5, color: mutedOf(ctx)),
+                        ),
+                      ],
+                    ),
             ),
             const SizedBox(height: 12),
             TextField(
