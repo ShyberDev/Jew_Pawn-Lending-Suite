@@ -45,7 +45,8 @@ shop already made.
 | Drag-to-delete bin | 🟨 fixed in code 2026-11-01, covered by 2 new tests, not yet phone-checked | Root cause found (§4). |
 | Delete / release asking the MPIN | 🟨 code changed 2026-11-01, not yet phone-checked | `askPasswordIfEnabled` now verifies the MPIN first. |
 | Pawn profile header layout | 🟨 crash fixed 2026-11-01 | `RenderFlex … unbounded` thrown on every profile open; see §4. |
-| Amount-range filter in the pawn Filter menu | ⚠️ placeholder | Tapping shows “Amount range picker — coming next.” |
+| Amount-range filter in the pawn Filter menu | 🟨 code done 2026-11-01 (#06G) | From/To dialog, open-ended either side, Clear; covered by a widget test. |
+| Release build v1.1.6 published on GitHub | ✅ built + uploaded, not installed | Asset `jewellery_suite_v1.1.6.apk`, SHA-256 `a2da42f4…3adcf583`. |
 | Biometric unlock (#066), notifications, report export, HTTPS | 🔵 deferred | Not started. |
 
 **Rule of thumb:** 🟨 means *compiles and is unit-tested*, not *seen working*. Never mark something ✅
@@ -134,8 +135,8 @@ device is full” while copying `listener.dart.dill`. Run tests with
   coverage only.
 - **Widget tests did not cover gestures** (fixed 2026-11-01: `test/drag_to_delete_test.dart`). The
   long-press conflict shipped precisely because no test ever simulated a long-press-drag on a tile.
-- **A placeholder is still a placeholder.** `_pickAmountRange` only shows a toast, while the Filter
-  menu entry looks finished.
+- **Placeholders are now finished, keep it that way.** The old amount-range toast is gone (#06G); if a
+  menu entry cannot work yet, do not ship it looking finished.
 
 ---
 
@@ -165,11 +166,14 @@ These are recorded so the next session does not repeat them.
    moving files instead of fixing the screen the shop was using.
 8. **Wrote the tracker in past tense for unverified work.** Some entries read as done when they were
    only written. The tracker now distinguishes 🟨 CODE DONE from ✅ DONE — keep that distinction.
-9. **Left a stray nested copy of the tree.** `mobile/jewellery_suite/mobile/jewellery_suite/` holds two
-   untracked files from an earlier refactor attempt (`lib/core/refactor_audit.py` and
-   `lib/refactor_checkpoint/app_state.dart.checkpoint`). It is not part of the app and is not compiled,
-   but it confuses path resolution — a file written to `mobile/jewellery_suite/...` landed *inside* it.
-   Delete it once nobody needs the checkpoint.
+9. **Left a stray nested copy of the tree.** `mobile/jewellery_suite/mobile/jewellery_suite/` held two
+   files from an earlier refactor attempt (`lib/core/refactor_audit.py` and
+   `lib/refactor_checkpoint/app_state.dart.checkpoint`). They were tracked in git, which is why nobody
+   noticed, and they confused path resolution — a file written to `mobile/jewellery_suite/...` landed
+   *inside* it. **Removed 2026-11-01**; the real app is `mobile/jewellery_suite/lib` only.
+10. **Almost shipped a placeholder-shaped UI again.** The new amount-range menu entry was labelled
+    “Amount range (set)” when active; that longer label overflowed the popup row by 26 px at 430 dp.
+    The label is constant now and the filter pill carries the active state.
 
 ---
 
