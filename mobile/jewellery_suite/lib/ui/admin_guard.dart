@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
+import '../util/app_lock.dart';
 import '../util/secret_hash.dart';
 
 /// Password-gated destructive actions.
@@ -110,7 +111,14 @@ Future<void> setAdminPassword(AppState state, String next) async {
 /// The single gate every destructive action calls.
 ///
 /// Returns true when the action may proceed: either its toggle (and the master
-/// switch) is off, or the shopkeeper typed the current password.
+/// switch) is off, or the shopkeeper typed the current secret.
+///
+/// **Which secret:** the everyday **MPIN** (the screen-lock PIN in Password
+/// Settings) is what the shop floor types, so it is checked first. The long
+/// admin password is only asked when no MPIN is set — otherwise a shop that
+/// never configured a PIN would have no way past the delete / release prompt.
+/// A 4–6 digit MPIN must never be accepted as an admin password or the other
+/// way round: each is verified against its own salted hash.
 Future<bool> askPasswordIfEnabled(
   BuildContext context,
   AppState state, {
@@ -124,7 +132,9 @@ Future<bool> askPasswordIfEnabled(
   // A toggle never saved counts as ON (password asked) — safe default.
   final enabled = master && toggle != '0';
   if (!enabled) return true;
-  // The screen can be popped while the read above is in flight. This is a
+  // The MPIN is only usable once it has been set AND the screen lock is on.
+  final useMpin = await AppLock.isEnabled(state.db);
+  // The screen can be popped while the reads above are in flight. This is a
   // destructive action, so it fails CLOSED: no screen, no prompt, no delete.
   if (!context.mounted) return false;
   return confirmAdmin(
@@ -132,7 +142,11 @@ Future<bool> askPasswordIfEnabled(
     action: action,
     detail: detail,
     confirmLabel: confirmLabel,
-    verify: (typed) => verifyAdminPassword(state, typed),
+    labelText: useMpin ? 'Type MPIN' : 'Type admin password',
+    keyboardType: useMpin ? TextInputType.number : TextInputType.text,
+    verify: (typed) => useMpin
+        ? AppLock.verify(state.db, typed)
+        : verifyAdminPassword(state, typed),
   );
 }
 
@@ -146,6 +160,8 @@ Future<bool> confirmAdmin(
   required String action,
   String? detail,
   String confirmLabel = 'Delete',
+  String labelText = 'Type admin password',
+  TextInputType? keyboardType,
   required Future<bool> Function(String typed) verify,
 }) async {
   final pw = TextEditingController();
@@ -159,9 +175,10 @@ Future<bool> confirmAdmin(
           controller: pw,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Type admin password',
-            border: OutlineInputBorder(),
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            labelText: labelText,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [

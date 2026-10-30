@@ -233,7 +233,52 @@ void main() {
 
     expect(find.text('Ravi'), findsOneWidget);
     expect(find.text('Suresh'), findsNothing,
-        reason: '#033: the Silver loan must leave the list, not just the total');
+        reason:
+            '#033: the Silver loan must leave the list, not just the total');
+  });
+
+  testWidgets('amount range in the Filter menu narrows the pledge list',
+      (tester) async {
+    await seedPawnLoans();
+    await pumpPawn(tester);
+
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsOneWidget);
+
+    // The filter row scrolls horizontally; the Filter pill sits past the right
+    // edge on a 430 dp phone, so bring it into view first.
+    final filterPill = find.byKey(const ValueKey('pawn-filter'));
+    await tester.ensureVisible(filterPill);
+    await tester.pumpAndSettle();
+    await tester.tap(filterPill);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Amount range'));
+    await tester.pumpAndSettle();
+
+    // "Above ₹50,000": leave the upper bound blank.
+    await tester.enterText(
+        find.widgetWithText(TextField, 'From ₹ (blank = any)'), '50000');
+    await tester.tap(find.text('Apply'));
+    await settleWithDb(tester);
+
+    expect(find.text('≥ ₹50,000'), findsOneWidget,
+        reason: 'the filter pill must say what is filtered');
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsNothing);
+
+    // Clear puts both pledges back.
+    await tester.ensureVisible(filterPill);
+    await tester.pumpAndSettle();
+    await tester.tap(filterPill);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Amount range'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear'));
+    await settleWithDb(tester);
+
+    expect(find.text('Filter'), findsOneWidget);
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsOneWidget);
   });
 
   testWidgets(
@@ -247,11 +292,14 @@ void main() {
 
     expect(find.text('Customer Pawn Profile'), findsOneWidget);
     final loanCard = find.byKey(const ValueKey('pawn-loan-details'));
+    // #069 named the promised date explicitly and added the actual due date,
+    // so the old bare 'Due Date' label must not come back.
     for (final label in const [
       'Principal',
       'Interest Rate',
       'Loan Date',
-      'Due Date',
+      'Due Date (Promised)',
+      'Actual Due Date',
       'Amount Paid',
       'Outstanding',
     ]) {

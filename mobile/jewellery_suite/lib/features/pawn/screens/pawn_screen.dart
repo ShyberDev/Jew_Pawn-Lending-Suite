@@ -239,6 +239,15 @@ class _PawnScreenState extends State<PawnScreen> {
         return d.isNotEmpty && d.compareTo(from) >= 0 && d.compareTo(to) <= 0;
       }).toList();
     }
+    // Amount range. A missing side is open-ended: 0 = "no minimum",
+    // infinity = "no maximum", so "above ₹50,000" or "under ₹5,000" both work.
+    if (_amountRange != null) {
+      final (lo, hi) = _amountRange!;
+      rows = rows.where((r) {
+        final amount = Num.toDouble(r['loan_amount']);
+        return amount >= lo && amount <= hi;
+      }).toList();
+    }
 
     // Attach the customer row for display only (photo, village, book ID).
     // Never add these keys to the loan row itself — it is spread into
@@ -490,13 +499,16 @@ class _PawnScreenState extends State<PawnScreen> {
 
     return DragToDeleteTile(
       onDragChanged: (v) => setState(() => _dragActive = v),
+      // Hold-and-release opens the caller menu; hold-and-move lifts the tile for
+      // the trash bin. The tile must NOT own an InkWell.onLongPress: the inner
+      // recogniser wins the gesture arena, which is why the drag never started.
+      onLongPress: _selectMode ? null : () => _showActions(row),
       payload: DeletePayload(drop: () => _deleteLoan(row)),
       child: Material(
         color: selected ? kGold.withValues(alpha: .12) : Colors.transparent,
         child: InkWell(
           onTap:
               _selectMode ? () => _toggleSelect(uuid) : () => _openDetail(row),
-          onLongPress: _selectMode ? null : () => _showActions(row),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
             child: Row(
@@ -883,7 +895,7 @@ class _PawnScreenState extends State<PawnScreen> {
                     return;
                   }
                   if (value.startsWith('__amount__')) {
-                    _pickAmountRange(value);
+                    _pickAmountRange();
                     return;
                   }
                   setState(() => _category = value.isEmpty ? null : value);
@@ -909,14 +921,13 @@ class _PawnScreenState extends State<PawnScreen> {
                         ],
                       )),
                   PopupMenuItem<String>(
-                    value: '__amount__min_null_max_null',
-                    enabled: _amountRange == null,
+                    value: '__amount__',
                     child: Row(
                       children: [
                         Icon(Icons.account_balance_wallet_outlined,
                             size: 18, color: kGoldDark),
                         SizedBox(width: 10),
-                        Text('Amount range'),
+                        const Text('Amount range'),
                       ],
                     ),
                   ),
@@ -941,17 +952,33 @@ class _PawnScreenState extends State<PawnScreen> {
 
   String get _filterLabel {
     if (_category != null) return 'Category: $_category';
-    if (_range != null)
+    if (_range != null) {
       return '${_short(_range!.start)} – ${_short(_range!.end)}';
+    }
     if (_amountRange != null) {
       final (lo, hi) = _amountRange!;
-      return '${moneyWhole(lo)} – ${moneyWhole(hi)}';
+      if (hi.isInfinite) return '≥ ₹${moneyWhole(lo)}';
+      if (lo <= 0) return '≤ ₹${moneyWhole(hi)}';
+      return '₹${moneyWhole(lo)} – ₹${moneyWhole(hi)}';
     }
     return 'Filter';
   }
 
-  void _pickAmountRange(String value) {
-    _toast(context, 'Amount range picker — coming next.');
+  /// Amount range for the pledge list. Either side may be left blank, so the
+  /// shop can ask for "above ₹50,000" as easily as a band. 0 / infinity are the
+  /// open ends; clearing both removes the filter.
+  Future<void> _pickAmountRange() async {
+    final picked = await showDialog<(double, double)>(
+      context: context,
+      builder: (_) => _AmountRangeDialog(initial: _amountRange),
+    );
+    if (picked == null) return; // cancelled — keep the current range
+    if (!mounted) return;
+    setState(() {
+      final (lo, hi) = picked;
+      // Clear puts 0..infinity in, which is the "no range" value.
+      _amountRange = (lo <= 0 && hi.isInfinite) ? null : (lo, hi);
+    });
   }
 
   /// Gold / Silver / Mixed item filter — the summary strip and the loan list
@@ -2178,25 +2205,29 @@ class _PawnDetailState extends State<_PawnDetail> {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    // This row is a child of the header Row, so its width is
+                    // unbounded: an Expanded here would throw
+                    // "RenderFlex children have non-zero flex but incoming
+                    // width constraints are unbounded". The pill shrink-wraps
+                    // and the ⋮ sits beside it.
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: released
-                                  ? kGreen.withValues(alpha: .15)
-                                  : kGold.withValues(alpha: .2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              loan['status']?.toString() ?? 'Active',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: released ? kGreen : kGoldDark,
-                              ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: released
+                                ? kGreen.withValues(alpha: .15)
+                                : kGold.withValues(alpha: .2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            loan['status']?.toString() ?? 'Active',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: released ? kGreen : kGoldDark,
                             ),
                           ),
                         ),
@@ -3617,4 +3648,102 @@ void _toast(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// Amount-range dialog for the pledge list.
+///
+/// A `StatefulWidget` on purpose: the two `TextEditingController`s must be
+/// disposed by the route that owns them. Disposing them right after
+/// `showDialog` returns throws “A TextEditingController was used after being
+/// disposed”, because the dialog's exit animation still rebuilds the fields.
+///
+/// Returns `(0, infinity)` for **Clear** so the caller can drop the filter, or
+/// `null` when cancelled (keep what was there).
+class _AmountRangeDialog extends StatefulWidget {
+  const _AmountRangeDialog({this.initial});
+
+  final (double, double)? initial;
+
+  @override
+  State<_AmountRangeDialog> createState() => _AmountRangeDialogState();
+}
+
+class _AmountRangeDialogState extends State<_AmountRangeDialog> {
+  late final TextEditingController _from;
+  late final TextEditingController _to;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _from = TextEditingController(
+        text: initial == null || initial.$1 <= 0
+            ? ''
+            : initial.$1.toStringAsFixed(0));
+    _to = TextEditingController(
+        text: initial == null || initial.$2.isInfinite
+            ? ''
+            : initial.$2.toStringAsFixed(0));
+  }
+
+  @override
+  void dispose() {
+    _from.dispose();
+    _to.dispose();
+    super.dispose();
+  }
+
+  void _apply() {
+    var lo = parseMoney(_from.text);
+    var hi = parseMoney(_to.text);
+    // A blank side is open-ended, so the shop can ask “above ₹50,000”.
+    if (_from.text.trim().isEmpty) lo = 0;
+    if (_to.text.trim().isEmpty) hi = double.infinity;
+    if (hi.isFinite && hi < lo) {
+      final swap = lo;
+      lo = hi;
+      hi = swap;
+    }
+    Navigator.pop(context, (lo, hi));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Amount range'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _from,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'From ₹ (blank = any)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _to,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'To ₹ (blank = any)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, (0.0, double.infinity)),
+          child: const Text('Clear'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _apply, child: const Text('Apply')),
+      ],
+    );
+  }
 }
