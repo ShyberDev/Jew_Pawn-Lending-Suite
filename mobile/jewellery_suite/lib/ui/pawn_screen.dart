@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/doc_scanner.dart';
 import '../data/slip_ocr.dart';
@@ -14,6 +15,7 @@ import '../util/pawn_math.dart';
 import 'customers_screen.dart';
 import 'admin_guard.dart';
 import 'palette.dart';
+import 'pawn_categories_screen.dart';
 import 'pawn_dashboard_screen.dart';
 import 'reports_screen.dart';
 import 'widgets.dart';
@@ -34,7 +36,15 @@ class _PawnScreenState extends State<PawnScreen> {
   String _metal = 'all'; // all | gold | silver | mixed
   String? _village;
   List<String> _villageOptions = const [];
+  List<String> _categories = const [];
+  String? _category;
+  DateTimeRange? _range;
+  final Set<String> _selected = {};
+  bool _selectMode = false;
   bool _dragActive = false;
+
+  /// loan uuid -> metals found on its items, used by the tile's item label.
+  Map<String, List<String>> _metalsByLoan = {};
 
   /// loan uuid -> customer row (photo, village, book ID, address, KYC paths).
   /// Kept OUT of the loan row map so it can never leak into a db.upsert() of
@@ -45,6 +55,12 @@ class _PawnScreenState extends State<PawnScreen> {
   void initState() {
     super.initState();
     _loadVillageOptions();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final names = await context.read<AppState>().pawnCategories();
+    if (mounted) setState(() => _categories = names);
   }
 
   Future<void> _loadVillageOptions() async {
@@ -180,38 +196,49 @@ class _PawnScreenState extends State<PawnScreen> {
         args = ['Active'];
         break;
       case 'recent':
-        break;
+      case 'all':
       default:
+        // 'all' = both Active and Released (the Active chip was tapped off).
         break;
-    }
-    if (_search.trim().isNotEmpty) {
-      final term = '%${_search.trim()}%';
-      where = where == null
-          ? 'customer_name LIKE ? OR phone LIKE ?'
-          : '($where) AND (customer_name LIKE ? OR phone LIKE ?)';
-      args.addAll([term, term]);
     }
     final order =
         _filter == 'interest' ? 'interest_accrued desc' : 'loan_date desc';
     var rows = await db.query('pawn_loans',
         where: where,
-        whereArgs: args,
+        whereArgs: args.isEmpty ? null : args,
         orderBy: order,
         limit: _filter == 'recent' ? 10 : null);
+
     // Metal filter (Gold / Silver / Mixed) based on the loan's pawn items.
+    final idx = await _metalIndex();
+    _metalsByLoan = idx;
     if (_metal != 'all') {
-      final idx = await _metalIndex();
       rows = rows
           .where((r) => _matchesMetal(idx, r['client_uuid']?.toString() ?? '',
               r['interest_basis']?.toString() ?? '', _metal))
           .toList();
     }
+
     final lookup = await _customerLookup();
     if (_village != null) {
       rows = rows
           .where((r) => _villageOf(r, lookup.byUuid, lookup.byName) == _village)
           .toList();
     }
+    if (_category != null) {
+      rows = rows
+          .where((r) => (r['category']?.toString() ?? '') == _category)
+          .toList();
+    }
+    if (_range != null) {
+      final from = _range!.start.toIso8601String().substring(0, 10);
+      final to = _range!.end.toIso8601String().substring(0, 10);
+      rows = rows.where((r) {
+        final d = r['loan_date']?.toString() ?? '';
+        return d.isNotEmpty && d.compareTo(from) >= 0 && d.compareTo(to) <= 0;
+      }).toList();
+    }
+
     // Attach the customer row for display only (photo, village, book ID).
     // Never add these keys to the loan row itself — it is spread into
     // db.upsert('pawn_loans'), and an unknown column would abort the write.
@@ -221,6 +248,31 @@ class _PawnScreenState extends State<PawnScreen> {
       if (customer != null) {
         _customerByLoan[r['client_uuid']?.toString() ?? ''] = customer;
       }
+    }
+
+    // Search by name, book ID or amount — the three things written on a slip.
+    // Phone and village still match for the old habit.
+    final term = _search.trim().toLowerCase();
+    if (term.isNotEmpty) {
+      rows = rows.where((r) {
+        final customer = _customerByLoan[r['client_uuid']?.toString() ?? ''];
+        final name =
+            (r['customer_name'] ?? customer?['customer_name'] ?? '')
+                .toString()
+                .toLowerCase();
+        final id = (customer?['customer_id'] ?? '').toString().toLowerCase();
+        final phone = (customer?['phone'] ?? r['phone'] ?? '')
+            .toString()
+            .toLowerCase();
+        final amount = Num.toDouble(r['loan_amount']).toStringAsFixed(0);
+        final village =
+            _villageOf(r, lookup.byUuid, lookup.byName).toLowerCase();
+        return name.contains(term) ||
+            id.contains(term) ||
+            phone.contains(term) ||
+            amount.contains(term.replaceAll(',', '')) ||
+            village.contains(term);
+      }).toList();
     }
     return rows;
   }
@@ -260,6 +312,14 @@ class _PawnScreenState extends State<PawnScreen> {
         title: const Text('Pawn Loans'),
         actions: [
           IconButton(
+            tooltip: _selectMode ? 'Cancel selection' : 'Select multiple',
+            icon: Icon(_selectMode ? Icons.close : Icons.checklist),
+            onPressed: () => setState(() {
+              _selectMode = !_selectMode;
+              if (!_selectMode) _selected.clear();
+            }),
+          ),
+          IconButton(
             tooltip: 'Dashboard',
             icon: const Icon(Icons.dashboard_outlined),
             onPressed: () => Navigator.push(context,
@@ -288,7 +348,7 @@ class _PawnScreenState extends State<PawnScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
-              decoration: fieldDecoration('Search customer or phone'),
+              decoration: fieldDecoration('Search name, ID or amount'),
               onChanged: (v) => setState(() => _search = v),
             ),
           ),
@@ -330,6 +390,51 @@ class _PawnScreenState extends State<PawnScreen> {
                     ),
                   ),
                 ),
+                if (_selectMode && _selected.isNotEmpty)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: Material(
+                        color: kInk,
+                        borderRadius: BorderRadius.circular(14),
+                        elevation: 6,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('${_selected.length} selected',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13)),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: () => _chooseCategory(
+                                    uuids: _selected.toList()),
+                                icon: const Icon(
+                                    Icons.drive_file_move_outline,
+                                    size: 16,
+                                    color: kGold),
+                                label: const Text('Move to category',
+                                    style: TextStyle(
+                                        color: kGold, fontSize: 12)),
+                              ),
+                              IconButton(
+                                tooltip: 'Clear selection',
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white70, size: 18),
+                                onPressed: () =>
+                                    setState(() => _selected.clear()),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -338,10 +443,20 @@ class _PawnScreenState extends State<PawnScreen> {
     );
   }
 
+  /// Two-row pledge tile:
+  ///
+  /// * row 1 — photo, **Name** and **₹Amount** (the two things the shop scans
+  ///   for first);
+  /// * row 2 — a highlighted **ID** badge, village, loan date and item, then
+  ///   the cloud sync state and the Call/SMS/WhatsApp/Move/Edit menu.
+  ///
+  /// The Active / Released word is deliberately gone: the filter row already
+  /// says which list is open. A released loan is muted and carries a small
+  /// "Released" tag so it is not confused with an active one.
   Widget _loanRow(Map<String, Object?> row) {
-    final status = row['status']?.toString() ?? 'Active';
-    final released = status == 'Released';
-    final customer = _customerByLoan[row['client_uuid']?.toString() ?? ''];
+    final uuid = row['client_uuid']?.toString() ?? '';
+    final released = (row['status']?.toString() ?? 'Active') == 'Released';
+    final customer = _customerByLoan[uuid];
     final name =
         (row['customer_name'] ?? customer?['customer_name'] ?? '-').toString();
     final id = (customer?['customer_id'] ?? '').toString().trim();
@@ -349,48 +464,154 @@ class _PawnScreenState extends State<PawnScreen> {
     final village = savedVillage.isNotEmpty
         ? savedVillage
         : (row['village'] ?? '').toString().trim();
-    final firstLine = [
-      if (village.isNotEmpty) village,
-      if (id.isNotEmpty) 'ID $id',
-    ].join(' · ');
+    final metals = _metalsByLoan[uuid] ?? const <String>[];
+    final item = metals.isEmpty
+        ? (row['interest_basis']?.toString() ?? '')
+        : metals.length > 1
+            ? 'Mixed'
+            : metals.first == 'gold'
+                ? 'Gold'
+                : 'Silver';
+    final selected = _selected.contains(uuid);
+    final synced =
+        row['server_name'] != null && (row['dirty'] as int? ?? 0) != 1;
 
     return DragToDeleteTile(
       onDragChanged: (v) => setState(() => _dragActive = v),
       payload: DeletePayload(drop: () => _deleteLoan(row)),
-      child: ListTile(
-        isThreeLine: true,
-        leading: _customerAvatar(customer, name),
-        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (firstLine.isNotEmpty)
-              Text(firstLine, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(
-              '${fmtDate(row['loan_date'])} · '
-              '${row['interest_basis'] ?? ''} · '
-              '₹${moneyWhole(row['loan_amount'] as num?)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: selected ? kGold.withValues(alpha: .12) : Colors.transparent,
+        child: InkWell(
+          onTap: _selectMode ? () => _toggleSelect(uuid) : () => _openDetail(row),
+          onLongPress: _selectMode ? null : () => _showActions(row),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+            child: Row(
+              children: [
+                if (_selectMode)
+                  Checkbox(
+                    value: selected,
+                    onChanged: (_) => _toggleSelect(uuid),
+                  )
+                else
+                  _customerAvatar(customer, name),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: released
+                                        ? mutedOf(context)
+                                        : inkOf(context))),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('₹${moneyWhole(row['loan_amount'] as num?)}',
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: released
+                                      ? mutedOf(context)
+                                      : kGoldDark)),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          if (id.isNotEmpty) ...[
+                            _idBadge(id),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              [
+                                if (village.isNotEmpty) village,
+                                fmtDate(row['loan_date']),
+                                if (item.isNotEmpty) item,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11.5, color: mutedOf(context)),
+                            ),
+                          ),
+                          if (released)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: greenSoftOf(context),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('Released',
+                                  style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: kGreen)),
+                            ),
+                          _cloudBadge(synced),
+                          if (!_selectMode)
+                            PopupMenuButton<String>(
+                              tooltip: 'Call, SMS, WhatsApp, move, edit',
+                              padding: EdgeInsets.zero,
+                              iconSize: 18,
+                              onSelected: (value) => _runAction(value, row),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                    value: 'call', child: Text('Call')),
+                                PopupMenuItem(
+                                    value: 'sms', child: Text('SMS')),
+                                PopupMenuItem(
+                                    value: 'whatsapp',
+                                    child: Text('WhatsApp')),
+                                PopupMenuItem(
+                                    value: 'move',
+                                    child: Text('Move to another pawn profile')),
+                                PopupMenuItem(
+                                    value: 'edit', child: Text('Edit')),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(status,
-                style: TextStyle(
-                    color: released ? kGreen : kGoldDark,
-                    fontWeight: FontWeight.w600)),
-            if (row['server_name'] == null)
-              const Icon(Icons.cloud_upload_outlined, size: 16),
-          ],
-        ),
-        onTap: () => _openDetail(row),
       ),
     );
+  }
+
+  Future<void> _runAction(String action, Map<String, Object?> row) async {
+    switch (action) {
+      case 'call':
+        await _call(row);
+        break;
+      case 'sms':
+        await _sms(row);
+        break;
+      case 'whatsapp':
+        await _whatsapp(row);
+        break;
+      case 'move':
+        await _chooseCategory(
+            uuids: [row['client_uuid']?.toString() ?? ''],
+            current: row['category']?.toString());
+        break;
+      case 'edit':
+        await _editLoan(row);
+        break;
+    }
   }
 
   Widget _customerAvatar(Map<String, Object?>? customer, String name) {
@@ -588,7 +809,10 @@ class _PawnScreenState extends State<PawnScreen> {
                       color: _filter == value
                           ? kGoldDark
                           : kInk.withValues(alpha: .7)),
-                  onSelected: (_) => setState(() => _filter = value),
+                  // Tapping the selected chip clears it, so the list shows
+                  // Active + Released together.
+                  onSelected: (_) => setState(
+                      () => _filter = _filter == value ? 'all' : value),
                 ),
               ),
             Padding(
@@ -654,6 +878,60 @@ class _PawnScreenState extends State<PawnScreen> {
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: PopupMenuButton<String>(
+                key: const ValueKey('pawn-category-filter'),
+                tooltip: 'Filter by category',
+                onSelected: (value) {
+                  if (value == '__manage__') {
+                    _openCategories();
+                    return;
+                  }
+                  setState(() => _category = value.isEmpty ? null : value);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                      value: '', child: Text('All categories')),
+                  for (final name in _categories)
+                    PopupMenuItem<String>(
+                      value: name,
+                      key: ValueKey('pawn-category-$name'),
+                      child: Text(name),
+                    ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                      value: '__manage__', child: Text('Manage categories…')),
+                ],
+                child: _filterPill(
+                  icon: Icons.label_outline,
+                  label:
+                      _category == null ? 'Categories' : 'Category: $_category',
+                  active: _category != null,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: InkWell(
+                key: const ValueKey('pawn-date-filter'),
+                borderRadius: BorderRadius.circular(8),
+                onTap: _pickDateRange,
+                child: _filterPill(
+                  icon: Icons.date_range_outlined,
+                  label: _range == null
+                      ? 'Date'
+                      : '${_short(_range!.start)} – ${_short(_range!.end)}',
+                  active: _range != null,
+                  trailing: _range == null
+                      ? null
+                      : GestureDetector(
+                          onTap: () => setState(() => _range = null),
+                          child: const Icon(Icons.close, size: 15),
+                        ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -691,11 +969,391 @@ class _PawnScreenState extends State<PawnScreen> {
                       color: _metal == value
                           ? kGoldDark
                           : kInk.withValues(alpha: .7)),
-                  onSelected: (_) => setState(() => _metal = value),
+                  // Same as Active / Released: tap again to clear it.
+                  onSelected: (_) => setState(
+                      () => _metal = _metal == value ? 'all' : value),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------- categories
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  String _short(DateTime d) => '${d.day} ${_months[d.month - 1]}';
+
+  void _toggleSelect(String uuid) {
+    setState(() {
+      if (!_selected.remove(uuid)) _selected.add(uuid);
+    });
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: _range,
+      helpText: 'Pawn loans by loan date',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _range = picked);
+  }
+
+  Future<void> _openCategories() async {
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const PawnCategoriesScreen()));
+    if (!mounted) return;
+    final names = await context.read<AppState>().pawnCategories();
+    if (!mounted) return;
+    setState(() {
+      _categories = names;
+      if (_category != null && !names.contains(_category)) _category = null;
+    });
+  }
+
+  /// "Move to another pawn profile" — the shop's wording for a category.
+  Future<void> _chooseCategory({
+    required List<String> uuids,
+    String? current,
+    String title = 'Move to another pawn profile',
+  }) async {
+    final state = context.read<AppState>();
+    final names = await state.pawnCategories();
+    if (!mounted) return;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(title),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '__none__'),
+            child: const Text('No category'),
+          ),
+          for (final name in names)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, name),
+              child: Row(
+                children: [
+                  Expanded(child: Text(name)),
+                  if (name == current) const Icon(Icons.check, size: 18),
+                ],
+              ),
+            ),
+          const Divider(height: 8),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '__manage__'),
+            child: const Text('Manage categories…'),
+          ),
+        ],
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    if (chosen == '__manage__') {
+      await _openCategories();
+      return;
+    }
+    await state.setPawnCategory(uuids, chosen == '__none__' ? null : chosen);
+    if (!mounted) return;
+    setState(() => _selected.clear());
+    _toast(
+        context,
+        chosen == '__none__'
+            ? 'Category removed.'
+            : 'Moved to $chosen.');
+  }
+
+  // --------------------------------------------------------------- actions
+  String _phoneOf(Map<String, Object?> row) {
+    final customer = _customerByLoan[row['client_uuid']?.toString() ?? ''];
+    final saved = (customer?['phone'] ?? '').toString().trim();
+    return saved.isNotEmpty ? saved : (row['phone'] ?? '').toString().trim();
+  }
+
+  Future<void> _call(Map<String, Object?> row) async {
+    final phone = _phoneOf(row).replaceAll(RegExp(r'\s'), '');
+    if (phone.isEmpty) {
+      _toast(context, 'No phone number saved.');
+      return;
+    }
+    final ok = await launchUrl(Uri.parse('tel:$phone'),
+        mode: LaunchMode.externalApplication);
+    if (!ok && mounted) _toast(context, 'Could not open the dialer.');
+  }
+
+  Future<void> _sms(Map<String, Object?> row) async {
+    final phone = _phoneOf(row).replaceAll(RegExp(r'\s'), '');
+    if (phone.isEmpty) {
+      _toast(context, 'No phone number saved.');
+      return;
+    }
+    final uri = Uri(scheme: 'sms', path: phone, queryParameters: {
+      'body': 'Namaste ${row['customer_name'] ?? ''} 🙏\n'
+          'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.',
+    });
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) _toast(context, 'Could not open SMS.');
+  }
+
+  Future<void> _whatsapp(Map<String, Object?> row) async {
+    final digits = _phoneOf(row).replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      _toast(context, 'No phone number saved.');
+      return;
+    }
+    final text = Uri.encodeComponent(
+        'Namaste ${row['customer_name'] ?? ''} 🙏\n'
+        'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.');
+    final ok = await launchUrl(
+        Uri.parse('https://wa.me/$digits?text=$text'),
+        mode: LaunchMode.externalApplication);
+    if (!ok && mounted) _toast(context, 'Could not open WhatsApp.');
+  }
+
+  Future<void> _showActions(Map<String, Object?> row) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(row['customer_name']?.toString() ?? '-',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text('₹${moneyWhole(row['loan_amount'] as num?)} · '
+                  '${fmtDate(row['loan_date'])}'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+                leading: const Icon(Icons.call_outlined),
+                title: const Text('Call'),
+                onTap: () => Navigator.pop(ctx, 'call')),
+            ListTile(
+                leading: const Icon(Icons.sms_outlined),
+                title: const Text('SMS'),
+                onTap: () => Navigator.pop(ctx, 'sms')),
+            ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('WhatsApp'),
+                onTap: () => Navigator.pop(ctx, 'whatsapp')),
+            ListTile(
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: const Text('Move to another pawn profile'),
+                onTap: () => Navigator.pop(ctx, 'move')),
+            ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit'),
+                onTap: () => Navigator.pop(ctx, 'edit')),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    await _runAction(action, row);
+  }
+
+  Future<void> _editLoan(Map<String, Object?> row) async {
+    final state = context.read<AppState>();
+    final paid = Num.toDouble(row['amount_paid']);
+    final amount = TextEditingController(
+        text: Num.toDouble(row['loan_amount']).toStringAsFixed(0));
+    final rate =
+        TextEditingController(text: Num.toDouble(row['interest_rate']).toString());
+    var loanDate =
+        DateTime.tryParse(row['loan_date']?.toString() ?? '') ?? DateTime.now();
+    var dueDate = DateTime.tryParse(row['due_date']?.toString() ?? '') ??
+        loanDate.add(const Duration(days: 90));
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDlg) => AlertDialog(
+            title: const Text('Edit pawn loan'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: amount,
+                    enabled: paid <= 0,
+                    keyboardType: TextInputType.number,
+                    decoration: fieldDecoration(paid > 0
+                        ? 'Principal (payments recorded)'
+                        : 'Principal'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: rate,
+                    keyboardType: TextInputType.number,
+                    decoration: fieldDecoration('Interest rate % / month'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                        initialDate: loanDate,
+                      );
+                      if (picked != null) setDlg(() => loanDate = picked);
+                    },
+                    icon: const Icon(Icons.event, size: 17),
+                    label: Text('Loan date: ${_iso(loanDate)}'),
+                  ),
+                  const SizedBox(height: 6),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                        initialDate: dueDate,
+                      );
+                      if (picked != null) setDlg(() => dueDate = picked);
+                    },
+                    icon: const Icon(Icons.event_available, size: 17),
+                    label: Text('Due date: ${_iso(dueDate)}'),
+                  ),
+                  if (paid > 0) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Money has already been paid on this loan, so the '
+                      'principal stays fixed. Use the profile for payments.',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Save')),
+            ],
+          ),
+        ),
+      );
+      if (ok != true || !mounted) return;
+      final principal = paid > 0
+          ? Num.toDouble(row['loan_amount'])
+          : Num.money(parseMoney(amount.text));
+      if (principal <= 0) {
+        _toast(context, 'Enter a valid principal.');
+        return;
+      }
+      final parsedRate = parseMoney(rate.text);
+      final useRate = parsedRate <= 0 ? 3.0 : parsedRate;
+      final interest = Num.simpleInterest(
+        principal: principal,
+        ratePerMonth: useRate,
+        days: dueDate.difference(loanDate).inDays,
+      );
+      final total = Num.money(principal + interest);
+      final items = await state.db.query('pawn_items',
+          where: 'loan_uuid = ?', whereArgs: [row['client_uuid']]);
+      await state.savePawnLoan(
+        uuid: row['client_uuid'] as String,
+        data: {
+          ...row,
+          'loan_amount': principal,
+          'interest_rate': useRate,
+          'loan_date': _iso(loanDate),
+          'due_date': _iso(dueDate),
+          'interest_accrued': interest,
+          'total_payable': total,
+          'balance': Num.money(total - paid),
+          'last_interest_date': _iso(dueDate),
+        },
+        items: items,
+      );
+      if (!mounted) return;
+      setState(() {});
+      _toast(context, 'Pawn loan updated.');
+    } catch (e) {
+      if (mounted) _toast(context, 'Could not save: $e');
+    } finally {
+      amount.dispose();
+      rate.dispose();
+    }
+  }
+
+  // ------------------------------------------------------------------ bits
+  Widget _idBadge(String id) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+        decoration: BoxDecoration(
+          color: kGold.withValues(alpha: .18),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: kGold.withValues(alpha: .45)),
+        ),
+        child: Text('ID $id',
+            style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: kGoldDark)),
+      );
+
+  /// Google-Drive-style state: a ticked cloud means this loan reached the
+  /// server; an upload cloud means it is still waiting.
+  Widget _cloudBadge(bool synced) => Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Tooltip(
+          message: synced ? 'Synced' : 'Waiting to sync',
+          child: Icon(
+            synced ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
+            size: 15,
+            color: synced ? kGreen : kGoldDark.withValues(alpha: .8),
+          ),
+        ),
+      );
+
+  Widget _filterPill({
+    required IconData icon,
+    required String label,
+    required bool active,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: active ? kGold.withValues(alpha: .3) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: active ? kGold : Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon,
+              size: 15,
+              color: active ? kGoldDark : kInk.withValues(alpha: .7)),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: active ? kGoldDark : kInk.withValues(alpha: .7))),
+          if (trailing != null) ...[
+            const SizedBox(width: 4),
+            trailing,
+          ] else
+            const Icon(Icons.arrow_drop_down, size: 18),
+        ],
       ),
     );
   }
