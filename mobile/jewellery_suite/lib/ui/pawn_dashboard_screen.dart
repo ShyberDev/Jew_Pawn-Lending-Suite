@@ -5,8 +5,8 @@ import '../state/app_state.dart';
 import '../util/format.dart';
 import '../util/pawn_math.dart';
 import 'palette.dart';
-import 'pawn_screen.dart';
-import 'reports_screen.dart';
+import '../features/pawn/screens/pawn_screen.dart';
+import '../features/reports/screens/reports_screen.dart';
 
 /// Pawn dashboard (Stitch pawn/01-dashboard): outstanding, reserve and age
 /// distribution with quick links into the pawn list.

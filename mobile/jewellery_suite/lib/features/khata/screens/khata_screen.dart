@@ -5,19 +5,19 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/migration_v11.dart';
-import '../data/migration_v12.dart';
-import '../state/app_state.dart';
-import '../util/format.dart';
-import '../util/ids.dart';
-import '../util/khata_schedule.dart';
-import 'customer_profile_screen.dart';
-import 'customers_screen.dart';
-import 'location_picker_screen.dart';
-import 'admin_guard.dart';
-import 'palette.dart';
-import 'reports_screen.dart';
-import 'widgets.dart';
+import '../../../data/migration_v11.dart';
+import '../../../data/migration_v12.dart';
+import '../../../state/app_state.dart';
+import '../../../util/format.dart';
+import '../../../util/ids.dart';
+import '../../../util/khata_schedule.dart';
+import '../../customers/screens/customer_profile_screen.dart';
+import '../../../ui/customers_screen.dart';
+import '../../../ui/location_picker_screen.dart';
+import '../../../ui/admin_guard.dart';
+import '../../../ui/palette.dart';
+import '../../reports/screens/reports_screen.dart';
+import '../../../ui/widgets.dart';
 
 // ---------------------------------------------------------------------------
 // Loan schedule helpers (mirror the server's frequency model).

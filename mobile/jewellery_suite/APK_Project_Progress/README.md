@@ -168,6 +168,20 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 
 ---
 
+## 1f. v1.1.6 — pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults
+
+All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
+
+| # | Status | Area | Page / option | What changed |
+|---|---|---|---|---|
+| **#067** | 🟨 CODE DONE | Pawn list | **Pawn Loans → loan tiles** | Removed the wide customer-name / ID / three-dot gap. Row 1 is now photo + **Name** + **₹Amount** only; row 2 is a highlighted gold **ID** badge, village, loan date and item, the sync-state cloud (`cloud_done` green / `cloud_upload` when waiting), and the caller menu icon is available from the left-side move dot and from the tile menu. The wasted **Active** word on released tiles is gone. |
+| **#068** | 🟨 CODE DONE | Pawn list | **Pawn Loans → each tile** | Caller functions: every pledge now offers **Call · SMS · WhatsApp · Move to another pawn profile · Edit** from the long-press menu, and Customer KYC & Details stays inside the customer/pawn profile beside the phone number. |
+| **#069** | 🟨 CODE DONE | Pawn profile | **Customer Pawn Profile → Loan details** | Added a **Due Date (promised)**, an **Actual Due Date** and **Outstanding** that always refers to the actual due date. The form now also keeps the promised/actual due separate, and the **Edit** sheet keeps the actual column when the shop closes the date. |
+| **#06A** | 🟨 CODE DONE | Pawn list | **Pawn Loans → Move to another pawn profile** | The move action asks for the simple pawn-move password (independent of delete/release; defaults to the admin secret, swappable in Password Settings), then moves one or many selected loans into a category. The delete / release ask-password prompt still lives only in **Settings** and **Password Settings** — it is not duplicated on the tile. |
+| **#06B** | 🟨 CODE DONE | Pawn categories | **Pawn Loans → Categories** | Seeded defaults are **Forgot_Slip_List** and **Pawn_Removed**; **Add Custom** creates a new named category any time. Names can be renamed later and loans follow. |
+
+---
+
 ## 2. Open bugs carried forward (from v1.0.24 audit)
 
 | # | Status | Severity | Page / option | Problem | Suggested fix / file |

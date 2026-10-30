@@ -40,6 +40,7 @@ dev_dependencies:
   # `flutter test`, so LocalDb's write contract is verified against a real
   # database instead of a mock.
   sqflite_common_ffi: ^2.4.3
+  test: ^1.31.1
 
 flutter:
   uses-material-design: true

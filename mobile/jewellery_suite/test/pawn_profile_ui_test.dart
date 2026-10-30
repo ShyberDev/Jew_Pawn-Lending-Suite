@@ -8,8 +8,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:jewellery_suite/data/local_db.dart';
 import 'package:jewellery_suite/state/app_state.dart';
-import 'package:jewellery_suite/ui/customer_profile_screen.dart';
-import 'package:jewellery_suite/ui/pawn_screen.dart';
+import 'package:jewellery_suite/features/customers/screens/customer_profile_screen.dart';
+import 'package:jewellery_suite/features/pawn/screens/pawn_screen.dart';
 import 'package:jewellery_suite/util/format.dart';
 
 /// UI behaviour requested for the 2026-10-28 round:

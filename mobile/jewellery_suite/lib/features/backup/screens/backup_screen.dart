@@ -3,13 +3,13 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../data/backup_service.dart';
-import '../data/sample_data.dart';
-import '../state/app_state.dart';
-import '../util/backup_files.dart';
-import 'admin_guard.dart';
-import 'palette.dart';
-import 'widgets.dart';
+import '../../../data/backup_service.dart';
+import '../../../data/sample_data.dart';
+import '../../../state/app_state.dart';
+import '../../../util/backup_files.dart';
+import '../../../ui/admin_guard.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/widgets.dart';
 
 /// More → Settings → Backup & data.
 ///

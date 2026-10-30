@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jewellery_suite/ui/reports_screen.dart';
+import 'package:jewellery_suite/features/reports/screens/reports_screen.dart';
 
 /// #020: "Overdue accounts" must report what is collectable NOW, not the whole
 /// outstanding balance. A loan ₹1,00,000 in size with two ₹1,000 weeks missed

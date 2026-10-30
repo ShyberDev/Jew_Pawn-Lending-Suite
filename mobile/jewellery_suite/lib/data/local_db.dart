@@ -11,6 +11,7 @@ import 'migration_v13.dart';
 import 'migration_v14.dart';
 import 'migration_v15.dart';
 import 'migration_v16.dart';
+import 'migration_v17.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -243,6 +244,13 @@ class LocalDb {
       // See lib/data/migration_v16.dart.
       await MigrationV16.addSchema(db);
     }
+    if (oldVersion < 17) {
+      // v17: pawn loan due dates (promised vs actual). The pawn categories
+      // table is also created here if an upgrade skipped v16.
+      // See lib/data/migration_v17.dart.
+      await MigrationV17.addSchema(db);
+      await MigrationV17.ensureCategories(db);
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -288,7 +296,9 @@ class LocalDb {
         interest_accrued REAL, total_payable REAL, amount_paid REAL,
         balance REAL, last_interest_date TEXT, release_date TEXT, remarks TEXT,
         id_proof_type TEXT, id_proof_number TEXT, id_front TEXT, id_back TEXT,
-        rate_per_gram REAL, updated_at TEXT
+        rate_per_gram REAL,
+      pawn_due_promised TEXT, pawn_due_actual TEXT,
+        updated_at TEXT
       )
     ''');
 
@@ -417,6 +427,10 @@ class LocalDb {
     await MigrationV15.addSchema(db);
     // v16: the category column plus the seeded category list.
     await MigrationV16.addSchema(db);
+    // v17: pawn loan due dates (promised vs actual) and the pawn-move
+    // password registration. Fresh installs get these columns from the
+    // CREATE TABLE below.
+    await MigrationV17.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings

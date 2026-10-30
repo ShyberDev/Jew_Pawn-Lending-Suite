@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../data/migration_v11.dart';
-import '../state/app_state.dart';
-import 'refinance_sheet.dart';
-import '../util/format.dart';
-import '../util/ids.dart';
-import '../util/khata_alloc.dart';
-import '../util/khata_loan_state.dart';
-import '../util/khata_math.dart';
-import '../util/khata_schedule.dart';
-import 'palette.dart';
-import 'widgets.dart';
+import '../../../data/migration_v11.dart';
+import '../../../state/app_state.dart';
+import '../../../ui/refinance_sheet.dart';
+import '../../../util/format.dart';
+import '../../../util/ids.dart';
+import '../../../util/khata_alloc.dart';
+import '../../../util/khata_loan_state.dart';
+import '../../../util/khata_math.dart';
+import '../../../util/khata_schedule.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/widgets.dart';
 
 class KhatabookScreen extends StatefulWidget {
   const KhatabookScreen({super.key});

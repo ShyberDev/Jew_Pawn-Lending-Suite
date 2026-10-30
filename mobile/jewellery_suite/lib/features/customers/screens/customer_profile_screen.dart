@@ -4,22 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/migration_v11.dart';
-import '../data/migration_v12.dart';
-import '../state/app_state.dart';
-import 'admin_guard.dart';
-import 'refinance_sheet.dart';
-import '../util/format.dart';
-import '../util/ids.dart';
-import '../util/khata_alloc.dart';
-import '../util/khata_loan_state.dart';
-import '../util/khata_math.dart';
-import '../util/khata_schedule.dart';
-import 'customers_screen.dart';
-import 'khata_screen.dart' show loanNextDue;
-import 'khatabook_screen.dart';
-import 'palette.dart';
-import 'widgets.dart';
+import '../../../data/migration_v11.dart';
+import '../../../data/migration_v12.dart';
+import '../../../state/app_state.dart';
+import '../../../ui/admin_guard.dart';
+import '../../../ui/refinance_sheet.dart';
+import '../../../util/format.dart';
+import '../../../util/ids.dart';
+import '../../../util/khata_alloc.dart';
+import '../../../util/khata_loan_state.dart';
+import '../../../util/khata_math.dart';
+import '../../../util/khata_schedule.dart';
+import '../../../ui/customers_screen.dart';
+import '../../../features/khata/screens/khata_screen.dart' show loanNextDue;
+import '../../../features/khatabook/screens/khatabook_screen.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/widgets.dart';
 
 /// Customer profile (Stitch 04-customer-profile): outstanding hero,
 /// SBI-style You Gave / You Got ledger with running balance, sticky

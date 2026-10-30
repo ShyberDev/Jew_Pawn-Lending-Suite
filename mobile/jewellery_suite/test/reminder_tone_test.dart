@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jewellery_suite/ui/khata_screen.dart'
+import 'package:jewellery_suite/features/khata/screens/khata_screen.dart'
     show memberIsDue, reminderIsLater;
 
 /// The rule the shop reported as wrong: a reminder set to TODAY must stay RED

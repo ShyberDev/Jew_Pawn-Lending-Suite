@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_state.dart';
-import '../util/app_version.dart';
-import '../util/format.dart';
-import 'about_app_screen.dart';
-import 'cashbook_screen.dart';
-import 'customers_screen.dart';
-import 'password_settings_screen.dart';
-import 'history_screen.dart';
-import 'interest_calculator_screen.dart';
-import 'khata_screen.dart';
-import 'palette.dart';
-import 'pawn_screen.dart';
-import 'photo_local.dart';
-import 'reports_screen.dart';
-import 'settings_screen.dart';
-import 'sync_screen.dart';
-import 'user_details_screen.dart';
+import '../../../state/app_state.dart';
+import '../../../util/app_version.dart';
+import '../../../util/format.dart';
+import '../../../features/cashbook/screens/cashbook_screen.dart';
+import '../../../ui/about_app_screen.dart';
+import '../../../ui/customers_screen.dart';
+import '../../../ui/password_settings_screen.dart';
+import '../../../features/history/screens/history_screen.dart';
+import '../../../features/interest_calculator/screens/interest_calculator_screen.dart';
+import '../../../features/khata/screens/khata_screen.dart';
+import '../../../ui/palette.dart';
+import '../../../features/pawn/screens/pawn_screen.dart';
+import '../../../ui/photo_local.dart';
+import '../../../features/reports/screens/reports_screen.dart';
+import '../../../features/settings/screens/settings_screen.dart';
+import '../../../features/sync/screens/sync_screen.dart';
+import '../../../ui/user_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -210,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
             sec('Payments'),
             tile(Icons.qr_code_2, 'QR codes',
                 () => go(const QrCodesScreen()),
+
                 subtitle: 'Bank / UPI QR codes'),
             sec('General'),
             tile(Icons.person_outline, 'User Details',

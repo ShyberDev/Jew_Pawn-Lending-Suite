@@ -6,19 +6,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/doc_scanner.dart';
-import '../data/slip_ocr.dart';
-import '../state/app_state.dart';
-import '../util/format.dart';
-import '../util/ids.dart';
-import '../util/pawn_math.dart';
-import 'customers_screen.dart';
-import 'admin_guard.dart';
-import 'palette.dart';
-import 'pawn_categories_screen.dart';
-import 'pawn_dashboard_screen.dart';
-import 'reports_screen.dart';
-import 'widgets.dart';
+import '../../../data/doc_scanner.dart';
+import '../../../data/slip_ocr.dart';
+import '../../../state/app_state.dart';
+import '../../../util/format.dart';
+import '../../../util/ids.dart';
+import '../../../util/pawn_math.dart';
+import '../../../ui/customers_screen.dart';
+import '../../../ui/admin_guard.dart';
+import '../../../ui/palette.dart';
+import '../../../ui/pawn_categories_screen.dart';
+import '../../../ui/pawn_dashboard_screen.dart';
+import '../../../features/reports/screens/reports_screen.dart';
+import '../../../ui/widgets.dart';
 
 class PawnScreen extends StatefulWidget {
   const PawnScreen({super.key, this.filter});
@@ -42,6 +42,31 @@ class _PawnScreenState extends State<PawnScreen> {
   final Set<String> _selected = {};
   bool _selectMode = false;
   bool _dragActive = false;
+
+  /// A separate auth id used only for the "Move to another pawn profile"
+  /// action. It defaults to the admin password, but Password Settings can
+  /// replace it with a dedicated pawn-move secret — simple enough for the
+  /// shop to pick "admin" or something else, and independent of delete /
+  /// release so the three gates can be set differently.
+  static const _pawnMoveActionId = 'pawn_move';
+
+  /// The move gate asks for the pawn-move password when its toggle is on. When
+  /// a dedicated pawn-move secret has been set it is verified against that; when
+  /// none is set yet it falls back to the admin password.
+  Future<bool> _askPawnMove(BuildContext context) async {
+    final state = context.read<AppState>();
+    final toggle = await state.db.getSetting(
+        pwdToggleKey(_pawnMoveActionId));
+    final enabled = state.adminConfirm && toggle != '0';
+    if (!enabled) return true;
+    if (!context.mounted) return false;
+    return confirmAdmin(
+      context,
+      action: 'move to another pawn profile',
+      confirmLabel: 'Move',
+      verify: (typed) => state.verifyPawnMovePassword(typed),
+    );
+  }
 
   /// loan uuid -> metals found on its items, used by the tile's item label.
   Map<String, List<String>> _metalsByLoan = {};
@@ -243,6 +268,7 @@ class _PawnScreenState extends State<PawnScreen> {
     // Never add these keys to the loan row itself — it is spread into
     // db.upsert('pawn_loans'), and an unknown column would abort the write.
     _customerByLoan.clear();
+    _lastLoadedRows = rows;
     for (final r in rows) {
       final customer = _customerFor(r, lookup.byUuid, lookup.byName);
       if (customer != null) {
@@ -475,6 +501,7 @@ class _PawnScreenState extends State<PawnScreen> {
     final selected = _selected.contains(uuid);
     final synced =
         row['server_name'] != null && (row['dirty'] as int? ?? 0) != 1;
+    final amountValue = Num.toDouble(row['loan_amount']);
 
     return DragToDeleteTile(
       onDragChanged: (v) => setState(() => _dragActive = v),
@@ -493,9 +520,14 @@ class _PawnScreenState extends State<PawnScreen> {
                     value: selected,
                     onChanged: (_) => _toggleSelect(uuid),
                   )
-                else
+                else ...<Widget>[
                   _customerAvatar(customer, name),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                  // Move-to-another-pawn-profile symbol, on the left, always
+                  // visible so the action does not need the old three-dot box.
+                  _moveButton(uuid),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,7 +546,7 @@ class _PawnScreenState extends State<PawnScreen> {
                                         : inkOf(context))),
                           ),
                           const SizedBox(width: 8),
-                          Text('₹${moneyWhole(row['loan_amount'] as num?)}',
+                          Text('₹${moneyWhole(amountValue)}',
                               style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -558,27 +590,6 @@ class _PawnScreenState extends State<PawnScreen> {
                                       color: kGreen)),
                             ),
                           _cloudBadge(synced),
-                          if (!_selectMode)
-                            PopupMenuButton<String>(
-                              tooltip: 'Call, SMS, WhatsApp, move, edit',
-                              padding: EdgeInsets.zero,
-                              iconSize: 18,
-                              onSelected: (value) => _runAction(value, row),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                    value: 'call', child: Text('Call')),
-                                PopupMenuItem(
-                                    value: 'sms', child: Text('SMS')),
-                                PopupMenuItem(
-                                    value: 'whatsapp',
-                                    child: Text('WhatsApp')),
-                                PopupMenuItem(
-                                    value: 'move',
-                                    child: Text('Move to another pawn profile')),
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Edit')),
-                              ],
-                            ),
                         ],
                       ),
                     ],
@@ -591,6 +602,50 @@ class _PawnScreenState extends State<PawnScreen> {
       ),
     );
   }
+
+  /// Left-side "move to another pawn profile" symbol on the tile. It asks for
+  /// the pawn-move password, then the category to move a single loan into.
+  Widget _moveButton(String uuid) => InkWell(
+        onTap: () async {
+          final row = _currentLoanByUuid(uuid);
+          if (!mounted) return;
+          if (row == null) return;
+          final granted = await _askPawnMove(context);
+          if (!mounted) return;
+          if (granted != true) {
+            _toast(context, 'Move cancelled / wrong password.');
+            return;
+          }
+          await _chooseCategory(
+            uuids: [uuid],
+            current: row['category']?.toString(),
+            title: 'Move this pledge to another pawn profile',
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: const BoxDecoration(
+            color: kGoldSoft,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.drive_file_move_outline,
+              size: 18, color: kGoldDark),
+        ),
+      );
+
+  /// Looked up once from the read-only display map so we can show the move
+  /// toast/action without re-querying the database.
+  Map<String, Object?>? _currentLoanByUuid(String uuid) {
+    for (final row in _lastLoadedRows) {
+      if ((row['client_uuid']?.toString() ?? '') == uuid) return row;
+    }
+    return null;
+  }
+
+  /// Refreshable copy of the last list rows built by `_load()`. Used only by
+  /// the tile's move button so it can ask the password after the tile was
+  /// tapped but before the profile opens.
+  List<Map<String, Object?>> _lastLoadedRows = const [];
 
   Future<void> _runAction(String action, Map<String, Object?> row) async {
     switch (action) {
@@ -1174,6 +1229,8 @@ class _PawnScreenState extends State<PawnScreen> {
         DateTime.tryParse(row['loan_date']?.toString() ?? '') ?? DateTime.now();
     var dueDate = DateTime.tryParse(row['due_date']?.toString() ?? '') ??
         loanDate.add(const Duration(days: 90));
+    var actualDue = DateTime.tryParse(row['pawn_due_actual']?.toString() ?? '');
+    actualDue ??= dueDate;
     try {
       final ok = await showDialog<bool>(
         context: context,
@@ -1223,8 +1280,8 @@ class _PawnScreenState extends State<PawnScreen> {
                       );
                       if (picked != null) setDlg(() => dueDate = picked);
                     },
-                    icon: const Icon(Icons.event_available, size: 17),
-                    label: Text('Due date: ${_iso(dueDate)}'),
+                    icon: const Icon(Icons.calendar_today, size: 16),
+                    label: Text('Due date (promised): ${_iso(dueDate)}'),
                   ),
                   if (paid > 0) ...[
                     const SizedBox(height: 8),
@@ -1272,12 +1329,18 @@ class _PawnScreenState extends State<PawnScreen> {
           ...row,
           'loan_amount': principal,
           'interest_rate': useRate,
-          'loan_date': _iso(loanDate),
-          'due_date': _iso(dueDate),
+        'loan_date': _iso(loanDate),
+        'due_date': _iso(dueDate),
+        // v1.1.6: when the shop “closes the date” on a pawn, the actual
+        // due date advanced and interest is recalculated from it. Initially
+        // the actual column is null and the form falls back to the promised
+        // due date, so the profile still shows something useful.
+        if (actualDue.isBefore(loanDate))
+          'pawn_due_actual': _iso(loanDate),
           'interest_accrued': interest,
-          'total_payable': total,
-          'balance': Num.money(total - paid),
-          'last_interest_date': _iso(dueDate),
+        'total_payable': total,
+        'balance': Num.money(total - paid),
+        'last_interest_date': _iso(dueDate),
         },
         items: items,
       );
@@ -1396,6 +1459,20 @@ class _PawnDetailState extends State<_PawnDetail> {
   }
 
   String get _address => (_customer['address'] ?? '').toString().trim();
+
+  /// The actual due date is the date the shop closed the pawn for calculation
+  /// — e.g. opened on 5 Nov 2026, the Actual Due Date later shows 5/Nov/26
+  /// after the dates are updated. Pending a first recalc, it falls back to the
+  /// promised due date so the profile still shows something useful.
+  DateTime? _actualDue(Map<String, Object?> loan) {
+    final raw = loan['pawn_due_actual']?.toString().trim();
+    if (raw != null && raw.isNotEmpty) {
+      final parsed = DateTime.tryParse(raw);
+      if (parsed != null) return parsed;
+    }
+    final promised = DateTime.tryParse(loan['due_date']?.toString() ?? '');
+    return promised ?? DateTime.now();
+  }
 
   String get _phone {
     final saved = (_customer['phone'] ?? '').toString().trim();
@@ -2252,11 +2329,12 @@ class _PawnDetailState extends State<_PawnDetail> {
                               '${(loan['interest_basis']?.toString() ?? '').isEmpty ? '' : ' · ${loan['interest_basis']}'}',
                         ),
                         _kv('Loan Date', fmtDate(loan['loan_date'])),
-                        _kv('Due Date', fmtDate(loan['due_date'])),
+                        _kv('Due Date', fmtDate(loan['due_date'] ?? '')),
+                        _kv('Actual Due Date', fmtDate(_actualDue(loan))),
                         _kv('Amount Paid',
                             '₹${moneyText(loan['amount_paid'] as num?)}'),
-                        _kv('Outstanding',
-                            '₹${moneyText(PawnMath.outstanding(loan))}'),
+                         _kv('Outstanding',
+                            '₹${moneyText(PawnMath.outstanding(loan, _actualDue(loan)))}'),
                       ],
                     ),
                   ),
@@ -2388,7 +2466,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                     DragToDeleteTile(
                       onDragChanged: (v) => setState(() => _dragActive = v),
                       payload: DeletePayload(drop: () => _deleteTransaction(t)),
-                      child: _txRow(t),
+                      child: _txRowNew(t),
                     ),
                 const SizedBox(height: 24),
               ],
@@ -2414,7 +2492,7 @@ class _PawnDetailState extends State<_PawnDetail> {
 
   /// A pawn ledger row: type, amount and BOTH dates — when the change was
   /// entered (tx_date) and the date it applies from (effective_date).
-  Widget _txRow(Map<String, Object?> t) {
+  Widget _txRowNew(Map<String, Object?> t) {
     final type = t['tx_type']?.toString() ?? '-';
     final label = switch (type) {
       'paying' => 'Amount Paying',
@@ -2423,6 +2501,7 @@ class _PawnDetailState extends State<_PawnDetail> {
       'release' => 'Release',
       _ => type,
     };
+
     final isOut =
         type == 'paying' || type == 'interest_paid' || type == 'release';
     final amount = Num.toDouble(t['amount']);
@@ -2451,8 +2530,7 @@ class _PawnDetailState extends State<_PawnDetail> {
                   '${fmtDate(t['effective_date'])} applies · '
                   'entered ${fmtDate(t['tx_date'])}',
                   style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
-                ),
-                if (Num.toDouble(t['interest_part']) > 0 ||
+                ),                  if (Num.toDouble(t['interest_part']) > 0 ||
                     Num.toDouble(t['principal_part']) > 0)
                   Text(
                     'P ₹${moneyWhole(Num.toDouble(t['principal_part']))} · '
@@ -2475,6 +2553,11 @@ class _PawnDetailState extends State<_PawnDetail> {
   }
 
   bool _hasPhoto(String path) => path.isNotEmpty && File(path).existsSync();
+
+// ---------------------------------------------------------------------------
+// New pawn loan
+// ---------------------------------------------------------------------------
+
 
   Widget _kycThumb(String path, String label, String slot) => GestureDetector(
         key: ValueKey('pawn-kyc-$slot'),
@@ -2583,9 +2666,6 @@ class _PawnDetailState extends State<_PawnDetail> {
       );
 }
 
-// ---------------------------------------------------------------------------
-// New pawn loan
-// ---------------------------------------------------------------------------
 class _ItemEntry {
   _ItemEntry({String? description, String metal = 'Gold', String? photo})
       : description = TextEditingController(text: description),
@@ -2645,6 +2725,9 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   String _basis = 'Gold';
   DateTime _loanDate = DateTime.now();
   DateTime? _dueDate;
+  String _iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
   String? _customerUuid;
   String? _customerName;
   final _customerNameController = TextEditingController();
@@ -3056,6 +3139,12 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
               ? Num.roundPct(loanAmount / marketValue * 100)
               : 0,
           'interest_accrued': interest,
+          // v1.1.6: when the shop “closes the date” on a pawn, the actual
+          // due date advanced and interest is recalculated from it. Initially
+          // the actual column is null and the form falls back to the promised
+          // due date, so the profile still shows something useful.
+          if (_dueDate == null || _dueDate!.isBefore(_loanDate))
+            'pawn_due_actual': _dueDate == null ? null : _iso(_loanDate),
           // v1.0.9: the stored interest runs UP TO the due date, so the accrual
           // anchor starts at the due date. PawnMath adds interest from here on.
           'last_interest_date': due.toIso8601String().substring(0, 10),
