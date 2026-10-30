@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../util/otp_gateway.dart';
 import 'otp_flow.dart';
 import 'palette.dart';
 import 'secret_dialogs.dart';
@@ -121,10 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     await _run((state) async {
+      final to = _identifier.text.trim();
       final code = await state.issueOtp('login');
+      final delivered = await OtpGateway.send(
+          db: state.db, to: to, code: code, purpose: 'login');
       if (!mounted) return;
       final entered = await askOtpCodeDialog(context,
-          code: code, identifier: state.accountIdentifier);
+          code: code, identifier: to, delivered: delivered);
       if (entered == null) return;
       _otp.text = entered;
       if (mounted) setState(() => _otpSent = true);

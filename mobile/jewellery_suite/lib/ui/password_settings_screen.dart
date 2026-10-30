@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../util/app_lock.dart';
+import '../util/otp_gateway.dart';
 import 'admin_guard.dart';
 import 'otp_flow.dart';
 import 'palette.dart';
@@ -34,11 +35,19 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   bool _loading = true;
   bool _isDefault = false;
   String _lockMode = AppLock.off;
+  final _gatewayCtl = TextEditingController();
+  String _gatewayChannel = 'sms';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _gatewayCtl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -51,11 +60,15 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     await ensureAdminPassword(state);
     final isDefault = await adminPasswordIsDefault(state);
     final mode = await AppLock.mode(state.db);
+    final gatewayUrl = await OtpGateway.url(state.db);
+    final channel = await OtpGateway.channel(state.db);
     if (!mounted) return;
     setState(() {
       _toggles = toggles;
       _isDefault = isDefault;
       _lockMode = mode;
+      _gatewayCtl.text = gatewayUrl;
+      _gatewayChannel = channel;
       _loading = false;
     });
   }
@@ -285,6 +298,22 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     _toast('PIN reset.');
   }
 
+  Future<void> _saveGateway() async {
+    final state = context.read<AppState>();
+    final url = _gatewayCtl.text.trim();
+    if (url.isNotEmpty && !url.startsWith('http')) {
+      _toast('The gateway URL must start with http or https.');
+      return;
+    }
+    if (url.isEmpty) {
+      await OtpGateway.clear(state.db);
+      _toast('One-time codes will be shown on this phone.');
+      return;
+    }
+    await OtpGateway.configure(state.db, url: url, channel: _gatewayChannel);
+    _toast('Codes will be sent by ${_gatewayChannel == 'email' ? 'e-mail' : 'SMS'}.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -300,9 +329,73 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                 _lockCard(state),
                 _deleteReleaseCard(state),
                 _adminCard(state),
+                _otpDeliveryCard(),
                 const SizedBox(height: 40),
               ],
             ),
+    );
+  }
+
+  Widget _otpDeliveryCard() {
+    return SectionCard(
+      title: 'One-time code delivery (SMS / Gmail)',
+      children: [
+        Text(
+          'Forgot-password codes go to the account email / mobile. Add your '
+          'SMS or e-mail gateway URL here to send them for real; without it the '
+          'code is shown on this phone so you are never locked out.',
+          style: TextStyle(fontSize: 12, color: mutedOf(context)),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _gatewayCtl,
+          keyboardType: TextInputType.url,
+          decoration: fieldDecoration('Gateway URL',
+              hint: 'https://your-sms-or-mail-gateway/send'),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (final (value, label) in const [
+              ('sms', 'SMS'),
+              ('email', 'E-mail'),
+            ]) ...[
+              ChoiceChip(
+                label: Text(label),
+                selected: _gatewayChannel == value,
+                selectedColor: kGold.withValues(alpha: .3),
+                onSelected: (_) => setState(() => _gatewayChannel = value),
+              ),
+              const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: _saveGateway,
+              icon: const Icon(Icons.save_outlined, size: 17),
+              label: const Text('Save gateway'),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                await OtpGateway.clear(context.read<AppState>().db);
+                _gatewayCtl.clear();
+                _toast('Gateway removed — codes are shown on this phone.');
+              },
+              icon: const Icon(Icons.link_off, size: 17),
+              label: const Text('Remove gateway'),
+            ),
+          ],
+        ),
+        Text(
+          'The gateway receives POST JSON: to, channel, purpose, code, message. '
+          'Any 2xx reply counts as sent.',
+          style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
+        ),
+      ],
     );
   }
 

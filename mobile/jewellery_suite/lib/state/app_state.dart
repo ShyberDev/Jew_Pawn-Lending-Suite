@@ -1306,23 +1306,73 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// One day ([date]) or an inclusive range ([from] / [to] = "this month",
+  /// "all time" or a custom span). Passing neither means everything.
   Future<List<Map<String, Object?>>> getCashbookEntries({
     String? date,
+    String? from,
+    String? to,
     String? mode,
     String? type,
     String? source,
   }) =>
-      db.getCashbookEntries(date: date, mode: mode, type: type, source: source);
+      db.getCashbookEntries(
+          date: date,
+          from: from,
+          to: to,
+          mode: mode,
+          type: type,
+          source: source);
 
   Future<Map<String, double>> getCashbookDailySummary(
     String? date, {
+    String? from,
+    String? to,
     String? mode,
     String? type,
     String? source,
   }) {
-    final d = date ?? _isoDay(DateTime.now());
-    return db.getCashbookDailySummary(d,
-        mode: mode, type: type, source: source);
+    return db.getCashbookDailySummary(date,
+        from: from, to: to, mode: mode, type: type, source: source);
+  }
+
+  /// Edits a cashbook row that was typed by hand.
+  ///
+  /// Automated rows (Khata / Pawn / Jewellery) are owned by their module and
+  /// are refused here: renaming one would leave the source row disagreeing
+  /// with the cash it produced. Those must be corrected in the module itself.
+  Future<bool> updateCashbookEntry({
+    required String uuid,
+    required double amount,
+    required String category,
+    required String mode,
+    DateTime? date,
+    String? partyName,
+    String? notes,
+  }) async {
+    final rows = await db.query('cashbook_entries',
+        where: 'client_uuid = ?', whereArgs: [uuid]);
+    if (rows.isEmpty) return false;
+    final row = rows.first;
+    final categoryNow = row['category']?.toString() ?? '';
+    final automated = (row['reference_id']?.toString() ?? '').isNotEmpty ||
+        categoryNow.startsWith('KHATA') ||
+        categoryNow.startsWith('PAWN') ||
+        categoryNow.startsWith('JEWELLERY');
+    if (automated) return false;
+    if (amount <= 0) return false;
+    await db.addCashbookEntry({
+      ...row,
+      'amount': Num.rupees(amount),
+      'category': category,
+      'payment_mode': mode.toUpperCase(),
+      'entry_date': date == null ? row['entry_date'] : _isoDay(date),
+      'party_name': partyName ?? '',
+      'notes': notes ?? '',
+      'dirty': 1,
+    });
+    notifyListeners();
+    return true;
   }
 
   // ---------------------------------------------------------- customer IDs
