@@ -15,8 +15,9 @@ import 'widgets.dart';
 /// One place for **every** password:
 ///
 /// * the login account (Gmail / mobile + password or one-time code),
-/// * the admin password that guards deletes / releases,
-/// * the screen lock PIN and the **Daily MPIN**.
+/// * the screen lock PIN / **Daily MPIN**, which is also the secret the
+///   delete / release prompts ask for (the admin password is the fallback),
+/// * the admin password itself.
 ///
 /// Each one can be switched on or off, changed, and reset with a one-time code
 /// when it is forgotten. The per-action switches are built from the
@@ -26,8 +27,7 @@ class PasswordSettingsScreen extends StatefulWidget {
   const PasswordSettingsScreen({super.key});
 
   @override
-  State<PasswordSettingsScreen> createState() =>
-      _PasswordSettingsScreenState();
+  State<PasswordSettingsScreen> createState() => _PasswordSettingsScreenState();
 }
 
 class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
@@ -97,8 +97,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       return;
     }
     if (!mounted) return;
-    final next = await askNewPasswordDialog(context,
-        title: 'New admin password');
+    final next =
+        await askNewPasswordDialog(context, title: 'New admin password');
     if (next == null) return;
     try {
       await setAdminPassword(state, next);
@@ -120,8 +120,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       subtitle: 'Reset the password used for deletes and releases.',
     );
     if (!ok || !mounted) return;
-    final next = await askNewPasswordDialog(context,
-        title: 'New admin password');
+    final next =
+        await askNewPasswordDialog(context, title: 'New admin password');
     if (next == null) return;
     try {
       await setAdminPassword(state, next);
@@ -149,8 +149,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                    controller: name,
-                    decoration: fieldDecoration('Your name')),
+                    controller: name, decoration: fieldDecoration('Your name')),
                 const SizedBox(height: 8),
                 TextField(
                     controller: id,
@@ -198,8 +197,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       return;
     }
     if (!mounted) return;
-    final next = await askNewPasswordDialog(context,
-        title: 'New login password');
+    final next =
+        await askNewPasswordDialog(context, title: 'New login password');
     if (next == null) return;
     await state.setAccountPassword(next);
     _toast('Login password changed.');
@@ -215,8 +214,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       subtitle: 'Reset the password used to open the app.',
     );
     if (!ok || !mounted) return;
-    final next = await askNewPasswordDialog(context,
-        title: 'New login password');
+    final next =
+        await askNewPasswordDialog(context, title: 'New login password');
     if (next == null) return;
     await state.setAccountPassword(next);
     _toast('Login password reset.');
@@ -229,8 +228,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     if (mode == AppLock.off) {
       if (await AppLock.isEnabled(db)) {
         if (!mounted) return;
-        final typed = await askPinDialog(context,
-            title: 'Turn off the screen lock');
+        final typed =
+            await askPinDialog(context, title: 'Turn off the screen lock');
         if (typed == null) return;
         if (!await AppLock.verify(db, typed)) {
           _toast('Wrong PIN.');
@@ -241,7 +240,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     } else if (!await AppLock.isEnabled(db)) {
       if (!mounted) return;
       final pin = await askNewPinDialog(context,
-          title: mode == AppLock.daily ? 'Set the Daily MPIN' : 'Set the app PIN');
+          title:
+              mode == AppLock.daily ? 'Set the Daily MPIN' : 'Set the app PIN');
       if (pin == null) return;
       await AppLock.setPin(db, pin);
       await AppLock.setMode(db, mode);
@@ -311,7 +311,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       return;
     }
     await OtpGateway.configure(state.db, url: url, channel: _gatewayChannel);
-    _toast('Codes will be sent by ${_gatewayChannel == 'email' ? 'e-mail' : 'SMS'}.');
+    _toast(
+        'Codes will be sent by ${_gatewayChannel == 'email' ? 'e-mail' : 'SMS'}.');
   }
 
   @override
@@ -451,8 +452,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
           dense: true,
           title: const Text('Sign in with one-time code',
               style: TextStyle(fontSize: 13)),
-          subtitle: const Text('Gmail / mobile OTP',
-              style: TextStyle(fontSize: 11)),
+          subtitle:
+              const Text('Gmail / mobile OTP', style: TextStyle(fontSize: 11)),
           value: state.otpLoginEnabled,
           onChanged: (v) => state.setLoginMethods(otp: v),
         ),
@@ -497,7 +498,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
             ])
               ChoiceChip(
                 key: ValueKey('lock-mode-$value'),
-                avatar: Icon(icon, size: 15,
+                avatar: Icon(icon,
+                    size: 15,
                     color: _lockMode == value ? kGoldDark : mutedOf(context)),
                 label: Text(label),
                 selected: _lockMode == value,
@@ -534,14 +536,17 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   }
 
   Widget _deleteReleaseCard(AppState state) {
+    // Which secret the prompt will ask for right now. The gate checks the MPIN
+    // first and only falls back to the admin password when no PIN is set.
+    final mpinOn = _lockMode != AppLock.off;
     return SectionCard(
-      title: 'Ask Password for Delete / Release',
+      title: 'Ask MPIN for Delete / Release',
       children: [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          secondary: const Icon(Icons.admin_panel_settings_outlined,
-              color: kGoldDark),
-          title: const Text('Ask password', style: TextStyle(fontSize: 13.5)),
+          secondary:
+              const Icon(Icons.admin_panel_settings_outlined, color: kGoldDark),
+          title: const Text('Ask MPIN', style: TextStyle(fontSize: 13.5)),
           subtitle: const Text('Master switch — off skips every check',
               style: TextStyle(fontSize: 11)),
           value: state.adminConfirm,
@@ -556,6 +561,17 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
             value: _toggles[a.id] ?? true,
             onChanged: (v) => _setToggle(a.id, v),
           ),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            mpinOn
+                ? 'These prompts ask for your MPIN (the screen lock PIN). The '
+                    'admin password is not needed.'
+                : 'No MPIN is set, so these prompts ask for the admin password. '
+                    'Turn on Biometric & screen lock above to use the MPIN instead.',
+            style: TextStyle(fontSize: 11, color: mutedOf(context)),
+          ),
+        ),
       ],
     );
   }

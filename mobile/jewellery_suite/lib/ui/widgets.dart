@@ -31,7 +31,8 @@ Future<String?> pickAndStoreImage(ImageSource source) async {
 
 /// A tap-to-capture / pick photo widget with a preview.
 class PhotoField extends StatelessWidget {
-  const PhotoField({super.key, this.path, required this.onPicked, this.label = 'Photo'});
+  const PhotoField(
+      {super.key, this.path, required this.onPicked, this.label = 'Photo'});
 
   final String? path;
   final ValueChanged<String> onPicked;
@@ -55,7 +56,10 @@ class PhotoField extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           clipBehavior: Clip.antiAlias,
-          child: photoThumb(path, width: 76, height: 76, fit: BoxFit.cover,
+          child: photoThumb(path,
+              width: 76,
+              height: 76,
+              fit: BoxFit.cover,
               fallback: Icon(Icons.photo_camera_outlined,
                   size: 30, color: Theme.of(context).hintColor)),
         ),
@@ -118,7 +122,9 @@ class PhotoIconPicker extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: photoThumb(path,
-              width: size, height: size, fit: BoxFit.cover,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
               fallback: Icon(Icons.image_outlined,
                   size: 22, color: mutedOf(context))),
         ),
@@ -149,7 +155,8 @@ class PhotoIconPicker extends StatelessWidget {
   }
 }
 
-InputDecoration fieldDecoration(String label, {String? hint}) => InputDecoration(
+InputDecoration fieldDecoration(String label, {String? hint}) =>
+    InputDecoration(
       labelText: label,
       hintText: hint,
       border: const OutlineInputBorder(),
@@ -202,8 +209,7 @@ Future<bool> confirmDialog(BuildContext context, String message,
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel')),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('OK')),
+            onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
       ],
     ),
   );
@@ -227,12 +233,20 @@ class DeletePayload {
 }
 
 /// Wraps a tile so it can be lifted with a long-press and dragged to the bin.
-class DragToDeleteTile extends StatelessWidget {
+///
+/// A tile that also has its own long-press menu (the pawn list) passes
+/// [onLongPress] here instead of using `InkWell.onLongPress`: the innermost
+/// long-press recogniser always wins the gesture arena, so an inner InkWell
+/// would swallow the press and the drag would never start. With [onLongPress]
+/// a hold-and-release in place opens the menu, while hold-and-move lifts the
+/// tile for the trash bin.
+class DragToDeleteTile extends StatefulWidget {
   const DragToDeleteTile({
     super.key,
     required this.payload,
     required this.child,
     this.onDragChanged,
+    this.onLongPress,
   });
 
   final DeletePayload payload;
@@ -242,22 +256,47 @@ class DragToDeleteTile extends StatelessWidget {
   /// screen can show/hide the trash bin.
   final ValueChanged<bool>? onDragChanged;
 
+  /// Fired when the tile was held but not actually moved. Lets a tile keep its
+  /// long-press menu and still support drag-to-delete.
+  final VoidCallback? onLongPress;
+
+  @override
+  State<DragToDeleteTile> createState() => _DragToDeleteTileState();
+}
+
+class _DragToDeleteTileState extends State<DragToDeleteTile> {
+  /// Total finger travel since the drag began. A long-press without movement
+  /// must not be mistaken for a drag (finger jitter is a few pixels).
+  double _travelled = 0;
+  static const _moveThreshold = 12.0;
+
   @override
   Widget build(BuildContext context) {
     return LongPressDraggable<DeletePayload>(
-      data: payload,
+      data: widget.payload,
       dragAnchorStrategy: pointerDragAnchorStrategy,
-      onDragStarted: () => onDragChanged?.call(true),
-      onDragEnd: (_) => onDragChanged?.call(false),
-      onDraggableCanceled: (_, __) => onDragChanged?.call(false),
-      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      onDragStarted: () {
+        _travelled = 0;
+        widget.onDragChanged?.call(true);
+      },
+      onDragUpdate: (details) => _travelled += details.delta.distance,
+      onDragEnd: (details) {
+        widget.onDragChanged?.call(false);
+        // Released in place (no drop on the bin, no real movement): this was
+        // a long-press, so run the tile's own menu instead.
+        if (!details.wasAccepted && _travelled < _moveThreshold) {
+          widget.onLongPress?.call();
+        }
+      },
+      onDraggableCanceled: (_, __) => widget.onDragChanged?.call(false),
+      childWhenDragging: Opacity(opacity: 0.35, child: widget.child),
       feedback: Material(
         elevation: 10,
         borderRadius: BorderRadius.circular(12),
         color: Colors.transparent,
-        child: Opacity(opacity: 0.92, child: child),
+        child: Opacity(opacity: 0.92, child: widget.child),
       ),
-      child: child,
+      child: widget.child,
     );
   }
 }
@@ -290,34 +329,45 @@ class DeleteTrashTarget extends StatelessWidget {
           child: DragTarget<DeletePayload>(
             onWillAcceptWithDetails: (_) => true,
             onAcceptWithDetails: (details) => onDrop(details.data),
+            // The pill is small; the drop zone is the whole bottom band it
+            // sits in, so a release a little off the pill still deletes
+            // instead of silently doing nothing.
             builder: (context, candidates, _) {
               final hot = candidates.isNotEmpty;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-                decoration: BoxDecoration(
-                  color: hot ? kRed : kGoldDark,
-                  borderRadius: BorderRadius.circular(40),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: .25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(hot ? Icons.delete : Icons.delete_outline,
-                        color: Colors.white, size: 30),
-                    const SizedBox(width: 10),
-                    Text(
-                      hot ? 'Release to delete' : 'Drag here to delete',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15),
+              return SizedBox(
+                width: double.infinity,
+                height: 104,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 26, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: hot ? kRed : kGoldDark,
+                      borderRadius: BorderRadius.circular(40),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: .25),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4)),
+                      ],
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(hot ? Icons.delete : Icons.delete_outline,
+                            color: Colors.white, size: 30),
+                        const SizedBox(width: 10),
+                        Text(
+                          hot ? 'Release to delete' : 'Drag here to delete',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             },

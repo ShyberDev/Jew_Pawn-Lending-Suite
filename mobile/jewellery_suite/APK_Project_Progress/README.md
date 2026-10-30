@@ -1,12 +1,12 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-11-01
+**Last updated:** 2026-11-01 (new report logged: **#06D–#06F** — drag-to-delete bin and the MPIN gate, see section 1g)
 **Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
 **App version installed for testing:** v1.1.5 (versionCode 31, **release-signed**) — installed over v1.1.4 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
 **Release build:** v1.1.5 (versionCode 31, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.6 MB), SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`
 **Published APK:** GitHub release **v1.1.5**, asset `jewellery_suite_v1.1.5.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
-**Next target:** v1.2.0 — first finish the phone pass on this branch over the CODE DONE items that are sitting on the device right now: **#055–#065** (account, password centre, pawn list, OTP gateway) and **#067–#06B** (pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults). These need a hands-on phone verdict before they count as ✅ DONE. After that pass, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
+**Next target:** v1.2.0 — first clear the two new phone reports **#06D** (drag-to-delete bin does not delete) and **#06E/#06F** (Delete / Release should ask for the MPIN, not the admin password), then finish the phone pass on this branch over the CODE DONE items that are sitting on the device right now: **#055–#065** (account, password centre, pawn list, OTP gateway) and **#067–#06B** (pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults). These need a hands-on phone verdict before they count as ✅ DONE. After that pass, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
 
 ---
 
@@ -183,6 +183,24 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 
 ---
 
+## 1g. v1.1.7 — drag-to-delete fix and the MPIN gate (#06D–#06F)
+
+Reported from the phone on 2026-11-01. All three are now 🟨 **CODE DONE** (analyzer clean, suite run
+below); they still need a hands-on phone pass.
+
+| # | Status | Area | Page / option | Problem / request | What was changed |
+|---|---|---|---|---|---|
+| **#06D** | 🟨 CODE DONE | Pawn list / Khata / Ledger | **Long-press and drag a tile to the bottom “Hold and drag here to delete” bin** | The bin never deleted anything. **Root cause: the drag never started.** On the pawn list the tile wrapped `InkWell(onLongPress: …)` *inside* `LongPressDraggable`; Flutter gives the innermost long-press recogniser the gesture, so the caller sheet opened and the tile was never lifted. | `DragToDeleteTile` is now stateful and takes its own `onLongPress`: a hold-and-release in place (< 12 px travel) opens the tile menu, hold-and-move lifts the tile for the bin. The pawn tile no longer owns `InkWell.onLongPress`. The drop zone is the whole bottom band (104 px, full width) instead of only the pill, so a slightly-off release still deletes. Fixed in `lib/ui/widgets.dart` + `lib/features/pawn/screens/pawn_screen.dart`. |
+| **#06E** | 🟨 CODE DONE | Security / Passwords | **Delete and Release prompts (Pawn delete, Pawn release, Khata / Customer delete, Ledger row delete)** | Delete / Release asked for the **admin password**; it must ask for the **general MPIN**. | `askPasswordIfEnabled` now verifies the screen-lock MPIN (`AppLock.isEnabled` + `AppLock.verify`) and only falls back to the admin password when no MPIN is set, so a shop without a PIN is never locked out. The dialog label (“Type MPIN” / “Type admin password”) and the numeric keypad follow the secret being asked for. Call sites are unchanged. |
+| **#06F** | 🟨 CODE DONE | Password Settings | **Password Settings → Delete / Release** | The card still described an admin-password step. | Card is now **Ask MPIN for Delete / Release** with its switch relabelled **Ask MPIN**, and a live note says which secret will be asked: MPIN when the screen lock is on, admin password otherwise. All per-action switches are unchanged. |
+| **#06G** | 🟨 CODE DONE | Pawn list | **Pawn Loans → Filter → Amount range** | The entry was a placeholder that only showed “coming next”, while looking finished in the menu. | A real dialog: **From ₹** and **To ₹** with either side blank for an open end (above ₹50,000 / under ₹5,000), a **Clear** action and **Cancel**. The pill then reads `≥ ₹50,000`, `≤ ₹5,000` or the band, and the loan list plus summary follow it. The menu label stays **Amount range** on purpose: a longer “(set)” label overflowed the popup row by 26 px at 430 dp. |
+
+> **Decision taken with this round:** turning the MPIN off does **not** un-gate destructive actions —
+the gate falls back to the admin password. Backup Restore and History Clear therefore keep a working
+secret either way. If the shop wants those two to stay admin-only, add a per-action secret choice later.
+
+---
+
 ## 2. Open bugs carried forward (from v1.0.24 audit)
 
 | # | Status | Severity | Page / option | Problem | Suggested fix / file |
@@ -343,7 +361,6 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 - Installed v1.1.0 / versionCode 25; user reported **#001–#005**.
 
 ### 2026-10-30 — Apk Develop Branch snapshot — refactor repo reorganization staged
-### 2026-10-30 — Apk Develop Branch snapshot — refactor repo reorganization staged
 - Branch `Apk_Develop_Branch_01_11` created on this worktree for APK + GitHub traceability.
 - Snapshot staged: screens moved into `lib/features/<feature>/screens/`, helpers remain in `lib/ui/`, tests and state changes aligned.
 - Current worktree analyzer state: clean (`flutter analyze` — no issues found).
@@ -361,6 +378,13 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 - CODE DONE backlog waiting on the phone: **#055–#065** and **#067–#06B** are written and unit-tested but not yet verified by hand on the phone on this branch; **#040–#043** and **#066** remain deferred/TODO.
 - Release signing is configured locally (`android/key.properties`, `android/app/upload-keystore.jks`, both gitignored). The debug build can be installed after wipe; the release build installs in place.
 - Next action on this branch: build/install a fresh APK and run the phone pass over #055–#065 and #067–#06B.
+
+### 2026-11-01 — new report logged: drag-to-delete bin and the MPIN gate (#06D–#06F)
+- Two things were reported from the phone and are now tracked in **section 1g**; no code has changed for them yet.
+- **#06D** — the **“Hold and drag here to delete”** bin lifts a tile but dropping on it never deletes the row.
+- **#06E** — Delete / Release should ask for the **general MPIN**, not the admin password.
+- **#06F** — the Password Settings card must describe the MPIN gate and its admin-password fallback.
+- Nothing built, installed or published for this report; the branch state is unchanged from the #06C note above.
 
 ### 2026-11-01 — Pawn UI rework (#06C), interrupted mid-session, carried forward
 - This round is **CODE DONE in the repo but not yet installed/verified on the phone**; the session that started it was interrupted, so the note is written now so the next session can resume without re-reading the code.
@@ -380,3 +404,23 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
   - Wire a real **Amount range** picker into the pawn Filter menu.
   - Decide whether the pawn list tile long-press sheet and the profile three-dot menu should stay in sync or diverge.
   - Clean up any leftover pawn-move password gating behavior once the on-device flow is confirmed.
+
+### 2026-11-01 — #06D–#06F implemented, plus a real layout crash found by the suite
+- **#06D — drag-to-delete actually deletes now.** Root cause was not the bin: `InkWell.onLongPress` sat *inside* `LongPressDraggable` on every pawn tile, and the inner long-press recogniser wins the gesture arena, so the tile was never lifted and the bin never appeared. `DragToDeleteTile` is now stateful, takes its own `onLongPress`, and tells a real drag (more than 12 px of travel) from a hold-in-place: hold-and-move drags to the bin, hold-and-release opens the caller menu. The drop zone is the full bottom band (104 px) instead of only the pill.
+- **#06E — Delete / Release ask the MPIN.** `askPasswordIfEnabled` verifies the screen-lock MPIN (`AppLock.verify`) and falls back to the admin password only when no MPIN is set, so no shop can be locked out of its own delete button. The dialog says **Type MPIN**, numeric keypad, and keeps the same call sites.
+- **#06F — Password Settings** card is now **Ask MPIN for Delete / Release** and states which secret will be asked, depending on whether the screen lock is on.
+- **Layout crash fixed (found by `flutter test`, not reported):** the new ⋮ menu in the customer pawn profile header put an `Expanded` inside a `Row` that is itself a child of a `Row`, so the constraint was unbounded and every profile open threw *“RenderFlex children have non-zero flex but incoming width constraints are unbounded”*. The pill now shrink-wraps and the ⋮ sits beside it.
+- **Stale test corrected:** `test/pawn_profile_ui_test.dart` still expected the old bare **Due Date** label; it now expects **Due Date (Promised)** and **Actual Due Date**.
+- Files changed: `lib/ui/widgets.dart`, `lib/ui/admin_guard.dart`, `lib/ui/password_settings_screen.dart`, `lib/features/pawn/screens/pawn_screen.dart`, `test/pawn_profile_ui_test.dart`.
+- **New regression test:** `test/drag_to_delete_test.dart` (2 cases) locks the gesture contract — hold + move + drop on the bin deletes, hold + release in place opens the tile menu, and neither fires the other. This is the test that was missing when the conflict shipped.
+- **Checks:** `flutter analyze` → **No issues found**; `flutter test` → **332 pass**, exit 0 (was 330 + the 2 new cases).
+- **Environment note:** `/tmp` on this machine is a small 437 MB tmpfs and filled up, which made `flutter test` hang and then fail to copy its listener. Runs now use `TMPDIR=$PWD/.dart_tool/tmp`. If a test run hangs with no output, check `df -h /tmp` first.
+- **New file:** `APK_Project_Progress/agent_readme.md` — the intent, the real progress, the root causes, what the agent did wrong and the communication log. Read it with this file.
+- Still not installed or phone-checked for this round.
+
+### 2026-11-01 — #06G amount range, stray tree removed, v1.1.6 prepared
+- **#06G:** the pawn Filter menu's **Amount range** is a real filter now. From/To dialog with either side blank for an open end, **Clear** and **Cancel**; the pill shows `≥ ₹50,000`, `≤ ₹5,000` or the band, and the list plus the summary follow it. Implemented as a `StatefulWidget` dialog because disposing the text controllers right after `showDialog` returned threw *“A TextEditingController was used after being disposed”* while the dialog was still animating out.
+- **Popup-menu overflow avoided:** labelling the entry “Amount range (set)” overflowed the menu row by 26 px at 430 dp, so the label stays **Amount range** and the pill carries the active state.
+- **Tests:** `test/pawn_profile_ui_test.dart` gains an amount-range case (menu → dialog → Apply narrows the list to Ravi's ₹63,000, pill reads `≥ ₹50,000`, Clear restores both). `flutter analyze` clean; **333 tests pass**, exit 0.
+- **Stray tree removed:** `mobile/jewellery_suite/mobile/jewellery_suite/` (an accidental nested copy with `lib/core/refactor_audit.py` and a `refactor_checkpoint` file) is deleted. The real app lives in `mobile/jewellery_suite/lib`.
+- **Version:** bumped to **v1.1.6+32** for the release build of this round.
