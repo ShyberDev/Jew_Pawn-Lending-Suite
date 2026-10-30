@@ -361,3 +361,22 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 - CODE DONE backlog waiting on the phone: **#055–#065** and **#067–#06B** are written and unit-tested but not yet verified by hand on the phone on this branch; **#040–#043** and **#066** remain deferred/TODO.
 - Release signing is configured locally (`android/key.properties`, `android/app/upload-keystore.jks`, both gitignored). The debug build can be installed after wipe; the release build installs in place.
 - Next action on this branch: build/install a fresh APK and run the phone pass over #055–#065 and #067–#06B.
+
+### 2026-11-01 — Pawn UI rework (#06C), interrupted mid-session, carried forward
+- This round is **CODE DONE in the repo but not yet installed/verified on the phone**; the session that started it was interrupted, so the note is written now so the next session can resume without re-reading the code.
+- Changed file: `lib/features/pawn/screens/pawn_screen.dart` (only file touched this round).
+- Checks on this round: `flutter analyze` → **No issues found**; `dart format` applied; `git diff --stat` → 1 file, 228 insertions, 191 deletions.
+- Changes queued for the phone pass:
+  - **Customer pawn profile:** loan card now labels the promised date as **Due Date (Promised)** instead of **Due Date**.
+  - **Customer pawn profile:** the **Active / Released** status pill now sits beside a new three-dot menu (⋮) that opens **Call**, **SMS**, **WhatsApp**, **Move to another pawn profile**, **Edit loan**.
+  - **Pawn list tile:** the left-side **Move** dot and the cloud sync badge are removed from the tile.
+  - **Pawn loans page filter bar:** the old **Categories** + **Date range** pills are collapsed into one **Filter ▾** menu beside **Active / Released / Villages**, with **All categories**, each category, **Date range**, and **Amount range** inside it.
+  - **Amount range** is a placeholder for this round: tapping it shows “Amount range picker — coming next.” Date range still opens the existing date picker.
+- What to verify on the phone next (after install):
+  - Open a pawn loan profile and confirm the menu items and Due Date (Promised) label.
+  - Open the pawn loans page and confirm the Filter menu replaces the old Categories/Date pills and that Date range still works.
+  - Confirm long-press on a pawn tile still opens the customer name / amount / date sheet with Call / SMS / WhatsApp / Move / Edit.
+- Deferred follow-ups from this round, to be done after the phone pass:
+  - Wire a real **Amount range** picker into the pawn Filter menu.
+  - Decide whether the pawn list tile long-press sheet and the profile three-dot menu should stay in sync or diverge.
+  - Clean up any leftover pawn-move password gating behavior once the on-device flow is confirmed.

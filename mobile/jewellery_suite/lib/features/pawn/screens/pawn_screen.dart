@@ -39,34 +39,10 @@ class _PawnScreenState extends State<PawnScreen> {
   List<String> _categories = const [];
   String? _category;
   DateTimeRange? _range;
+  (double, double)? _amountRange;
   final Set<String> _selected = {};
   bool _selectMode = false;
   bool _dragActive = false;
-
-  /// A separate auth id used only for the "Move to another pawn profile"
-  /// action. It defaults to the admin password, but Password Settings can
-  /// replace it with a dedicated pawn-move secret — simple enough for the
-  /// shop to pick "admin" or something else, and independent of delete /
-  /// release so the three gates can be set differently.
-  static const _pawnMoveActionId = 'pawn_move';
-
-  /// The move gate asks for the pawn-move password when its toggle is on. When
-  /// a dedicated pawn-move secret has been set it is verified against that; when
-  /// none is set yet it falls back to the admin password.
-  Future<bool> _askPawnMove(BuildContext context) async {
-    final state = context.read<AppState>();
-    final toggle = await state.db.getSetting(
-        pwdToggleKey(_pawnMoveActionId));
-    final enabled = state.adminConfirm && toggle != '0';
-    if (!enabled) return true;
-    if (!context.mounted) return false;
-    return confirmAdmin(
-      context,
-      action: 'move to another pawn profile',
-      confirmLabel: 'Move',
-      verify: (typed) => state.verifyPawnMovePassword(typed),
-    );
-  }
 
   /// loan uuid -> metals found on its items, used by the tile's item label.
   Map<String, List<String>> _metalsByLoan = {};
@@ -268,7 +244,6 @@ class _PawnScreenState extends State<PawnScreen> {
     // Never add these keys to the loan row itself — it is spread into
     // db.upsert('pawn_loans'), and an unknown column would abort the write.
     _customerByLoan.clear();
-    _lastLoadedRows = rows;
     for (final r in rows) {
       final customer = _customerFor(r, lookup.byUuid, lookup.byName);
       if (customer != null) {
@@ -282,14 +257,12 @@ class _PawnScreenState extends State<PawnScreen> {
     if (term.isNotEmpty) {
       rows = rows.where((r) {
         final customer = _customerByLoan[r['client_uuid']?.toString() ?? ''];
-        final name =
-            (r['customer_name'] ?? customer?['customer_name'] ?? '')
-                .toString()
-                .toLowerCase();
-        final id = (customer?['customer_id'] ?? '').toString().toLowerCase();
-        final phone = (customer?['phone'] ?? r['phone'] ?? '')
+        final name = (r['customer_name'] ?? customer?['customer_name'] ?? '')
             .toString()
             .toLowerCase();
+        final id = (customer?['customer_id'] ?? '').toString().toLowerCase();
+        final phone =
+            (customer?['phone'] ?? r['phone'] ?? '').toString().toLowerCase();
         final amount = Num.toDouble(r['loan_amount']).toStringAsFixed(0);
         final village =
             _villageOf(r, lookup.byUuid, lookup.byName).toLowerCase();
@@ -322,11 +295,27 @@ class _PawnScreenState extends State<PawnScreen> {
                     ?['customer_id']
                 ?.toString()) ??
             '',
+        onProfileAction: (action) => _runProfileAction(action, loan),
       ),
     );
     if (mounted) {
       setState(() {});
       _loadVillageOptions();
+    }
+  }
+
+  void _runProfileAction(String action, Map<String, Object?> loan) {
+    switch (action) {
+      case 'call':
+        _call(loan);
+      case 'sms':
+        _sms(loan);
+      case 'whatsapp':
+        _whatsapp(loan);
+      case 'move':
+        _showActions(loan);
+      case 'edit':
+        _editLoan(loan);
     }
   }
 
@@ -438,15 +427,13 @@ class _PawnScreenState extends State<PawnScreen> {
                                       fontSize: 13)),
                               const SizedBox(width: 8),
                               TextButton.icon(
-                                onPressed: () => _chooseCategory(
-                                    uuids: _selected.toList()),
-                                icon: const Icon(
-                                    Icons.drive_file_move_outline,
-                                    size: 16,
-                                    color: kGold),
+                                onPressed: () =>
+                                    _chooseCategory(uuids: _selected.toList()),
+                                icon: const Icon(Icons.drive_file_move_outline,
+                                    size: 16, color: kGold),
                                 label: const Text('Move to category',
-                                    style: TextStyle(
-                                        color: kGold, fontSize: 12)),
+                                    style:
+                                        TextStyle(color: kGold, fontSize: 12)),
                               ),
                               IconButton(
                                 tooltip: 'Clear selection',
@@ -499,8 +486,6 @@ class _PawnScreenState extends State<PawnScreen> {
                 ? 'Gold'
                 : 'Silver';
     final selected = _selected.contains(uuid);
-    final synced =
-        row['server_name'] != null && (row['dirty'] as int? ?? 0) != 1;
     final amountValue = Num.toDouble(row['loan_amount']);
 
     return DragToDeleteTile(
@@ -509,7 +494,8 @@ class _PawnScreenState extends State<PawnScreen> {
       child: Material(
         color: selected ? kGold.withValues(alpha: .12) : Colors.transparent,
         child: InkWell(
-          onTap: _selectMode ? () => _toggleSelect(uuid) : () => _openDetail(row),
+          onTap:
+              _selectMode ? () => _toggleSelect(uuid) : () => _openDetail(row),
           onLongPress: _selectMode ? null : () => _showActions(row),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
@@ -520,14 +506,9 @@ class _PawnScreenState extends State<PawnScreen> {
                     value: selected,
                     onChanged: (_) => _toggleSelect(uuid),
                   )
-                else ...<Widget>[
+                else
                   _customerAvatar(customer, name),
-                  const SizedBox(width: 10),
-                  // Move-to-another-pawn-profile symbol, on the left, always
-                  // visible so the action does not need the old three-dot box.
-                  _moveButton(uuid),
-                  const SizedBox(width: 10),
-                ],
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,9 +531,8 @@ class _PawnScreenState extends State<PawnScreen> {
                               style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: released
-                                      ? mutedOf(context)
-                                      : kGoldDark)),
+                                  color:
+                                      released ? mutedOf(context) : kGoldDark)),
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -589,7 +569,6 @@ class _PawnScreenState extends State<PawnScreen> {
                                       fontWeight: FontWeight.w700,
                                       color: kGreen)),
                             ),
-                          _cloudBadge(synced),
                         ],
                       ),
                     ],
@@ -602,50 +581,6 @@ class _PawnScreenState extends State<PawnScreen> {
       ),
     );
   }
-
-  /// Left-side "move to another pawn profile" symbol on the tile. It asks for
-  /// the pawn-move password, then the category to move a single loan into.
-  Widget _moveButton(String uuid) => InkWell(
-        onTap: () async {
-          final row = _currentLoanByUuid(uuid);
-          if (!mounted) return;
-          if (row == null) return;
-          final granted = await _askPawnMove(context);
-          if (!mounted) return;
-          if (granted != true) {
-            _toast(context, 'Move cancelled / wrong password.');
-            return;
-          }
-          await _chooseCategory(
-            uuids: [uuid],
-            current: row['category']?.toString(),
-            title: 'Move this pledge to another pawn profile',
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(7),
-          decoration: const BoxDecoration(
-            color: kGoldSoft,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.drive_file_move_outline,
-              size: 18, color: kGoldDark),
-        ),
-      );
-
-  /// Looked up once from the read-only display map so we can show the move
-  /// toast/action without re-querying the database.
-  Map<String, Object?>? _currentLoanByUuid(String uuid) {
-    for (final row in _lastLoadedRows) {
-      if ((row['client_uuid']?.toString() ?? '') == uuid) return row;
-    }
-    return null;
-  }
-
-  /// Refreshable copy of the last list rows built by `_load()`. Used only by
-  /// the tile's move button so it can ask the password after the tile was
-  /// tapped but before the profile opens.
-  List<Map<String, Object?>> _lastLoadedRows = const [];
 
   Future<void> _runAction(String action, Map<String, Object?> row) async {
     switch (action) {
@@ -936,11 +871,19 @@ class _PawnScreenState extends State<PawnScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 6),
               child: PopupMenuButton<String>(
-                key: const ValueKey('pawn-category-filter'),
-                tooltip: 'Filter by category',
+                key: const ValueKey('pawn-filter'),
+                tooltip: 'Filter: Categories, Date range, Amount range',
                 onSelected: (value) {
                   if (value == '__manage__') {
                     _openCategories();
+                    return;
+                  }
+                  if (value == '__date__') {
+                    _pickDateRange();
+                    return;
+                  }
+                  if (value.startsWith('__amount__')) {
+                    _pickAmountRange(value);
                     return;
                   }
                   setState(() => _category = value.isEmpty ? null : value);
@@ -956,34 +899,37 @@ class _PawnScreenState extends State<PawnScreen> {
                     ),
                   const PopupMenuDivider(),
                   const PopupMenuItem<String>(
+                      value: '__date__',
+                      child: Row(
+                        children: [
+                          Icon(Icons.date_range_outlined,
+                              size: 18, color: kGoldDark),
+                          SizedBox(width: 10),
+                          Text('Date range'),
+                        ],
+                      )),
+                  PopupMenuItem<String>(
+                    value: '__amount__min_null_max_null',
+                    enabled: _amountRange == null,
+                    child: Row(
+                      children: [
+                        Icon(Icons.account_balance_wallet_outlined,
+                            size: 18, color: kGoldDark),
+                        SizedBox(width: 10),
+                        Text('Amount range'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
                       value: '__manage__', child: Text('Manage categories…')),
                 ],
                 child: _filterPill(
-                  icon: Icons.label_outline,
-                  label:
-                      _category == null ? 'Categories' : 'Category: $_category',
-                  active: _category != null,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: InkWell(
-                key: const ValueKey('pawn-date-filter'),
-                borderRadius: BorderRadius.circular(8),
-                onTap: _pickDateRange,
-                child: _filterPill(
-                  icon: Icons.date_range_outlined,
-                  label: _range == null
-                      ? 'Date'
-                      : '${_short(_range!.start)} – ${_short(_range!.end)}',
-                  active: _range != null,
-                  trailing: _range == null
-                      ? null
-                      : GestureDetector(
-                          onTap: () => setState(() => _range = null),
-                          child: const Icon(Icons.close, size: 15),
-                        ),
+                  icon: Icons.filter_list_outlined,
+                  label: _filterLabel,
+                  active: _category != null ||
+                      _range != null ||
+                      _amountRange != null,
                 ),
               ),
             ),
@@ -991,6 +937,21 @@ class _PawnScreenState extends State<PawnScreen> {
         ),
       ),
     );
+  }
+
+  String get _filterLabel {
+    if (_category != null) return 'Category: $_category';
+    if (_range != null)
+      return '${_short(_range!.start)} – ${_short(_range!.end)}';
+    if (_amountRange != null) {
+      final (lo, hi) = _amountRange!;
+      return '${moneyWhole(lo)} – ${moneyWhole(hi)}';
+    }
+    return 'Filter';
+  }
+
+  void _pickAmountRange(String value) {
+    _toast(context, 'Amount range picker — coming next.');
   }
 
   /// Gold / Silver / Mixed item filter — the summary strip and the loan list
@@ -1025,8 +986,8 @@ class _PawnScreenState extends State<PawnScreen> {
                           ? kGoldDark
                           : kInk.withValues(alpha: .7)),
                   // Same as Active / Released: tap again to clear it.
-                  onSelected: (_) => setState(
-                      () => _metal = _metal == value ? 'all' : value),
+                  onSelected: (_) =>
+                      setState(() => _metal = _metal == value ? 'all' : value),
                 ),
               ),
           ],
@@ -1037,8 +998,18 @@ class _PawnScreenState extends State<PawnScreen> {
 
   // ---------------------------------------------------------- categories
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
   ];
 
   String _iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
@@ -1122,11 +1093,8 @@ class _PawnScreenState extends State<PawnScreen> {
     await state.setPawnCategory(uuids, chosen == '__none__' ? null : chosen);
     if (!mounted) return;
     setState(() => _selected.clear());
-    _toast(
-        context,
-        chosen == '__none__'
-            ? 'Category removed.'
-            : 'Moved to $chosen.');
+    _toast(context,
+        chosen == '__none__' ? 'Category removed.' : 'Moved to $chosen.');
   }
 
   // --------------------------------------------------------------- actions
@@ -1170,8 +1138,7 @@ class _PawnScreenState extends State<PawnScreen> {
     final text = Uri.encodeComponent(
         'Namaste ${row['customer_name'] ?? ''} 🙏\n'
         'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.');
-    final ok = await launchUrl(
-        Uri.parse('https://wa.me/$digits?text=$text'),
+    final ok = await launchUrl(Uri.parse('https://wa.me/$digits?text=$text'),
         mode: LaunchMode.externalApplication);
     if (!ok && mounted) _toast(context, 'Could not open WhatsApp.');
   }
@@ -1223,8 +1190,8 @@ class _PawnScreenState extends State<PawnScreen> {
     final paid = Num.toDouble(row['amount_paid']);
     final amount = TextEditingController(
         text: Num.toDouble(row['loan_amount']).toStringAsFixed(0));
-    final rate =
-        TextEditingController(text: Num.toDouble(row['interest_rate']).toString());
+    final rate = TextEditingController(
+        text: Num.toDouble(row['interest_rate']).toString());
     var loanDate =
         DateTime.tryParse(row['loan_date']?.toString() ?? '') ?? DateTime.now();
     var dueDate = DateTime.tryParse(row['due_date']?.toString() ?? '') ??
@@ -1329,18 +1296,17 @@ class _PawnScreenState extends State<PawnScreen> {
           ...row,
           'loan_amount': principal,
           'interest_rate': useRate,
-        'loan_date': _iso(loanDate),
-        'due_date': _iso(dueDate),
-        // v1.1.6: when the shop “closes the date” on a pawn, the actual
-        // due date advanced and interest is recalculated from it. Initially
-        // the actual column is null and the form falls back to the promised
-        // due date, so the profile still shows something useful.
-        if (actualDue.isBefore(loanDate))
-          'pawn_due_actual': _iso(loanDate),
+          'loan_date': _iso(loanDate),
+          'due_date': _iso(dueDate),
+          // v1.1.6: when the shop “closes the date” on a pawn, the actual
+          // due date advanced and interest is recalculated from it. Initially
+          // the actual column is null and the form falls back to the promised
+          // due date, so the profile still shows something useful.
+          if (actualDue.isBefore(loanDate)) 'pawn_due_actual': _iso(loanDate),
           'interest_accrued': interest,
-        'total_payable': total,
-        'balance': Num.money(total - paid),
-        'last_interest_date': _iso(dueDate),
+          'total_payable': total,
+          'balance': Num.money(total - paid),
+          'last_interest_date': _iso(dueDate),
         },
         items: items,
       );
@@ -1365,23 +1331,7 @@ class _PawnScreenState extends State<PawnScreen> {
         ),
         child: Text('ID $id',
             style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: kGoldDark)),
-      );
-
-  /// Google-Drive-style state: a ticked cloud means this loan reached the
-  /// server; an upload cloud means it is still waiting.
-  Widget _cloudBadge(bool synced) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Tooltip(
-          message: synced ? 'Synced' : 'Waiting to sync',
-          child: Icon(
-            synced ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
-            size: 15,
-            color: synced ? kGreen : kGoldDark.withValues(alpha: .8),
-          ),
-        ),
+                fontSize: 10.5, fontWeight: FontWeight.w800, color: kGoldDark)),
       );
 
   Widget _filterPill({
@@ -1403,8 +1353,7 @@ class _PawnScreenState extends State<PawnScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon,
-              size: 15,
-              color: active ? kGoldDark : kInk.withValues(alpha: .7)),
+              size: 15, color: active ? kGoldDark : kInk.withValues(alpha: .7)),
           const SizedBox(width: 4),
           Text(label,
               style: TextStyle(
@@ -1423,10 +1372,15 @@ class _PawnScreenState extends State<PawnScreen> {
 }
 
 class _PawnDetail extends StatefulWidget {
-  const _PawnDetail({required this.loan, this.customerId = ''});
+  const _PawnDetail({
+    required this.loan,
+    this.customerId = '',
+    this.onProfileAction,
+  });
 
   final Map<String, Object?> loan;
   final String customerId;
+  final void Function(String)? onProfileAction;
 
   @override
   State<_PawnDetail> createState() => _PawnDetailState();
@@ -1679,8 +1633,8 @@ class _PawnDetailState extends State<_PawnDetail> {
     var nPaid = Num.toDouble(_loan['amount_paid']);
 
     if (type == 'release') {
-      final releases = await db.query('pawn_releases',
-          where: 'pawn_loan = ?', whereArgs: [ref]);
+      final releases = await db
+          .query('pawn_releases', where: 'pawn_loan = ?', whereArgs: [ref]);
       await state.deleteCashbookFor(
           releases.map((r) => r['client_uuid']?.toString() ?? ''));
       await db
@@ -2224,23 +2178,105 @@ class _PawnDetailState extends State<_PawnDetail> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: released
-                            ? kGreen.withValues(alpha: .15)
-                            : kGold.withValues(alpha: .2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        loan['status']?.toString() ?? 'Active',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: released ? kGreen : kGoldDark,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: released
+                                  ? kGreen.withValues(alpha: .15)
+                                  : kGold.withValues(alpha: .2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              loan['status']?.toString() ?? 'Active',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: released ? kGreen : kGoldDark,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Call, SMS, WhatsApp, Move, Edit',
+                          onSelected: (value) {
+                            widget.onProfileAction?.call(value);
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem<String>(
+                              value: 'call',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.call_outlined,
+                                      size: 18, color: kGoldDark),
+                                  SizedBox(width: 10),
+                                  Text('Call'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'sms',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.sms_outlined,
+                                      size: 18, color: kGoldDark),
+                                  SizedBox(width: 10),
+                                  Text('SMS'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'whatsapp',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.chat_outlined,
+                                      size: 18, color: kGoldDark),
+                                  SizedBox(width: 10),
+                                  Text('WhatsApp'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'move',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.drive_file_move_outline,
+                                      size: 18, color: kGoldDark),
+                                  SizedBox(width: 10),
+                                  Text('Move to another pawn profile'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit_outlined,
+                                      size: 18, color: kGoldDark),
+                                  SizedBox(width: 10),
+                                  Text('Edit loan'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: released
+                                  ? kGreen.withValues(alpha: .15)
+                                  : kGold.withValues(alpha: .15),
+                              borderRadius: BorderRadius.circular(8),
+                              border:
+                                  Border.all(color: released ? kGreen : kGold),
+                            ),
+                            child: const Icon(Icons.more_vert,
+                                size: 20, color: kGoldDark),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -2329,11 +2365,12 @@ class _PawnDetailState extends State<_PawnDetail> {
                               '${(loan['interest_basis']?.toString() ?? '').isEmpty ? '' : ' · ${loan['interest_basis']}'}',
                         ),
                         _kv('Loan Date', fmtDate(loan['loan_date'])),
-                        _kv('Due Date', fmtDate(loan['due_date'] ?? '')),
+                        _kv('Due Date (Promised)',
+                            fmtDate(loan['due_date'] ?? '')),
                         _kv('Actual Due Date', fmtDate(_actualDue(loan))),
                         _kv('Amount Paid',
                             '₹${moneyText(loan['amount_paid'] as num?)}'),
-                         _kv('Outstanding',
+                        _kv('Outstanding',
                             '₹${moneyText(PawnMath.outstanding(loan, _actualDue(loan)))}'),
                       ],
                     ),
@@ -2530,7 +2567,8 @@ class _PawnDetailState extends State<_PawnDetail> {
                   '${fmtDate(t['effective_date'])} applies · '
                   'entered ${fmtDate(t['tx_date'])}',
                   style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
-                ),                  if (Num.toDouble(t['interest_part']) > 0 ||
+                ),
+                if (Num.toDouble(t['interest_part']) > 0 ||
                     Num.toDouble(t['principal_part']) > 0)
                   Text(
                     'P ₹${moneyWhole(Num.toDouble(t['principal_part']))} · '
@@ -2557,7 +2595,6 @@ class _PawnDetailState extends State<_PawnDetail> {
 // ---------------------------------------------------------------------------
 // New pawn loan
 // ---------------------------------------------------------------------------
-
 
   Widget _kycThumb(String path, String label, String slot) => GestureDetector(
         key: ValueKey('pawn-kyc-$slot'),
