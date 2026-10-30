@@ -1,11 +1,12 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-10-30
+**Last updated:** 2026-11-01
+**Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
 **App version installed for testing:** v1.1.5 (versionCode 31, **release-signed**) — installed over v1.1.4 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
 **Release build:** v1.1.5 (versionCode 31, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.6 MB), SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`
 **Published APK:** GitHub release **v1.1.5**, asset `jewellery_suite_v1.1.5.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
-**Next target:** v1.2.0 — hands-on phone pass over #055–#065, then deferred #040–#043 (notifications, report export, HTTPS, jewellery module) and #066 (fingerprint). **Play Store work is parked until v2.**
+**Next target:** v1.2.0 — first finish the phone pass on this branch over the CODE DONE items that are sitting on the device right now: **#055–#065** (account, password centre, pawn list, OTP gateway) and **#067–#06B** (pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults). These need a hands-on phone verdict before they count as ✅ DONE. After that pass, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
 
 ---
 
@@ -342,6 +343,7 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 - Installed v1.1.0 / versionCode 25; user reported **#001–#005**.
 
 ### 2026-10-30 — Apk Develop Branch snapshot — refactor repo reorganization staged
+### 2026-10-30 — Apk Develop Branch snapshot — refactor repo reorganization staged
 - Branch `Apk_Develop_Branch_01_11` created on this worktree for APK + GitHub traceability.
 - Snapshot staged: screens moved into `lib/features/<feature>/screens/`, helpers remain in `lib/ui/`, tests and state changes aligned.
 - Current worktree analyzer state: clean (`flutter analyze` — no issues found).
@@ -350,3 +352,12 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 - **Signed release APK:** v1.1.5 / versionCode 31, 98.6 MB (`98,554,731` bytes), `mobile/jewellery_suite-release.apk`, SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`.
 - **Checks before the build:** `flutter analyze` → **No issues found**; `flutter test` → **330 pass**, exit 0.
 - **Published:** GitHub release **v1.1.5** with asset `jewellery_suite_v1.1.5.apk`.
+
+### 2026-11-01 — Apk Develop Branch work loop established on `Apk_Develop_Branch_01_11`
+- Branch `Apk_Develop_Branch_01_11` is now the active APK develop + GitHub work branch for this project (created 01/11/2026).
+- Purpose of this branch: release-sign the build, install it on the phone over wireless debugging, run the hands-on phone pass, record each result here, then commit and push on this branch.
+- Current snapshot on this branch is the refactor repo reorganization plus the v1.1.5 round note. `flutter analyze` is clean; the working tree is clean except for committed/pushed progress-note updates.
+- Phone state: the app was uninstalled on the device so the manual check could proceed; after reinstall the on-device database is a clean first-run state (1 village, 2 pawn categories, admin password salt/hash and customer-id scheme marker only) — no stale sample/demo rows in the business tables.
+- CODE DONE backlog waiting on the phone: **#055–#065** and **#067–#06B** are written and unit-tested but not yet verified by hand on the phone on this branch; **#040–#043** and **#066** remain deferred/TODO.
+- Release signing is configured locally (`android/key.properties`, `android/app/upload-keystore.jks`, both gitignored). The debug build can be installed after wipe; the release build installs in place.
+- Next action on this branch: build/install a fresh APK and run the phone pass over #055–#065 and #067–#06B.
