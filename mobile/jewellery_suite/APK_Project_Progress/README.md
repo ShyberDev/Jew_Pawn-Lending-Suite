@@ -340,3 +340,13 @@ All 🟨 **CODE DONE** (unit-tested; not yet checked by hand on the phone).
 ### 2026-10-28 — v1.1.0 installed for testing
 - Commit `488b4c8`: personalised greeting, editable Khata type, Lolugu map default.
 - Installed v1.1.0 / versionCode 25; user reported **#001–#005**.
+
+### 2026-10-30 — Apk Develop Branch snapshot — refactor repo reorganization staged
+- Branch `Apk_Develop_Branch_01_11` created on this worktree for APK + GitHub traceability.
+- Snapshot staged: screens moved into `lib/features/<feature>/screens/`, helpers remain in `lib/ui/`, tests and state changes aligned.
+- Current worktree analyzer state: clean (`flutter analyze` — no issues found).
+- Debug APK present in this worktree: `build/app/outputs/flutter-apk/app-debug.apk`.
+- This entry is a branch snapshot, not an installed APK verification.
+- **Signed release APK:** v1.1.5 / versionCode 31, 98.6 MB (`98,554,731` bytes), `mobile/jewellery_suite-release.apk`, SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`.
+- **Checks before the build:** `flutter analyze` → **No issues found**; `flutter test` → **330 pass**, exit 0.
+- **Published:** GitHub release **v1.1.5** with asset `jewellery_suite_v1.1.5.apk`.
