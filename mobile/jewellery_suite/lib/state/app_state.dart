@@ -23,6 +23,10 @@ class AppState extends ChangeNotifier {
   ApiClient? api;
 
   bool loggedIn = false;
+
+  /// Set when the shop chose to work without a server. The database is still
+  /// the source of truth; only sync is unavailable. Cleared by a real login.
+  static const offlineKey = 'offline_mode';
   bool syncing = false;
   int pending = 0;
   SyncSummary? lastSync;
@@ -61,6 +65,10 @@ class AppState extends ChangeNotifier {
     if (url != null && sid != null && savedUser != null) {
       api = ApiClient(baseUrl: url, sid: sid);
       _user = savedUser;
+      loggedIn = true;
+    } else if (await db.getSetting(offlineKey) == '1') {
+      // A shop with no server (or a phone restored from one) still opens its
+      // own data. Sync stays unavailable until a server login is added.
       loggedIn = true;
     }
     darkMode = await db.getSetting('dark_mode') == '1';
@@ -153,6 +161,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Opens the shop without a server.
+  ///
+  /// This app is offline-first: the SQLite file is the shop's real ledger.
+  /// Requiring a server login on a fresh install (or after restoring a backup
+  /// made on a phone that never synced) would lock the shop out of its own
+  /// data. Sync simply stays unavailable until a real login is added; Logout
+  /// brings the login form back.
+  Future<void> continueOffline() async {
+    api = null;
+    _user = null;
+    loggedIn = true;
+    await db.setSetting(offlineKey, '1');
+    notifyListeners();
+  }
+
   Future<void> login(String url, String usr, String pwd) async {
     final client = ApiClient(baseUrl: url);
     await client.login(usr, pwd);
@@ -162,6 +185,7 @@ class AppState extends ChangeNotifier {
     await db.setSetting('server_url', url);
     await db.setSetting('sid', client.sid);
     await db.setSetting('user', usr);
+    await db.setSetting(offlineKey, null);
     notifyListeners();
   }
 
@@ -170,6 +194,7 @@ class AppState extends ChangeNotifier {
     _user = null;
     loggedIn = false;
     await db.setSetting('sid', null);
+    await db.setSetting(offlineKey, null);
     notifyListeners();
   }
 

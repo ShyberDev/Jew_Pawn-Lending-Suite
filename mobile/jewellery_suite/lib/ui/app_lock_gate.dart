@@ -41,16 +41,36 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_enabled) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
+      // Lock unconditionally: the PIN may have been switched on since this
+      // gate was built (see _refreshEnabled below).
       if (mounted) setState(() => _locked = true);
+    } else if (state == AppLifecycleState.resumed) {
+      _refreshEnabled();
     }
   }
 
+  /// Re-reads the switch whenever the app comes back to the foreground.
+  ///
+  /// The gate is above the Navigator, so it outlives the Settings screen where
+  /// the PIN is turned on or off. Without this, enabling the PIN would not
+  /// take effect until the next cold start, and disabling it would leave the
+  /// gate armed.
+  Future<void> _refreshEnabled() async {
+    if (!mounted) return;
+    final enabled = await AppLock.isEnabled(context.read<AppState>().db);
+    if (!mounted) return;
+    setState(() {
+      _enabled = enabled;
+      if (!enabled) _locked = false;
+      _checking = false;
+    });
+  }
+
   Future<void> _check() async {
-    final db = context.read<AppState>().db;
-    final enabled = await AppLock.isEnabled(db);
+    if (!mounted) return;
+    final enabled = await AppLock.isEnabled(context.read<AppState>().db);
     if (!mounted) return;
     setState(() {
       _enabled = enabled;
@@ -68,8 +88,18 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       );
     }
     if (_enabled && _locked) {
-      return _LockScreen(
-        onUnlocked: () => setState(() => _locked = false),
+      // A TextField needs an Overlay ancestor for its selection handles. This
+      // gate sits ABOVE the app's Navigator (so it covers every pushed route),
+      // which means the Navigator's Overlay is not an ancestor of the lock
+      // screen. Give the lock screen its own Overlay.
+      return Overlay(
+        initialEntries: [
+          OverlayEntry(
+            builder: (_) => _LockScreen(
+              onUnlocked: () => setState(() => _locked = false),
+            ),
+          ),
+        ],
       );
     }
     return widget.child;

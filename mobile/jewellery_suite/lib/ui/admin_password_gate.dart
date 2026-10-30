@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import 'admin_guard.dart';
-import 'app_lock_gate.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'palette.dart';
@@ -57,9 +56,8 @@ class _AdminPasswordGateState extends State<AdminPasswordGate> {
       );
     }
     return Consumer<AppState>(
-      builder: (context, state, _) => state.loggedIn
-          ? const AppLockGate(child: HomeScreen())
-          : const LoginScreen(),
+      builder: (context, state, _) =>
+          state.loggedIn ? const HomeScreen() : const LoginScreen(),
     );
   }
 }

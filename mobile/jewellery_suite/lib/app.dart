@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'state/app_state.dart';
 import 'ui/admin_password_gate.dart';
+import 'ui/app_lock_gate.dart';
 
 class JewelleryApp extends StatelessWidget {
   const JewelleryApp({super.key});
@@ -45,6 +46,13 @@ class JewelleryApp extends StatelessWidget {
       // settings never overflow the screens, then apply the in-app Zoom
       // setting (Settings → Zoom, 0.8×–1.5×) on top. Layouts are sized for a
       // ~1.4× cap, so text stays readable without breaking out of bounds.
+      //
+      // The app lock lives here, ABOVE the Navigator, not inside `home`.
+      // #037: pushed screens (Settings, a customer profile, the cashbook) sit
+      // in the root navigator on top of `home`. A gate placed inside `home`
+      // stayed underneath them, so backgrounding the app on one of those
+      // screens left the shop fully visible. Wrapping the Navigator itself
+      // means the lock covers whatever route is on screen.
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         final sys = mq.textScaler.scale(14) / 14;
@@ -52,7 +60,7 @@ class JewelleryApp extends StatelessWidget {
         final effective = (state.fontScale * base).clamp(0.7, 1.9);
         return MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.linear(effective)),
-          child: child!,
+          child: AppLockGate(child: child!),
         );
       },
       // The gate first forces the shipped default admin password to be
