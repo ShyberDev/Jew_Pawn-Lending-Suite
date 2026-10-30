@@ -40,7 +40,10 @@ Future<void> main() async {
     // villages table happened to be empty (e.g. right after the last khata
     // was deleted), which pushed fake pawn loans into the shop's real
     // totals. seedDemo() is now an explicit, developer-only entry point.
-    state.loggedIn = true;
+    //
+    // Whether the shop opens straight away is decided by AppState.load(): a
+    // saved session, the offline choice, or a phone that already holds the
+    // ledger opens the shop; a brand-new phone sees Login / Create account.
     runApp(
       ChangeNotifierProvider<AppState>.value(
         value: state,

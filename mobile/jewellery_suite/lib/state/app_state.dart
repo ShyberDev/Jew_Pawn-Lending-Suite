@@ -9,6 +9,7 @@ import '../data/api_client.dart';
 import '../data/local_db.dart';
 import '../data/migration_v12.dart';
 import '../data/sync_service.dart';
+import '../util/account.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
 import '../util/khata_alloc.dart';
@@ -62,6 +63,12 @@ class AppState extends ChangeNotifier {
     final url = await db.getSetting('server_url');
     final sid = await db.getSetting('sid');
     final savedUser = await db.getSetting('user');
+    // The shop's own account (Gmail / mobile + password) lives in settings.
+    hasAccount = await LocalAccount.exists(db);
+    accountIdentifier = await LocalAccount.identifierOf(db);
+    accountName = await LocalAccount.nameOf(db);
+    passwordLoginEnabled = await LocalAccount.passwordLoginEnabled(db);
+    otpLoginEnabled = await LocalAccount.otpLoginEnabled(db);
     if (url != null && sid != null && savedUser != null) {
       api = ApiClient(baseUrl: url, sid: sid);
       _user = savedUser;
@@ -70,6 +77,16 @@ class AppState extends ChangeNotifier {
       // A shop with no server (or a phone restored from one) still opens its
       // own data. Sync stays unavailable until a server login is added.
       loggedIn = true;
+    } else if (await LocalAccount.hasSession(db)) {
+      // Sign in once; the session survives restarts until Logout.
+      loggedIn = true;
+    } else if (!hasAccount) {
+      // A phone that already holds the shop's ledger must never be locked out
+      // by a login screen added in a later version.
+      final records = await db.count('customers') +
+          await db.count('pawn_loans') +
+          await db.count('khatabook_loans');
+      loggedIn = records > 0;
     }
     darkMode = await db.getSetting('dark_mode') == '1';
     final fs = double.tryParse(await db.getSetting('font_scale') ?? '');
@@ -195,6 +212,179 @@ class AppState extends ChangeNotifier {
     loggedIn = false;
     await db.setSetting('sid', null);
     await db.setSetting(offlineKey, null);
+    await LocalAccount.setSession(db, false);
+    notifyListeners();
+  }
+
+  // -------------------------------------------------------------- account
+  /// True once a Gmail / mobile account exists on this phone.
+  bool hasAccount = false;
+  String accountIdentifier = '';
+  String accountName = '';
+
+  /// Which sign-in methods the shopkeeper allows (Password Settings).
+  bool passwordLoginEnabled = true;
+  bool otpLoginEnabled = true;
+
+  String get maskedAccount => LocalAccount.mask(accountIdentifier);
+
+  Future<void> createAccount({
+    required String name,
+    required String identifier,
+    required String password,
+  }) async {
+    await LocalAccount.create(db,
+        name: name, identifier: identifier, password: password);
+    hasAccount = true;
+    accountIdentifier = await LocalAccount.identifierOf(db);
+    accountName = name.trim();
+    passwordLoginEnabled = true;
+    otpLoginEnabled = true;
+    api = null;
+    _user = null;
+    loggedIn = true;
+    await db.setSetting(offlineKey, null);
+    await LocalAccount.setSession(db, true);
+    notifyListeners();
+  }
+
+  Future<void> signInWithPassword(
+    String identifier,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    final ok = await LocalAccount.verifyPassword(db, identifier, password);
+    if (!ok) {
+      throw const FormatException('Wrong email / mobile or password.');
+    }
+    await _completeSignIn(keepSignedIn);
+  }
+
+  Future<void> signInWithOtp(
+    String identifier,
+    String code, {
+    bool keepSignedIn = true,
+  }) async {
+    final saved = await LocalAccount.identifierOf(db);
+    if (saved.isEmpty) {
+      throw const FormatException('No account on this phone yet.');
+    }
+    if (LocalAccount.normalizeIdentifier(identifier) != saved) {
+      throw const FormatException(
+          'That email / mobile does not match this account.');
+    }
+    if (!await LocalAccount.verifyOtp(db, 'login', code)) {
+      throw const FormatException('The code is wrong or has expired.');
+    }
+    await _completeSignIn(keepSignedIn);
+  }
+
+  Future<void> _completeSignIn(bool keepSignedIn) async {
+    hasAccount = await LocalAccount.exists(db);
+    accountIdentifier = await LocalAccount.identifierOf(db);
+    accountName = await LocalAccount.nameOf(db);
+    api = null;
+    _user = null;
+    loggedIn = true;
+    await db.setSetting(offlineKey, null);
+    await LocalAccount.setSession(db, keepSignedIn);
+    notifyListeners();
+  }
+
+  /// Creates a 6-digit code and returns it so the caller can show it. See
+  /// [LocalAccount.issueOtp] for why the code is displayed on the phone.
+  Future<String> issueOtp(String purpose) =>
+      LocalAccount.issueOtp(db, purpose: purpose);
+
+  Future<bool> verifyOtp(String purpose, String code) =>
+      LocalAccount.verifyOtp(db, purpose, code);
+
+  /// Used by Password Settings before allowing a password change.
+  Future<bool> loginPasswordMatches(String password) =>
+      LocalAccount.verifyPassword(db, accountIdentifier, password);
+
+  Future<void> setAccountPassword(String password) async {
+    await LocalAccount.setPassword(db, password);
+    notifyListeners();
+  }
+
+  Future<void> setLoginMethods({bool? password, bool? otp}) async {
+    if (password != null) {
+      passwordLoginEnabled = password;
+      await db.setSetting(
+          LocalAccount.passwordLoginEnabledKey, password ? '1' : '0');
+    }
+    if (otp != null) {
+      otpLoginEnabled = otp;
+      await db.setSetting(LocalAccount.otpLoginEnabledKey, otp ? '1' : '0');
+    }
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------- pawn categories
+  /// Category names in display order (Forgot_Slip_List, Pawn_Removed, custom).
+  Future<List<String>> pawnCategories() async {
+    final rows = await db.query('pawn_categories',
+        orderBy: 'sort_order asc, name asc');
+    return rows
+        .map((r) => r['name']?.toString() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> addPawnCategory(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty) {
+      throw const FormatException('Enter a category name.');
+    }
+    final existing = await pawnCategories();
+    if (existing.any((c) => c.toLowerCase() == clean.toLowerCase())) {
+      throw const FormatException('That category already exists.');
+    }
+    final rows = await db.query('pawn_categories');
+    await db.upsert('pawn_categories', {
+      'name': clean,
+      'sort_order': rows.length,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    notifyListeners();
+  }
+
+  Future<void> renamePawnCategory(String from, String to) async {
+    final clean = to.trim();
+    if (clean.isEmpty) {
+      throw const FormatException('Enter a category name.');
+    }
+    final rows = await db.query('pawn_categories',
+        where: 'name = ?', whereArgs: [from]);
+    if (rows.isEmpty) return;
+    await db.upsert('pawn_categories', {...rows.first, 'name': clean});
+    // The loan rows carry the name, so rename them with it.
+    await db.db.update('pawn_loans', {'category': clean, 'dirty': 1},
+        where: 'category = ?', whereArgs: [from]);
+    notifyListeners();
+  }
+
+  Future<void> deletePawnCategory(String name) async {
+    await db.delete('pawn_categories', where: 'name = ?', whereArgs: [name]);
+    // Loans keep existing; they simply lose the label.
+    await db.db.update('pawn_loans', {'category': null, 'dirty': 1},
+        where: 'category = ?', whereArgs: [name]);
+    notifyListeners();
+  }
+
+  Future<void> setPawnCategory(List<String> loanUuids, String? category) async {
+    if (loanUuids.isEmpty) return;
+    final placeholders = List.filled(loanUuids.length, '?').join(', ');
+    await db.db.update(
+        'pawn_loans',
+        {
+          'category': category,
+          'dirty': 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'client_uuid IN ($placeholders)',
+        whereArgs: loanUuids);
     notifyListeners();
   }
 

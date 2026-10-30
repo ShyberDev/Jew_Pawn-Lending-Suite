@@ -3,8 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
-import 'app_lock_settings_screen.dart';
 import 'backup_screen.dart';
+import 'password_settings_screen.dart';
 import 'palette.dart';
 import 'photo_local.dart';
 import 'widgets.dart';
@@ -59,14 +59,16 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Notifications', onTap: () => comingSoon(context)),
               _tile(context, icon: Icons.alarm, title: 'Reminders',
                   onTap: () => comingSoon(context)),
+              // Screen lock, daily MPIN and every password now live together
+              // in Password Settings.
               _tile(context,
                   icon: Icons.lock_outline,
-                  title: 'App lock (PIN)',
-                  subtitle: 'Ask for a 4–6 digit PIN when the app opens',
+                  title: 'Password Settings',
+                  subtitle: 'Screen lock, MPIN and delete / release passwords',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const AppLockSettingsScreen()),
+                        builder: (_) => const PasswordSettingsScreen()),
                   )),
               const Divider(height: 24),
               // v1.0.12: backups and the sample-data clean-up. Nothing here
@@ -101,17 +103,6 @@ class SettingsScreen extends StatelessWidget {
                           : 'Added $added sample member(s) — open Khatabook → '
                               'a village.')));
                   }),
-              const Divider(height: 24),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.admin_panel_settings_outlined,
-                    color: kGoldDark),
-                title: const Text('Ask password for delete / release',
-                    style: TextStyle(fontSize: 13.5)),
-                subtitle: const Text('Admin — stop accidental deletes'),
-                value: state.adminConfirm,
-                onChanged: (v) => state.setAdminConfirm(v),
-              ),
             ],
           ),
           const SizedBox(height: 60),

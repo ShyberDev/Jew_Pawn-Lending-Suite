@@ -10,6 +10,7 @@ import 'migration_v12.dart';
 import 'migration_v13.dart';
 import 'migration_v14.dart';
 import 'migration_v15.dart';
+import 'migration_v16.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -44,7 +45,7 @@ class LocalDb {
   Future<void> _open(String file) async {
     _db = await openDatabase(
       file,
-      version: MigrationV15.version,
+      version: MigrationV16.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -237,6 +238,11 @@ class LocalDb {
       final filled = await MigrationV11.backfill(db);
       debugPrint('[db] migration v11: schema added, $filled loan(s) defaulted');
     }
+    if (oldVersion < 16) {
+      // v16: pawn loan categories (Forgot_Slip_List, Pawn_Removed, custom).
+      // See lib/data/migration_v16.dart.
+      await MigrationV16.addSchema(db);
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -409,6 +415,8 @@ class LocalDb {
     await MigrationV13.addSchema(db);
     await MigrationV14.addSchema(db);
     await MigrationV15.addSchema(db);
+    // v16: the category column plus the seeded category list.
+    await MigrationV16.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings

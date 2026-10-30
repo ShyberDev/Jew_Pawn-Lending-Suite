@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'local_db.dart';
-import 'migration_v15.dart';
+import 'migration_v16.dart';
 
 /// One backup file on disk.
 class BackupInfo {
@@ -123,6 +123,7 @@ class BackupService {
     'customers',
     'villages',
     'pawn_loans',
+    'pawn_categories',
     'pawn_items',
     'pawn_transactions',
     'pawn_releases',
@@ -331,7 +332,7 @@ class BackupService {
         final version = versionRows.isEmpty
             ? 0
             : ((versionRows.first.values.first as num?)?.toInt() ?? 0);
-        if (version > MigrationV15.version) {
+        if (version > MigrationV16.version) {
           return RestoreResult(
               restored: false,
               problem: 'The backup database is newer than this app.',
@@ -383,8 +384,18 @@ class BackupService {
           if (key == 'admin_password_hash' ||
               key == 'admin_password_salt' ||
               key == 'app_lock_enabled' ||
+              key == 'app_lock_mode' ||
+              key == 'app_lock_unlocked_on' ||
               key == 'app_lock_salt' ||
               key == 'app_lock_hash' ||
+              key == 'account_identifier' ||
+              key == 'account_name' ||
+              key == 'account_password_hash' ||
+              key == 'account_password_salt' ||
+              key == 'account_created_at' ||
+              key == 'session_active' ||
+              key == 'login_password_enabled' ||
+              key == 'login_otp_enabled' ||
               key.startsWith('pwd_')) {
             carriedSecrets[key] = value;
           }

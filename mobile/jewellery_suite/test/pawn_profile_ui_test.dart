@@ -154,10 +154,14 @@ void main() {
     await pumpPawn(tester);
 
     expect(find.text('Ravi'), findsOneWidget);
-    expect(find.text('Alpha · ID A01'), findsOneWidget);
-    expect(find.text('20-10-26 · Gold · ₹63,000'), findsOneWidget);
+    expect(find.text('ID A01'), findsOneWidget);
+    expect(find.text('Alpha · 20-10-26 · Gold'), findsOneWidget);
+    expect(find.text('₹63,000'), findsOneWidget);
     expect(find.text('Suresh'), findsOneWidget);
-    expect(find.text('Beta · ID A02'), findsOneWidget);
+    expect(find.text('ID A02'), findsOneWidget);
+    expect(find.text('Beta · 18-10-26 · Silver'), findsOneWidget);
+    // The Active / Released word is gone from the tile; the filter row says it.
+    expect(find.text('Active'), findsOneWidget);
 
     // The status row no longer carries "All"; villages live in a dropdown.
     expect(find.widgetWithText(ChoiceChip, 'All'), findsNothing);
@@ -169,6 +173,49 @@ void main() {
     await settleWithDb(tester);
 
     expect(find.text('Villages: Alpha'), findsOneWidget);
+    expect(find.text('Ravi'), findsOneWidget);
+    expect(find.text('Suresh'), findsNothing);
+  });
+
+  testWidgets('search by ID / amount; tapping Active shows released too',
+      (tester) async {
+    await seedPawnLoans();
+    await local.upsert('pawn_loans', {
+      'client_uuid': 'loan-old',
+      'customer_uuid': 'cust-ravi',
+      'customer': 'cust-ravi',
+      'customer_name': 'Ravi',
+      'phone': '9000000001',
+      'village': 'Alpha',
+      'status': 'Released',
+      'loan_date': '2026-09-01',
+      'due_date': '2026-10-01',
+      'interest_basis': 'Gold',
+      'loan_amount': 5000.0,
+      'interest_rate': 2.0,
+      'interest_accrued': 0.0,
+      'amount_paid': 0.0,
+      'dirty': 0,
+    });
+    await pumpPawn(tester);
+
+    // Default is Active, so the released ₹5,000 row is hidden.
+    expect(find.text('₹5,000'), findsNothing);
+
+    // Tapping the selected Active chip clears it: both lists are shown.
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Active'));
+    await settleWithDb(tester);
+    expect(find.text('₹5,000'), findsOneWidget);
+
+    // Search understands the book ID, not just the name.
+    await tester.enterText(find.byType(TextField).first, 'A02');
+    await settleWithDb(tester);
+    expect(find.text('Suresh'), findsOneWidget);
+    expect(find.text('Ravi'), findsNothing);
+
+    // ...and the amount.
+    await tester.enterText(find.byType(TextField).first, '63000');
+    await settleWithDb(tester);
     expect(find.text('Ravi'), findsOneWidget);
     expect(find.text('Suresh'), findsNothing);
   });

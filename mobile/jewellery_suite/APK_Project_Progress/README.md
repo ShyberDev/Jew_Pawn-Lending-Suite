@@ -4,7 +4,8 @@
 **Last updated:** 2026-10-30
 **App version installed for testing:** v1.1.3 (versionCode 29, **release-signed**) — installed over the previous release build with existing data preserved
 **Release build:** v1.1.3 (versionCode 29, **release-signed**) — `mobile/jewellery_suite-release.apk`, SHA-256 `d6f0946cc278c3be9720c973e85589ae913317a2946c09cbc3f28de75d53b111`
-**Next target:** v1.1.4 — deferred features #040–#043, plus any issues found while checking this build
+**App version in code:** v1.1.4 (versionCode 30) — built and unit-tested, **APK not yet built/installed**
+**Next target:** v1.1.4 — account & password centre (#055–#059), pawn list rework (#060–#064); deferred #040–#043 remain
 
 ---
 
@@ -126,6 +127,32 @@ Also in this release:
 
 ---
 
+## 1d. v1.1.4 — accounts, password centre, pawn list (#055–#064)
+
+Everything below is 🟨 **CODE DONE**: implemented, `flutter analyze` clean and covered by the
+suite (326 tests). It has **not** been installed on the phone yet, so none of it is ✅ DONE.
+
+| # | Status | Area | Page / option | Request | What was changed |
+|---|---|---|---|---|---|
+| **#055** | 🟨 CODE DONE | Home / Customers | **Home → General → Customers** | The name should read **Customers** Book | Drawer tile and the screen title now say **Customers Book**. Nothing else about the screen changed. |
+| **#056** | 🟨 CODE DONE | Settings | **Settings → Ask password for delete / release** | The switch is available in two places | Removed from Settings. It lives only in **Password Settings** now, with its per-action switches. |
+| **#057** | 🟨 CODE DONE | Login / account | **Login screen** | Create one account per shop with a **Gmail or mobile number**, sign in with a password **or a one-time code**, and stay signed in until Logout | New local account (identifier + salted password hash). Login screen has **Create account** and **Sign in**, password or OTP, and an optional collapsible **shop server** login for sync. The session persists across restarts; **Logout** clears it. An existing phone that already holds the ledger is never locked out (auto-continues). |
+| **#058** | 🟨 CODE DONE | Passwords | **Every password** | A **Forgot password** path for each one | Admin password, login password and screen-lock PIN/MPIN each have **Forgot …?**. The flow sends a 6-digit code to the account identifier and then asks for the new secret. Codes are hashed, valid 10 minutes, blocked after 5 wrong tries. |
+| **#059** | 🟨 CODE DONE | System / Security | **Home → System → Biometric & screen lock** | Move it into Password Settings; add a **Daily MPIN**; let each password be enabled/disabled | The drawer entry is gone. Password Settings now holds **Account & login**, **Biometric & screen lock** (Off / Every time / **Daily MPIN**), **Delete / Release**, and **Admin password**. Every one can be changed and reset, and login-by-password / login-by-code are individual switches. |
+| **#060** | 🟨 CODE DONE | Pawn list | **Pawn Loans → loan tiles** | Two rows; highlight ID, name and amount; drop the **Active** word; a real sync-state cloud | Row 1: photo, **Name** (bold) and **₹Amount** (bold gold). Row 2: gold **ID badge**, village, date and item, then the cloud state — `cloud_done` green when synced, `cloud_upload` when waiting. Active is no longer written on the tile; a released loan is muted with a small **Released** tag. |
+| **#061** | 🟨 CODE DONE | Pawn actions | **Pawn Loans → tile menu** | Caller functions like Khatabook | Every tile has a ⋮ / long-press menu: **Call · SMS · WhatsApp · Move to another pawn profile · Edit**. Edit changes principal (only when nothing is paid), interest rate and both dates, and recalculates interest/payable/balance. |
+| **#062** | 🟨 CODE DONE | Pawn categories | **Pawn Loans → Categories** | Categories beside Active / Released / Villages, with custom names and multi-move | New **Categories ▾** filter seeded with **Forgot_Slip_List** and **Pawn_Removed**. Manage screen adds custom categories, renames them (loans follow) and removes labels. App-bar checklist turns on **multi-select**; the bottom bar moves every selected loan in one go. |
+| **#063** | 🟨 CODE DONE | Pawn filters / search | **Pawn Loans → filters** | Toggle chips off, search by name/ID/amount, date range | Tapping the selected **Active**, **Released**, **Gold**, **Silver** or **Mixed** chip clears it (shows everything). Search matches **name, book ID, amount**, phone or village. New **Date** chip opens a from–to range on the loan date and can be cleared. |
+| **#064** | 🟨 CODE DONE | Database | **Schema** | — | **v16**: `pawn_loans.category` + `pawn_categories` table, seeded once. Backups track the new table, and restore now keeps the phone's account + lock settings across the replacement. |
+
+> **OTP delivery — known limitation.** The app is offline and ships no SMS/e-mail gateway, so
+> the one-time code is generated on the phone and shown in the dialog, clearly marked
+> **Offline code (valid 10 minutes)**. The verification itself is real (salted hash, expiry,
+> attempt cap). Connecting an SMS or e-mail service later only changes
+> `LocalAccount.issueOtp` in `lib/util/account.dart`.
+
+---
+
 ## 2. Open bugs carried forward (from v1.0.24 audit)
 
 | # | Status | Severity | Page / option | Problem | Suggested fix / file |
@@ -167,6 +194,8 @@ Also in this release:
 | **#047** | ⬜ TODO | Pawn | Filter/search pledge list by metal, status, due date | Partly exists; complete the list side (#033). |
 | **#048** | ⬜ TODO | Backup | Scheduled/automatic local backup | Manual only today. |
 | **#049** | ⬜ TODO | Security | Encrypted local DB | PIN lock (#037) and admin password (#038) are done; encryption is the remaining piece. |
+| **#065** | ⬜ TODO | Login / OTP | Deliver one-time codes by real SMS / Gmail | The flow is built (#058); delivery is on-phone today. Needs an SMS/e-mail gateway or a small server endpoint, plus the shop's consent for the message cost. |
+| **#066** | ⬜ TODO | Security | Fingerprint / face unlock | The entry now lives in Password Settings (#059); the PIN is the only method until a biometric plugin and the Android permission are added. |
 
 ---
 
@@ -185,7 +214,10 @@ Also in this release:
 | Backup / restore | `lib/ui/backup_screen.dart`, `lib/data/backup_service.dart` |
 | Save/restore through the phone file picker | `lib/util/backup_files.dart`, `android/.../MainActivity.kt` |
 | Offline login, admin gate | `lib/state/app_state.dart`, `lib/ui/login_screen.dart`, `lib/ui/admin_password_gate.dart` |
-| App lock (PIN) | `lib/ui/app_lock_gate.dart`, `lib/ui/app_lock_settings_screen.dart`, `lib/util/app_lock.dart` |
+| App lock (PIN / Daily MPIN) | `lib/ui/app_lock_gate.dart`, `lib/ui/password_settings_screen.dart`, `lib/util/app_lock.dart` |
+| Account, sign-in, Forgot-password OTP | `lib/util/account.dart`, `lib/ui/login_screen.dart`, `lib/ui/otp_flow.dart` |
+| Password centre (all passwords) | `lib/ui/password_settings_screen.dart`, `lib/ui/secret_dialogs.dart`, `lib/ui/admin_guard.dart` |
+| Pawn categories | `lib/ui/pawn_screen.dart`, `lib/ui/pawn_categories_screen.dart`, `lib/data/migration_v16.dart` |
 | Number / date formatting | `lib/util/format.dart` |
 | Database schema + migrations | `lib/data/local_db.dart`, `lib/data/migration_v*.dart` |
 | Home screen KPIs / greeting | `lib/ui/home_screen.dart` |
@@ -195,6 +227,19 @@ Also in this release:
 ---
 
 ## 5. Change log
+
+### 2026-10-30 — v1.1.4 code complete (account, password centre, pawn list)
+- **Customers Book (#055):** Home drawer tile and screen title renamed.
+- **One password home (#056/#059):** Settings no longer carries the delete/release switch; Home → System no longer carries the biometric stub. **Password Settings** now holds account & login, screen lock (Off / Every time / **Daily MPIN**), the delete/release master + per-action switches, and the admin password — each with Change and **Forgot…?**. `lib/ui/app_lock_settings_screen.dart` removed.
+- **Account & login (#057):** local account with Gmail or 10-digit mobile, salted hash, password **or** one-time-code sign-in, and a session that survives restarts until Logout. The optional shop-server login is still there for sync. Phones that already hold data auto-continue, so existing users are not locked out.
+- **Forgot password (#058):** shared OTP flow for the admin password, login password and PIN/MPIN — hashed code, 10-minute expiry, 5-attempt cap. Codes are shown on the phone because no SMS/e-mail gateway is configured (tracked as #065).
+- **Pawn tiles (#060):** two rows — name + amount on top, ID badge + village/date/item + sync cloud below. The Active word is gone; released loans are muted with a small tag.
+- **Pawn actions (#061):** Call / SMS / WhatsApp / Move to another pawn profile / Edit in every tile menu, plus long-press.
+- **Pawn categories (#062):** `Forgot_Slip_List` and `Pawn_Removed` seeded, custom categories added/renamed/removed, filter chip, and multi-select bulk move.
+- **Pawn filters (#063):** Active/Released/metal chips deselect on a second tap; search covers name, ID and amount; new custom date range.
+- **Schema v16 (#064):** `pawn_loans.category`, `pawn_categories`, backup tracking and restore carry-over for the new account/lock settings.
+- **Checks:** `flutter analyze` → **No issues found**; `flutter test` → **326 tests pass**, exit 0. New/updated tests: `test/pawn_profile_ui_test.dart` (two-row tile, ID/amount search, Active-chip deselect).
+- Version bumped to **v1.1.4+30** in `pubspec.yaml`. **No APK has been built or installed for this round yet.**
 
 ### 2026-10-30 — v1.1.3 verified on phone, release-signed
 - **Release migration:** exported the v1.1.1 debug database/photos, uninstalled the old app, installed the release-signed v1.1.3 build, then restored the data through the in-app flow. Live result: 13 customers, 16 pending sync changes, Home shows ₹15,000 pawn investment / ₹1,57,500 khata investment (₹1,57,700 after the live refinance check).
