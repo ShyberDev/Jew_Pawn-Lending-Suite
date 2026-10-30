@@ -1,12 +1,12 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-11-01 (new report logged: **#06D–#06F** — drag-to-delete bin and the MPIN gate, see section 1g)
+**Last updated:** 2026-11-01 (**#06D–#06G** fixed and **v1.1.6** built + published — see section 1g and the change log)
 **Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
-**App version installed for testing:** v1.1.5 (versionCode 31, **release-signed**) — installed over v1.1.4 in place over wireless debugging (`10.235.54.6:36647`, Redmi Note 8 Pro); existing data preserved
-**Release build:** v1.1.5 (versionCode 31, **release-signed**) — `mobile/jewellery_suite-release.apk` (98.6 MB), SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`
-**Published APK:** GitHub release **v1.1.5**, asset `jewellery_suite_v1.1.5.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
-**Next target:** v1.2.0 — first clear the two new phone reports **#06D** (drag-to-delete bin does not delete) and **#06E/#06F** (Delete / Release should ask for the MPIN, not the admin password), then finish the phone pass on this branch over the CODE DONE items that are sitting on the device right now: **#055–#065** (account, password centre, pawn list, OTP gateway) and **#067–#06B** (pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults). These need a hands-on phone verdict before they count as ✅ DONE. After that pass, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
+**App version installed for testing:** v1.1.5 (versionCode 31, **release-signed**) — the phone still runs this build; **v1.1.6 is built and published but not yet installed** (phone pass planned for the next session)
+**Release build:** v1.1.6 (versionCode 32, **release-signed**) — `mobile/jewellery_suite_v1.1.6.apk` (98.6 MB / `98,623,551` bytes), SHA-256 `a2da42f41ca625270c7cba4257419cbe70310f67fbe4b7983957bdc39adcf583`, built 2026-10-31
+**Published APK:** GitHub release **v1.1.6**, asset `jewellery_suite_v1.1.6.apk` — `mobile/.gitignore` excludes `*.apk`, so the APK ships as a release asset (same convention as v1.1.0), not as a tracked file
+**Next target:** install v1.1.6 on the phone and phone-verify **#06D** (drag-to-delete), **#06E/#06F** (Delete / Release ask the MPIN) and **#06G** (amount range), then finish the phone pass on this branch over the CODE DONE items that are sitting on the device right now: **#055–#065** (account, password centre, pawn list, OTP gateway) and **#067–#06B** (pawn tile density, caller actions, due-date labels, pawn-move gate, category defaults). These need a hands-on phone verdict before they count as ✅ DONE. After that pass, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
 
 ---
 
@@ -424,3 +424,11 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
 - **Tests:** `test/pawn_profile_ui_test.dart` gains an amount-range case (menu → dialog → Apply narrows the list to Ravi's ₹63,000, pill reads `≥ ₹50,000`, Clear restores both). `flutter analyze` clean; **333 tests pass**, exit 0.
 - **Stray tree removed:** `mobile/jewellery_suite/mobile/jewellery_suite/` (an accidental nested copy with `lib/core/refactor_audit.py` and a `refactor_checkpoint` file) is deleted. The real app lives in `mobile/jewellery_suite/lib`.
 - **Version:** bumped to **v1.1.6+32** for the release build of this round.
+
+### 2026-10-31 — v1.1.6 release-signed and published
+- **Signed release APK:** v1.1.6 / versionCode 32, **98.6 MB** (`98,623,551` bytes), built with `flutter build apk --release` in 142.5 s.
+  - Local copy: `mobile/jewellery_suite_v1.1.6.apk` (gitignored — `*.apk`).
+  - SHA-256 `a2da42f41ca625270c7cba4257419cbe70310f67fbe4b7983957bdc39adcf583`.
+- **Published:** GitHub release **v1.1.6**, asset `jewellery_suite_v1.1.6.apk` (`98,623,551` bytes) — https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.1.6
+- **Not installed on the phone yet.** The device still runs v1.1.5; the hands-on pass over #06D–#06G is the next session's job.
+- Checks before the build: `flutter analyze` → **No issues found**; `flutter test` → **333 pass**, exit 0.
