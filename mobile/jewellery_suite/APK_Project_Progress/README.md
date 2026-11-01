@@ -1,10 +1,10 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-11-01 (**v1.2.0** built + installed with **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log)
+**Last updated:** 2026-11-01 (**v1.2.1** built + installed — **#06K** ✅ phone-verified: the real app shell is back and both password launch gates are off. **v1.2.0** carried **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log). Latest code change: **#06K** — the placeholder shell that had replaced `lib/app.dart` was removed, the real app shell is back, and both password launch gates are switched off behind one dev flag (see the newest change-log entry).
 **Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
-**App version installed for testing:** v1.2.0 (versionCode 36, **release-signed**) — installed in place over v1.1.9 on 2026-11-01 at `10.235.54.186:35879`, data kept
-**Release build:** v1.2.0 (versionCode 36, **release-signed**) — `mobile/jewellery_suite_v1.2.0.apk` (99.0 MB / `99,015,812` bytes), SHA-256 `36b9a2a7bf8b1936fac956dea0561c452792d9e24c7e9f758eba481d6b1b7171`, built 2026-11-01. Previous: v1.1.9 (versionCode 35) SHA-256 `10e1449…a74af1`
+**App version installed for testing:** v1.2.1 (versionCode 37, **release-signed**) — installed in place over v1.2.0 on 2026-11-01 via wireless debugging (`adb-tkkjdufqvoof9xeq-FW6uqZ` mDNS, `10.235.54.83:38271`), data kept
+**Release build:** v1.2.1 (versionCode 37, **release-signed**) — `mobile/jewellery_suite_v1.2.1.apk` (`98,982,780` bytes), SHA-256 `cbb22833d27657f2e845849205b7e4003c8f5de0c0b168f89fbeb9beaf727ee1`, built 2026-11-01. Previous: v1.2.0 (versionCode 36) SHA-256 `36b9a2a7…1b7171`; v1.1.9 (versionCode 35) SHA-256 `10e1449…a74af1`
 **Published APK:** GitHub release **v1.1.6**, asset `jewellery_suite_v1.1.6.apk`; v1.1.7 is built and installed but **not published yet** — `mobile/.gitignore` excludes `*.apk`, so APKs ship as release assets
 **Next target:** finish the phone pass on the remaining CODE DONE items: **#058–#060** (password centre, pawn tile), **#063–#065** (pawn filters, schema, OTP gateway) and **#06A** (pawn-move gate), then **#041/#042** and **#066**. **#040** (due reminders), **#057** (stay signed in), **#044** (cashbook edit), **#046** (You Gave mode) and **#06J** (pawn tile cloud + ⋮) are ✅ phone-verified on v1.2.0/v1.1.9/v1.1.8. After that, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
 
@@ -514,4 +514,52 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
 - **#059 ✅** — the drawer has no separate lock entry any more; **Password Settings** carries Account & login (identifier, password/OTP switches, Change + Forgot), the lock row **Off · Every time · Daily MPIN** with Change PIN / Forgot PIN?, the **Ask MPIN for Delete / Release** card with per-action switches (Khata Delete, Customer Delete, Ledger Row Delete, Move to Loss, Pawn Delete, Pawn Release) and the admin password card. All three lock chips were tappable. **Daily MPIN's once-a-day behaviour was not observed** (needs a calendar-day boundary).
 - **Login round-trip — partly blocked.** `Logout` correctly returned to the login form instead of reopening the shop (the new `account_signed_out` marker working), and **Use without a server** opened Home with the data intact. Signing back in with the freshly set password could **not** be confirmed: automated taps kept landing on the one-time-code toggle, and `Change login password → Current password` closed without opening the new-password dialog. The account password is therefore recorded as *set once, unconfirmed* with the OTP route documented as the reliable way in.
 - **No app code changed in this pass** — the round is documentation plus the credential sheet; `flutter analyze` and the 348-test suite were already green on the v1.2.0 commit.
+
+### 2026-11-01 — #06K ✅ — the real app shell is back, password gates off (dev pass only)
+- **What was wrong.** The previous session could not clear three VSCode problems in `lib/app.dart`,
+  `lib/ui/app_lock_gate.dart` and `lib/util/secret_dev.dart`, and patched `lib/app.dart` until it
+  compiled as a **placeholder shell** — `_AuthShell`, `_SignedInShell`, `_ScreenRouter`, literal
+  strings like *“Auth shell placeholder”*. It had **no `MaterialApp`**: no theme, no dark mode, no
+  Smart-fit zoom, no `AdminPasswordGate`, and `_ScreenRouter` rebuilt `_SignedInShell` around itself,
+  so the signed-in branch would have recursed forever. The analyzer was green because the file was
+  self-consistent — it just was not the app. This is the same failure as §5 item 6 ("added a
+  placeholder and called the item done") and item 8 ("tracker written in past tense for unverified
+  work").
+- **#06K fix.** `lib/app.dart` is restored to the real shell from `HEAD` (`0ae051f`): the gold theme,
+  dark mode, the Smart-fit + in-app Zoom `MediaQuery` in `builder`, `AdminPasswordGate` on `home`.
+  The two launch gates are skipped **behind one dev flag** instead of being deleted:
+  `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart`.
+- **Deleted:** `lib/ui/app_lock_gate_disabled_placeholder.dart` (invented this round, never part of
+  the app, and its text was the only thing on screen).
+- **Reverted:** the `AppLock.isActive(db)` helper that had been added to `lib/util/app_lock.dart` —
+  it returned `db.path != null`, i.e. *always true*, so it could never have been a lock decision.
+  `lib/util/app_lock.dart` is byte-identical to `HEAD` again; `AppLockGate` and its 4 gate tests are
+  untouched.
+- **Password position for this dev pass (as the shop asked):** no PIN screen on launch, no forced
+  admin-password form, no password re-testing each session. **Nothing was weakened:** the PIN hashes,
+  `AppLock`, `AdminPasswordGate`, Password Settings, `askPasswordIfEnabled` (#06E) and every
+  password unit test still exist and still run. Flip `kDevPasswordGateDisabled` to `false` before the
+  release build and check the lock on the phone. Secrets are only in `Temp_Passwords_readme.md`.
+- **Checks run in this session:** `flutter analyze lib` → **No issues found** (1.6 s); `flutter test` →
+  **348 tests pass**, exit 0, 38 s (run with `TMPDIR=$PWD/.dart_tool/tmp` because `/tmp` is 89 % full —
+  see agent_readme §4).
+- **Build:** v1.2.1 / versionCode 37, `mobile/jewellery_suite_v1.2.1.apk` (`98,982,780` bytes), SHA-256
+  `cbb22833d27657f2e845849205b7e4003c8f5de0c0b168f89fbeb9beaf727ee1`, release-signed with the same
+  upload keystore. Gradle `assembleRelease` took 219 s; stitching warning about an SDK XML v4 file is
+  the same harmless one as previous builds.
+- **Installed in place** over v1.2.0 (`adb install -r` → **Success**; `dumpsys package` reports
+  **1.2.1 / versionCode 37**), data kept.
+- **✅ Phone check (2026-11-01), #06K verified:** force-stop → cold start landed **directly on Home** —
+  **no PIN screen**, no **Set your admin password** form, no login form. The screen read
+  *“Good Evening / Sun, 1 Nov”* with **₹0 collected today**, **₹20,000 pawn investment**,
+  **₹1,000 khata investment**, the four **CORE MODULES** tiles (Khatabook, Pawn Loans, Cashbook,
+  Jewellery), the **MORE** list (Reports, History, Interest Calculator, **Sync · 11 change(s) waiting**)
+  and the shop's dark theme — which is the proof the real `MaterialApp` theme is back, since the
+  placeholder shell had no theme at all. Ledger intact across the install. Nothing was tapped beyond
+  the cold start and no row was created or deleted.
+- **Device address note:** the phone answered on its **mDNS** name and at `10.235.54.83:38271` this
+  session; the `10.234.54.83:45969` address recorded in `Temp_Passwords_readme.md` is stale, and the
+  connection dropped once mid-pass and was restored with `adb connect`.
+- **Still open for this item:** nothing. The password gates stay off until the release build, where
+  `kDevPasswordGateDisabled` must be set back to `false` and the lock checked manually.
 

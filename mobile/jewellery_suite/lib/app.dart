@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'features/authentication/screens/login_screen.dart';
+import 'features/home/screens/home_screen.dart';
 import 'state/app_state.dart';
 import 'ui/admin_password_gate.dart';
 import 'ui/app_lock_gate.dart';
+import 'util/secret_dev.dart';
 
 class JewelleryApp extends StatelessWidget {
   const JewelleryApp({super.key});
@@ -53,19 +56,42 @@ class JewelleryApp extends StatelessWidget {
       // stayed underneath them, so backgrounding the app on one of those
       // screens left the shop fully visible. Wrapping the Navigator itself
       // means the lock covers whatever route is on screen.
+      //
+      // `kDevPasswordGateDisabled` (lib/util/secret_dev.dart) skips the PIN
+      // screen only; the gate implementation and its tests are untouched.
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         final sys = mq.textScaler.scale(14) / 14;
         final base = (sys > 1.4 ? 1.4 : sys).clamp(0.9, 1.4);
         final effective = (state.fontScale * base).clamp(0.7, 1.9);
-        return MediaQuery(
+        final scaled = MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.linear(effective)),
-          child: AppLockGate(child: child!),
+          child: child!,
         );
+        if (kDevPasswordGateDisabled) return scaled;
+        return AppLockGate(child: scaled);
       },
       // The gate first forces the shipped default admin password to be
       // replaced, then routes to Home/Login exactly as before.
-      home: const AdminPasswordGate(),
+      home: kDevPasswordGateDisabled
+          ? const _StartRoute()
+          : const AdminPasswordGate(),
+    );
+  }
+}
+
+/// Home/Login routing without the forced admin-password setup step.
+///
+/// Used only while `kDevPasswordGateDisabled` is on, so the dev build opens on
+/// the shop's real screens instead of a password form.
+class _StartRoute extends StatelessWidget {
+  const _StartRoute();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppState>(
+      builder: (context, state, _) =>
+          state.loggedIn ? const HomeScreen() : const LoginScreen(),
     );
   }
 }

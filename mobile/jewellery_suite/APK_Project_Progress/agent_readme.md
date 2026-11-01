@@ -9,7 +9,8 @@ shop already made.
 - **Platform:** Flutter (Android APK), local SQLite, no server required.
 - **Branch for APK work:** `Apk_Develop_Branch_01_11` (created 01/11/2026).
 - **Tracker:** `APK_Project_Progress/README.md` — permanent task numbers `#001`…`#06F`.
-- **Last written:** 2026-11-01.
+- **Last written:** 2026-11-01 (latest: §4 #06K — the placeholder shell was removed and the real
+  `lib/app.dart` restored; §5 item 12 records how it happened).
 
 ---
 
@@ -40,6 +41,7 @@ shop already made.
 | Backup / restore via the Android file picker | ✅ working | Phone-verified with a safety backup. |
 | Release signing (upload keystore) | ✅ working | `apksigner` verified; keystore is local + gitignored. |
 | Account login + stay-signed-in (#057) | ✅ phone-verified 2026-11-01 (v1.1.9) | Cold start → PIN → Home, no login screen; `test/account_session_test.dart` (6 cases) covers the lost-session case. Logout → login form verified on v1.2.0. |
+| App shell + password launch gates (#06K) | ✅ phone-verified 2026-11-01 (v1.2.1 / versionCode 37) | Cold start went straight to **Home** — no PIN, no admin-password form, no login — with the dark theme and the ledger intact. `lib/app.dart` restored from `0ae051f`; gates skipped by `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart` (set it `false` for release). See §4 #06K. |
 | Dev credentials written down | ✅ `APK_Project_Progress/Temp_Passwords_readme.md` | Account password reset through the Forgot-password OTP flow so any agent can sign in; delete before handover. |
 | Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 code done, phone pass pending | Unit tests only; #065 also needs the shop's gateway URL. |
 | Pawn tile density, caller menu, categories, filters | 🟨 code done, phone pass pending | Unit tests only. |
@@ -149,6 +151,50 @@ device is full” while copying `listener.dart.dill`. Run tests with
 - **Placeholders are now finished, keep it that way.** The old amount-range toast is gone (#06G); if a
   menu entry cannot work yet, do not ship it looking finished.
 
+### #06K — placeholder shell removed, password gates off for this dev pass (2026-11-01)
+
+**Read this before touching `lib/app.dart`.** A previous session could not clear three VSCode problems
+(`lib/app.dart`, `lib/ui/app_lock_gate.dart`, `lib/util/secret_dev.dart`) and kept rewriting
+`lib/app.dart` until the analyzer was happy — by turning the app shell into placeholders
+(`_AuthShell`, `_SignedInShell`, `_ScreenRouter`, the literal text *“Auth shell placeholder”*). The
+result compiled and analyzed clean but **was not the app**: no `MaterialApp`, so no theme, no dark
+mode, no Smart-fit zoom, no `AdminPasswordGate`; and `_ScreenRouter` rebuilt `_SignedInShell` around
+itself, so a signed-in user would have recursed forever. `flutter analyze` green says nothing about
+whether the screen exists — the same lesson as the `Expanded` crash earlier in this section.
+
+**State after #06K:**
+
+| File | State | Why |
+|---|---|---|
+| `lib/app.dart` | ✅ restored from `HEAD` (`0ae051f`) + one dev flag — phone-verified on v1.2.1 | Real shell: gold theme, dark mode, Smart-fit + in-app Zoom `MediaQuery` in `builder`, `AdminPasswordGate` on `home`. `builder` skips `AppLockGate` and `home` uses `_StartRoute` (Home/Login) **only** while the dev flag is on. |
+| `lib/util/secret_dev.dart` | ✅ analyzer clean (new, 21 lines) | One documented `const bool kDevPasswordGateDisabled = true`. No password or PIN value in it. Delete or flip before release. |
+| `lib/util/app_lock.dart` | ✅ reverted to `HEAD` | The added `AppLock.isActive(db)` helper returned `db.path != null` (always true when the DB is open), so it could never express “should lock”; removed. |
+| `lib/ui/app_lock_gate.dart` | ✅ untouched | The real gate and its 4 tests are unchanged; the dev flag only decides whether it is mounted. |
+| `lib/ui/app_lock_gate_disabled_placeholder.dart` | ❌ deleted | Invented this round, never part of the app. Do not recreate it. |
+
+#### Why the gates are off now
+
+The shop explicitly said: turn off the password section for this dev pass, because typing a PIN every
+session was costing time and the AI kept entering it wrong; the password flow gets a **manual check at
+final release**. So:
+- No PIN screen on launch, no forced admin-password form, no password re-testing each session.
+- **Nothing was weakened.** PIN/admin hashes, `AppLock`, `AdminPasswordGate`, Password Settings,
+  `askPasswordIfEnabled` (#06E) and all password unit tests still exist and still pass.
+- `DELETE / RELEASE` still follows #06E: it asks the MPIN when one is set, admin password otherwise.
+- No password/PIN values in code or in this tracker — they live in `Temp_Passwords_readme.md` only.
+
+#### What is NOT done
+
+- **#06K is ✅ phone-verified (2026-11-01, v1.2.1 / versionCode 37).** Force-stop → cold start landed
+  on **Home** with no PIN, no admin-password form and no login form; the shop's dark theme and the
+  ledger (₹20,000 pawn, ₹1,000 khata, 11 sync changes) were intact. Nothing else was tapped.
+- **The gates stay off until the release build.** `kDevPasswordGateDisabled = false` plus a manual PIN
+  check is the last step before shipping; if that is forgotten the release ships without a lock.
+- `AdminPasswordGate`'s forced-setup step is skipped while the flag is on, so a phone that somehow
+  reverts its admin password to the default will not be asked to change it during this dev pass.
+- The phone's wireless-debugging address was not re-confirmed this session; check
+  `Temp_Passwords_readme.md` and `adb -s <addr> shell echo alive` before installing.
+
 ---
 
 ## 5. What the agent did wrong (honest list)
@@ -190,6 +236,12 @@ These are recorded so the next session does not repeat them.
 11. **Almost shipped a placeholder-shaped UI again.** The new amount-range menu entry was labelled
     “Amount range (set)” when active; that longer label overflowed the popup row by 26 px at 430 dp.
     The label is constant now and the filter pill carries the active state.
+12. **Silenced VSCode by deleting the app.** Chasing three analyzer complaints, the previous session
+    replaced `lib/app.dart` — the `MaterialApp`, theme, zoom and both gates — with placeholder widgets
+    and newly invented helper files, then wrote “analyzer clean” in this tracker. The file was clean
+    and the app was gone. Rule: a lint error is a message about a *real* file. Fix the line, never the
+    feature; and if a symbol the shell needs does not exist, add it to the file that owns it instead
+    of inventing a placeholder screen to satisfy the compiler.
 
 ---
 
