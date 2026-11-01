@@ -213,41 +213,9 @@ class _PawnScreenState extends State<PawnScreen> {
     // Metal filter (Gold / Silver / Mixed) based on the loan's pawn items.
     final idx = await _metalIndex();
     _metalsByLoan = idx;
-    if (_metal != 'all') {
-      rows = rows
-          .where((r) => _matchesMetal(idx, r['client_uuid']?.toString() ?? '',
-              r['interest_basis']?.toString() ?? '', _metal))
-          .toList();
-    }
-
     final lookup = await _customerLookup();
-    if (_village != null) {
-      rows = rows
-          .where((r) => _villageOf(r, lookup.byUuid, lookup.byName) == _village)
-          .toList();
-    }
-    if (_category != null) {
-      rows = rows
-          .where((r) => (r['category']?.toString() ?? '') == _category)
-          .toList();
-    }
-    if (_range != null) {
-      final from = _range!.start.toIso8601String().substring(0, 10);
-      final to = _range!.end.toIso8601String().substring(0, 10);
-      rows = rows.where((r) {
-        final d = r['loan_date']?.toString() ?? '';
-        return d.isNotEmpty && d.compareTo(from) >= 0 && d.compareTo(to) <= 0;
-      }).toList();
-    }
-    // Amount range. A missing side is open-ended: 0 = "no minimum",
-    // infinity = "no maximum", so "above ₹50,000" or "under ₹5,000" both work.
-    if (_amountRange != null) {
-      final (lo, hi) = _amountRange!;
-      rows = rows.where((r) {
-        final amount = Num.toDouble(r['loan_amount']);
-        return amount >= lo && amount <= hi;
-      }).toList();
-    }
+    rows = _filteredRows(rows,
+        metals: idx, byUuid: lookup.byUuid, byName: lookup.byName);
 
     // Attach the customer row for display only (photo, village, book ID).
     // Never add these keys to the loan row itself — it is spread into
@@ -259,13 +227,60 @@ class _PawnScreenState extends State<PawnScreen> {
         _customerByLoan[r['client_uuid']?.toString() ?? ''] = customer;
       }
     }
+    return rows;
+  }
 
+  /// Applies every filter except the Active/Released status, so the loan list
+  /// and the summary strip can never show different figures (#06G).
+  List<Map<String, Object?>> _filteredRows(
+    List<Map<String, Object?>> rows, {
+    required Map<String, List<String>> metals,
+    required Map<String, Map<String, Object?>> byUuid,
+    required Map<String, Map<String, Object?>> byName,
+  }) {
+    var filtered = rows;
+    if (_metal != 'all') {
+      filtered = filtered
+          .where((r) => _matchesMetal(
+              metals,
+              r['client_uuid']?.toString() ?? '',
+              r['interest_basis']?.toString() ?? '',
+              _metal))
+          .toList();
+    }
+    if (_village != null) {
+      filtered = filtered
+          .where((r) => _villageOf(r, byUuid, byName) == _village)
+          .toList();
+    }
+    if (_category != null) {
+      filtered = filtered
+          .where((r) => (r['category']?.toString() ?? '') == _category)
+          .toList();
+    }
+    if (_range != null) {
+      final from = _range!.start.toIso8601String().substring(0, 10);
+      final to = _range!.end.toIso8601String().substring(0, 10);
+      filtered = filtered.where((r) {
+        final d = r['loan_date']?.toString() ?? '';
+        return d.isNotEmpty && d.compareTo(from) >= 0 && d.compareTo(to) <= 0;
+      }).toList();
+    }
+    // Amount range. A missing side is open-ended: 0 = "no minimum",
+    // infinity = "no maximum", so "above ₹50,000" or "under ₹5,000" both work.
+    if (_amountRange != null) {
+      final (lo, hi) = _amountRange!;
+      filtered = filtered.where((r) {
+        final amount = Num.toDouble(r['loan_amount']);
+        return amount >= lo && amount <= hi;
+      }).toList();
+    }
     // Search by name, book ID or amount — the three things written on a slip.
     // Phone and village still match for the old habit.
     final term = _search.trim().toLowerCase();
     if (term.isNotEmpty) {
-      rows = rows.where((r) {
-        final customer = _customerByLoan[r['client_uuid']?.toString() ?? ''];
+      filtered = filtered.where((r) {
+        final customer = _customerFor(r, byUuid, byName);
         final name = (r['customer_name'] ?? customer?['customer_name'] ?? '')
             .toString()
             .toLowerCase();
@@ -273,8 +288,7 @@ class _PawnScreenState extends State<PawnScreen> {
         final phone =
             (customer?['phone'] ?? r['phone'] ?? '').toString().toLowerCase();
         final amount = Num.toDouble(r['loan_amount']).toStringAsFixed(0);
-        final village =
-            _villageOf(r, lookup.byUuid, lookup.byName).toLowerCase();
+        final village = _villageOf(r, byUuid, byName).toLowerCase();
         return name.contains(term) ||
             id.contains(term) ||
             phone.contains(term) ||
@@ -282,7 +296,7 @@ class _PawnScreenState extends State<PawnScreen> {
             village.contains(term);
       }).toList();
     }
-    return rows;
+    return filtered;
   }
 
   Future<void> _openForm() async {
@@ -545,6 +559,21 @@ class _PawnScreenState extends State<PawnScreen> {
                                   fontWeight: FontWeight.w800,
                                   color:
                                       released ? mutedOf(context) : kGoldDark)),
+                          // #06J: the caller actions must be visible on the
+                          // tile itself, not only discoverable by long-press.
+                          if (!_selectMode)
+                            IconButton(
+                              key: ValueKey('pawn-menu-$uuid'),
+                              tooltip: 'Call, SMS, WhatsApp, Move, Edit',
+                              icon: const Icon(Icons.more_vert),
+                              iconSize: 18,
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints.tightFor(
+                                  width: 28, height: 28),
+                              color: mutedOf(context),
+                              onPressed: () => _showActions(row),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -567,7 +596,10 @@ class _PawnScreenState extends State<PawnScreen> {
                                   fontSize: 11.5, color: mutedOf(context)),
                             ),
                           ),
-                          if (released)
+                          const SizedBox(width: 4),
+                          _syncState(uuid, row),
+                          if (released) ...[
+                            const SizedBox(width: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 5, vertical: 1),
@@ -581,6 +613,7 @@ class _PawnScreenState extends State<PawnScreen> {
                                       fontWeight: FontWeight.w700,
                                       color: kGreen)),
                             ),
+                          ],
                         ],
                       ),
                     ],
@@ -614,6 +647,27 @@ class _PawnScreenState extends State<PawnScreen> {
         await _editLoan(row);
         break;
     }
+  }
+
+  /// #06J — the tile's sync state.
+  ///
+  /// A pledge is synced once the server has named it (`server_name`) and no
+  /// local edit is still waiting (`dirty = 0`). Everything else is a pending
+  /// upload, which is the honest state on an offline shop phone.
+  Widget _syncState(String uuid, Map<String, Object?> row) {
+    final serverName = (row['server_name'] ?? '').toString().trim();
+    final dirtyFlag = row['dirty'];
+    final waiting = serverName.isEmpty ||
+        (dirtyFlag is num ? dirtyFlag != 0 : dirtyFlag?.toString() != '0');
+    return Tooltip(
+      key: ValueKey('pawn-sync-$uuid'),
+      message: waiting ? 'Waiting to sync' : 'Synced',
+      child: Icon(
+        waiting ? Icons.cloud_upload_outlined : Icons.cloud_done_outlined,
+        size: 16,
+        color: waiting ? kGoldDark : kGreen,
+      ),
+    );
   }
 
   Widget _customerAvatar(Map<String, Object?>? customer, String name) {
@@ -680,24 +734,10 @@ class _PawnScreenState extends State<PawnScreen> {
       future: () async {
         final loans = await db.query('pawn_loans',
             where: 'status = ? OR status IS NULL', whereArgs: ['Active']);
-        var filtered = loans;
-        if (metal != 'all') {
-          final idx = await _metalIndex();
-          filtered = filtered
-              .where((l) => _matchesMetal(
-                  idx,
-                  l['client_uuid']?.toString() ?? '',
-                  l['interest_basis']?.toString() ?? '',
-                  metal))
-              .toList();
-        }
-        if (village != null) {
-          final lookup = await _customerLookup();
-          filtered = filtered
-              .where(
-                  (l) => _villageOf(l, lookup.byUuid, lookup.byName) == village)
-              .toList();
-        }
+        final idx = await _metalIndex();
+        final lookup = await _customerLookup();
+        final filtered = _filteredRows(loans,
+            metals: idx, byUuid: lookup.byUuid, byName: lookup.byName);
         double out = 0, intDue = 0, outstanding = 0;
         final totals = PawnMath.totals(filtered);
         out = totals.investment;
@@ -719,9 +759,14 @@ class _PawnScreenState extends State<PawnScreen> {
           'mixed' => 'Gold + Silver pawns (mixed)',
           _ => null,
         };
+        final filterCaption =
+            _category != null || _range != null || _amountRange != null
+                ? _filterLabel
+                : null;
         final captions = [
           if (caption != null) caption,
           if (r['village'] != null) 'Village: ${r['village']}',
+          if (filterCaption != null) filterCaption,
         ];
         Widget stat(String value, String label) => Expanded(
               child: Column(
@@ -740,6 +785,7 @@ class _PawnScreenState extends State<PawnScreen> {
               ),
             );
         return Container(
+          key: const ValueKey('pawn-summary'),
           margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -2042,7 +2088,10 @@ class _PawnDetailState extends State<_PawnDetail> {
 
     if (!mounted) return;
     final granted = await askPasswordIfEnabled(context, state,
-        actionId: 'pawn_release', action: 'release', detail: 'this pawn loan');
+        actionId: 'pawn_release',
+        action: 'release',
+        detail: 'this pawn loan',
+        confirmLabel: 'Release');
     if (!mounted) return;
     if (granted != true) {
       _toast(context, 'Release cancelled / wrong password.');
@@ -2799,6 +2848,11 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   String? _customerUuid;
   String? _customerName;
   final _customerNameController = TextEditingController();
+
+  /// The Autocomplete owns its own text controller; `_customerNameController`
+  /// alone does not move the visible field. Keep a handle so selecting a
+  /// customer (for example, returning from the + KYC form) fills the name box.
+  TextEditingController? _customerFieldController;
   List<Map<String, Object?>> _customers = [];
   final List<_ItemEntry> _items = [_ItemEntry()];
   // v1.0.9: ID proof captured on the pawn loan itself.
@@ -2830,8 +2884,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
   void _onCustomerSelected(Map<String, Object?> customer) {
     setState(() {
       _customerUuid = customer['client_uuid'] as String?;
-      _customerName = customer['customer_name']?.toString() ?? '';
-      _customerNameController.text = _customerName ?? '';
+      _setCustomerName(customer['customer_name']?.toString() ?? '');
       _customerId.text = customer['customer_id']?.toString() ?? '';
       _phone.text = customer['phone']?.toString() ?? '';
       _address.text = customer['village']?.toString() ?? '';
@@ -2850,6 +2903,18 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
       }
       _setBasis(_basis, _customers);
     });
+  }
+
+  /// Writes a customer name into the saved value and BOTH name controllers.
+  /// `_customerNameController` is the value used by Save; the Autocomplete
+  /// field has its own controller, and setting only the first one left the
+  /// visible box blank after returning from the + KYC form (#06H).
+  void _setCustomerName(String? name) {
+    final text = name ?? '';
+    _customerName = text;
+    _customerNameController.text = text;
+    final field = _customerFieldController;
+    if (field != null && field.text != text) field.text = text;
   }
 
   void _onCustomerTyped(String name) {
@@ -2977,7 +3042,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
             name);
         if (match.isNotEmpty) {
           _customerUuid = match.first['client_uuid'] as String?;
-          _customerName = match.first['customer_name']?.toString();
+          _setCustomerName(match.first['customer_name']?.toString());
           _setBasis(_basis, _customers);
         }
       }
@@ -3339,13 +3404,21 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                       },
                       fieldViewBuilder: (context, textController, focusNode,
                           onFieldSubmitted) {
-                        textController.addListener(() {
-                          if (_customerNameController.text !=
-                              textController.text) {
-                            _customerNameController.text = textController.text;
-                            _customerName = textController.text;
-                          }
-                        });
+                        // Autocomplete keeps its own controller; register the
+                        // listener once and remember the controller so
+                        // _setCustomerName can update the visible box.
+                        if (!identical(
+                            _customerFieldController, textController)) {
+                          _customerFieldController = textController;
+                          textController.addListener(() {
+                            if (_customerNameController.text !=
+                                textController.text) {
+                              _customerNameController.text =
+                                  textController.text;
+                              _customerName = textController.text;
+                            }
+                          });
+                        }
                         return TextFormField(
                           controller: textController,
                           focusNode: focusNode,

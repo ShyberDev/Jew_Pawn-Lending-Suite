@@ -82,9 +82,13 @@ class AppState extends ChangeNotifier {
     } else if (await LocalAccount.hasSession(db)) {
       // Sign in once; the session survives restarts until Logout.
       loggedIn = true;
-    } else if (!hasAccount) {
+    } else if (!await LocalAccount.signedOutByUser(db)) {
       // A phone that already holds the shop's ledger must never be locked out
-      // by a login screen added in a later version.
+      // by the login screen. #057: this check used to be nested under
+      // `!hasAccount`, so a phone with an account but a lost session flag (an
+      // in-place install, a restore, or an account made before sessions were
+      // persisted) fell back to Login even though the shop's data was there.
+      // An explicit Logout is still honoured — that is the only way back here.
       final records = await db.count('customers') +
           await db.count('pawn_loans') +
           await db.count('khatabook_loans');
@@ -192,6 +196,7 @@ class AppState extends ChangeNotifier {
     _user = null;
     loggedIn = true;
     await db.setSetting(offlineKey, '1');
+    await LocalAccount.clearSignedOut(db);
     notifyListeners();
   }
 
@@ -215,6 +220,9 @@ class AppState extends ChangeNotifier {
     await db.setSetting('sid', null);
     await db.setSetting(offlineKey, null);
     await LocalAccount.setSession(db, false);
+    // Remember that this was a deliberate Logout, so the ledger fallback in
+    // load() does not silently sign the shop back in on the next launch.
+    await LocalAccount.markSignedOut(db);
     notifyListeners();
   }
 
@@ -247,6 +255,7 @@ class AppState extends ChangeNotifier {
     loggedIn = true;
     await db.setSetting(offlineKey, null);
     await LocalAccount.setSession(db, true);
+    await LocalAccount.clearSignedOut(db);
     notifyListeners();
   }
 
@@ -290,6 +299,7 @@ class AppState extends ChangeNotifier {
     loggedIn = true;
     await db.setSetting(offlineKey, null);
     await LocalAccount.setSession(db, keepSignedIn);
+    await LocalAccount.clearSignedOut(db);
     notifyListeners();
   }
 
@@ -326,8 +336,8 @@ class AppState extends ChangeNotifier {
   // ------------------------------------------------------- pawn categories
   /// Category names in display order (Forgot_Slip_List, Pawn_Removed, custom).
   Future<List<String>> pawnCategories() async {
-    final rows = await db.query('pawn_categories',
-        orderBy: 'sort_order asc, name asc');
+    final rows =
+        await db.query('pawn_categories', orderBy: 'sort_order asc, name asc');
     return rows
         .map((r) => r['name']?.toString() ?? '')
         .where((n) => n.isNotEmpty)
@@ -357,8 +367,8 @@ class AppState extends ChangeNotifier {
     if (clean.isEmpty) {
       throw const FormatException('Enter a category name.');
     }
-    final rows = await db.query('pawn_categories',
-        where: 'name = ?', whereArgs: [from]);
+    final rows =
+        await db.query('pawn_categories', where: 'name = ?', whereArgs: [from]);
     if (rows.isEmpty) return;
     await db.upsert('pawn_categories', {...rows.first, 'name': clean});
     // The loan rows carry the name, so rename them with it.
@@ -404,8 +414,7 @@ class AppState extends ChangeNotifier {
     }
     final salt = randomSalt();
     await db.setSetting(kPawnMovePasswordSaltKey, salt);
-    await db.setSetting(
-        kPawnMovePasswordHashKey, hashSecret(trimmed, salt));
+    await db.setSetting(kPawnMovePasswordHashKey, hashSecret(trimmed, salt));
     notifyListeners();
   }
 
@@ -501,8 +510,7 @@ class AppState extends ChangeNotifier {
         entryType: 'IN',
         amount: Num.toDouble(data['total_paid']),
         date: businessDay(data['release_date'], now),
-        paymentMode:
-            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        paymentMode: (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
         partyName: data['customer']?.toString() ?? '',
         notes: 'Pawn loan release settlement',
       );
@@ -512,7 +520,8 @@ class AppState extends ChangeNotifier {
       // A refinanced loan is not fresh cash: only its `fresh` slice moved and
       // executeRefinance writes that as KHATA_REFINANCE. Writing a full
       // KHATA_DISBURSE here would double-count the rolled balance.
-      final isRefinance = (data['refinanced_from']?.toString() ?? '').isNotEmpty;
+      final isRefinance =
+          (data['refinanced_from']?.toString() ?? '').isNotEmpty;
       await _syncCashbookEntry(
         category: 'KHATA_DISBURSE',
         referenceId: uuid,
@@ -532,17 +541,18 @@ class AppState extends ChangeNotifier {
         entryType: 'IN',
         amount: Num.toDouble(data['amount']),
         date: businessDay(data['collection_date'], now),
-        paymentMode:
-            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        paymentMode: (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
         partyName: data['customer']?.toString() ??
             data['customer_name']?.toString() ??
             '',
         notes: 'Khata collection payment',
         // Rows written before v1.1.2 referenced the loan, not the collection.
         legacyReferenceId: existing?['khatabook_loan']?.toString(),
-        legacyAmount: existing == null ? null : Num.toDouble(existing['amount']),
-        legacyDate:
-            existing == null ? null : businessDay(existing['collection_date'], now),
+        legacyAmount:
+            existing == null ? null : Num.toDouble(existing['amount']),
+        legacyDate: existing == null
+            ? null
+            : businessDay(existing['collection_date'], now),
       );
     }
 
@@ -553,8 +563,7 @@ class AppState extends ChangeNotifier {
         entryType: 'OUT',
         amount: Num.toDouble(data['amount']),
         date: businessDay(data['given_date'], now),
-        paymentMode:
-            (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
+        paymentMode: (data['payment_mode']?.toString() ?? 'CASH').toUpperCase(),
         partyName: data['customer_name']?.toString() ?? '',
         notes: data['note']?.toString() ?? 'Khata You-Gave extra',
       );
@@ -1399,8 +1408,8 @@ class AppState extends ChangeNotifier {
     String? partyName,
     String? notes,
   }) async {
-    final rows = await db.query('cashbook_entries',
-        where: 'client_uuid = ?', whereArgs: [uuid]);
+    final rows = await db
+        .query('cashbook_entries', where: 'client_uuid = ?', whereArgs: [uuid]);
     if (rows.isEmpty) return false;
     final row = rows.first;
     final categoryNow = row['category']?.toString() ?? '';

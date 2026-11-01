@@ -39,13 +39,19 @@ shop already made.
 | Khatabook, collections, refinance, cashbook linkage | ✅ working | Phone-verified; `test/cashbook_linkage_test.dart`. |
 | Backup / restore via the Android file picker | ✅ working | Phone-verified with a safety backup. |
 | Release signing (upload keystore) | ✅ working | `apksigner` verified; keystore is local + gitignored. |
-| Account login, password centre, OTP fallback | 🟨 code done, phone pass pending | Unit tests only. |
+| Account login + stay-signed-in (#057) | ✅ phone-verified 2026-11-01 (v1.1.9) | Cold start → PIN → Home, no login screen; `test/account_session_test.dart` (6 cases) covers the lost-session case. |
+| Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 code done, phone pass pending | Unit tests only; #065 also needs the shop's gateway URL. |
 | Pawn tile density, caller menu, categories, filters | 🟨 code done, phone pass pending | Unit tests only. |
+| Pawn tile sync cloud + visible ⋮ caller icon (#06J) | ✅ verified on the phone 2026-11-01 (v1.1.8) | Gold `cloud_upload` badge on row 2 and ⋮ on row 1 of the Phone QB tile; tapping ⋮ opened Call / SMS / WhatsApp / Move / Edit. Test in `test/pawn_profile_ui_test.dart`. |
 | Feature-folder refactor (`lib/features/...`) | 🟨 partly done | Screens moved; some helpers still in `lib/ui/`. |
 | Drag-to-delete bin | 🟨 fixed in code 2026-11-01, covered by 2 new tests, not yet phone-checked | Root cause found (§4). |
 | Delete / release asking the MPIN | 🟨 code changed 2026-11-01, not yet phone-checked | `askPasswordIfEnabled` now verifies the MPIN first. |
 | Pawn profile header layout | 🟨 crash fixed 2026-11-01 | `RenderFlex … unbounded` thrown on every profile open; see §4. |
 | Amount-range filter in the pawn Filter menu | 🟨 code done 2026-11-01 (#06G) | From/To dialog, open-ended either side, Clear; covered by a widget test. |
+| Release build v1.1.9 (#057, #044/#046 checks) | ✅ built + installed in place | `mobile/jewellery_suite_v1.1.9.apk`, SHA-256 `10e1449…a74af1`; `dumpsys` reports 1.1.9 / versionCode 35. |
+| Release build v1.1.8 (#06J) | ✅ built + installed in place | `mobile/jewellery_suite_v1.1.8.apk`, SHA-256 `8554642c…bcd836`; `dumpsys` reports 1.1.8 / versionCode 34, no crash in logcat, shop data kept. |
+| Cashbook manual-row edit (#044) | ✅ phone-verified 2026-11-01 (v1.1.9) | Edit sheet reopened pre-filled, saved over the same row (CASH→UPI, ₹750 kept, no duplicate), then reverted. |
+| You Gave payment mode on ledger rows (#046) | ✅ phone-verified 2026-11-01 (v1.1.9) | Row read `₹50 · Bal ₹1,150 · Late fee — test · UPI`. |
 | Release build v1.1.6 published on GitHub | ✅ built + uploaded, not installed | Asset `jewellery_suite_v1.1.6.apk`, SHA-256 `a2da42f4…3adcf583`. |
 | Biometric unlock (#066), notifications, report export, HTTPS | 🔵 deferred | Not started. |
 
@@ -127,7 +133,9 @@ device is full” while copying `listener.dart.dill`. Run tests with
 
 ### Still open / risky
 
-- **Amount range** in the pawn Filter menu is a stub (`_pickAmountRange` only shows a toast).
+- **Amount range** in the pawn Filter menu is done (#06G); the old stub note here was stale and is removed.
+- **Visual state deleted during cleanup, twice.** #06C dropped the tile's cloud badge and move dot while
+  restyling the row, and #06J was the result. If a tile loses a badge, move it into a test in the same commit.
 - **Duplicate ledger rows**: pawn interest rows are written per period; re-running an interest payment
   twice is only guarded by the release/interest checks, not by a unique constraint.
 - **No DB encryption** (#049). The PIN and admin hashes are salted, but the SQLite file is plain.
@@ -171,7 +179,12 @@ These are recorded so the next session does not repeat them.
    `lib/refactor_checkpoint/app_state.dart.checkpoint`). They were tracked in git, which is why nobody
    noticed, and they confused path resolution — a file written to `mobile/jewellery_suite/...` landed
    *inside* it. **Removed 2026-11-01**; the real app is `mobile/jewellery_suite/lib` only.
-10. **Almost shipped a placeholder-shaped UI again.** The new amount-range menu entry was labelled
+10. **Left a lockout inside a security gate.** #057's auto-continue fallback was written as
+    `else if (!hasAccount)`, which quietly assumed “no account” means “old phone”. The first phone
+    that had an account **and** a lost session flag went straight to Login with its ledger sitting
+    behind it. A fallback that protects users must be tested in the state the user is actually in,
+    not only in the clean install case.
+11. **Almost shipped a placeholder-shaped UI again.** The new amount-range menu entry was labelled
     “Amount range (set)” when active; that longer label overflowed the popup row by 26 px at 430 dp.
     The label is constant now and the filter pill carries the active state.
 
