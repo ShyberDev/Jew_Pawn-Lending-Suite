@@ -1,12 +1,12 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-11-01 (**v1.2.1** built + installed — **#06K** ✅ phone-verified: the real app shell is back and both password launch gates are off. **v1.2.0** carried **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log). Latest code change: **#06K** — the placeholder shell that had replaced `lib/app.dart` was removed, the real app shell is back, and both password launch gates are switched off behind one dev flag (see the newest change-log entry).
+**Last updated:** 2026-11-01 (**v1.2.2** built + installed — **#06L** dark-mode chip contrast fixed on the phone, and **#063** pawn filters/search ✅ phone-verified. **v1.2.1** restored the real app shell (**#06K** ✅). **v1.2.0** carried **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log). Latest code change: **#06K** — the placeholder shell that had replaced `lib/app.dart` was removed, the real app shell is back, and both password launch gates are switched off behind one dev flag (see the newest change-log entry).
 **Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
-**App version installed for testing:** v1.2.1 (versionCode 37, **release-signed**) — installed in place over v1.2.0 on 2026-11-01 via wireless debugging (`adb-tkkjdufqvoof9xeq-FW6uqZ` mDNS, `10.235.54.83:38271`), data kept
-**Release build:** v1.2.1 (versionCode 37, **release-signed**) — `mobile/jewellery_suite_v1.2.1.apk` (`98,982,780` bytes), SHA-256 `cbb22833d27657f2e845849205b7e4003c8f5de0c0b168f89fbeb9beaf727ee1`, built 2026-11-01. Previous: v1.2.0 (versionCode 36) SHA-256 `36b9a2a7…1b7171`; v1.1.9 (versionCode 35) SHA-256 `10e1449…a74af1`
+**App version installed for testing:** v1.2.2 (versionCode 38, **release-signed**) — installed in place over v1.2.1 on 2026-11-01 via wireless debugging (`adb-tkkjdufqvoof9xeq-FW6uqZ` mDNS, `10.235.54.83:38271`), data kept
+**Release build:** v1.2.2 (versionCode 38, **release-signed**) — `mobile/jewellery_suite_v1.2.2.apk` (`98,982,780` bytes), SHA-256 `448243793c51ec3ad36fb193ecb39e2aec60e361b4f99bd22bcce68bb73e8b33`, built 2026-11-01. Previous: v1.2.1 (versionCode 37) SHA-256 `cbb22833…af727ee1`; v1.2.0 (versionCode 36) SHA-256 `36b9a2a7…1b7171`
 **Published APK:** GitHub release **v1.1.6**, asset `jewellery_suite_v1.1.6.apk`; v1.1.7 is built and installed but **not published yet** — `mobile/.gitignore` excludes `*.apk`, so APKs ship as release assets
-**Next target:** finish the phone pass on the remaining CODE DONE items: **#058–#060** (password centre, pawn tile), **#063–#065** (pawn filters, schema, OTP gateway) and **#06A** (pawn-move gate), then **#041/#042** and **#066**. **#040** (due reminders), **#057** (stay signed in), **#044** (cashbook edit), **#046** (You Gave mode) and **#06J** (pawn tile cloud + ⋮) are ✅ phone-verified on v1.2.0/v1.1.9/v1.1.8. After that, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
+**Next target:** finish the phone pass on the remaining CODE DONE items: **#064** (schema v16 / category table), **#065** (OTP gateway card — needs the shop's SMS/e-mail URL) and **#06A** (pawn-move gate), then **#041/#042** and **#066**. **#040** (due reminders), **#057** (stay signed in), **#044** (cashbook edit), **#046** (You Gave mode) and **#06J** (pawn tile cloud + ⋮) are ✅ phone-verified on v1.2.0/v1.1.9/v1.1.8. After that, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
 
 
 ---
@@ -144,7 +144,7 @@ Everything below was 🟨 **CODE DONE** in v1.1.4. The hands-on pass on v1.1.7 n
 | **#060** | ✅ DONE | Pawn list | **Pawn Loans → loan tiles** | Two rows; highlight ID, name and amount; drop the **Active** word; a real sync-state cloud | Row 1: photo, **Name** (bold) and **₹Amount** (bold gold). Row 2: gold **ID badge**, village, date and item, then the cloud state — `cloud_done` green when synced, `cloud_upload` when waiting. Active is no longer written on the tile; a released loan is muted with a small **Released** tag. **Phone check:** the two rows, ID badge, name/amount and Released tag are correct; the missing sync-state cloud was logged as **#06J** and is now rendered and phone-verified on v1.1.8. |
 | **#061** | ✅ DONE | Pawn actions | **Pawn Loans → tile menu** | Caller functions like Khatabook | Every tile has a ⋮ / long-press menu: **Call · SMS · WhatsApp · Move to another pawn profile · Edit**. Edit changes principal (only when nothing is paid), interest rate and both dates, and recalculates interest/payable/balance. Phone check: long-press opens **Call / SMS / WhatsApp / Move / Edit**. |
 | **#062** | ✅ DONE | Pawn categories | **Pawn Loans → Categories** | Categories beside Active / Released / Villages, with custom names and multi-move | New **Categories ▾** filter seeded with **Forgot_Slip_List** and **Pawn_Removed**. Manage screen adds custom categories, renames them (loans follow) and removes labels. App-bar checklist turns on **multi-select**; the bottom bar moves every selected loan in one go. Phone check: both seeded names plus **Add Custom** are present. |
-| **#063** | 🟨 CODE DONE | Pawn filters / search | **Pawn Loans → filters** | Toggle chips off, search by name/ID/amount, date range | Tapping the selected **Active**, **Released**, **Gold**, **Silver** or **Mixed** chip clears it (shows everything). Search matches **name, book ID, amount**, phone or village. New **Date** chip opens a from–to range on the loan date and can be cleared. |
+| **#063** | ✅ DONE | Pawn filters / search | **Pawn Loans → filters** | Toggle chips off, search by name/ID/amount, date range | Tapping the selected **Active**, **Released**, **Gold**, **Silver** or **Mixed** chip clears it (shows everything). Search matches **name, book ID, amount**, phone or village. New **Date** chip opens a from–to range on the loan date and can be cleared. **Phone check (v1.2.2, 2026-11-01):** tapping **Active** cleared it and the list then showed both **Phone QA A03 · ₹60,000 · Released** and **Phone QB A04 · ₹20,000**; search `A04` and `20000` both kept the ₹20,000 row, `A049` emptied the list (*No pawn loans here.*) and zeroed the strip to ₹0/₹0/₹0, `Phone` showed both accounts; **Date range** applied `1 Nov – 30 Nov` (pill + caption under the summary, loan kept) and then `1 Dec – 31 Dec`, which emptied the list and zeroed the summary. | |
 | **#064** | 🟨 CODE DONE | Database | **Schema** | — | **v16**: `pawn_loans.category` + `pawn_categories` table, seeded once. Backups track the new table, and restore now keeps the phone's account + lock settings across the replacement. |
 
 > **OTP delivery — known limitation.** The app is offline and ships no SMS/e-mail gateway, so
@@ -562,4 +562,33 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
   connection dropped once mid-pass and was restored with `adb connect`.
 - **Still open for this item:** nothing. The password gates stay off until the release build, where
   `kDevPasswordGateDisabled` must be set back to `false` and the lock checked manually.
+
+### 2026-11-01 — #06L ✅ — dark-mode pawn chips were unreadable (v1.2.2), and #063 verified
+
+**Reported from the phone:** “In DarkMode the spelling in Pawn loans Gold / Released / Silver / Mixed
+is text colour very dim which is not visible.”
+
+- **Cause.** The pawn filter chips painted their *unselected* label with `kInk` — a fixed near-black
+  (`0xFF2B2B2B`) at 70 % alpha — instead of the theme-aware ink. On the cream light background that is
+  fine; on the dark surface it is black text on black, so **Released · Gold · Silver · Mixed** (and the
+  unselected **Active** chip and the **Villages / Filter** pills) were effectively invisible. Same class
+  of bug as §4's earlier note that `kInk` must never be hard-coded where dark mode can reach it.
+- **Fix (#06L).** Every unselected chip / pill label and icon in `lib/features/pawn/screens/pawn_screen.dart`
+  now uses `inkOf(context).withValues(alpha: .7)` — near-black in light mode, off-white `0xFFECECEC` at
+  70 % in dark mode — so the contrast is right in both themes. Six call sites: the Active/Released
+  chips, the Villages pill, the Filter pill's two label/icon pairs, and the Gold/Silver/Mixed metal
+  chips. Nothing else changed; selected chips keep their gold fill and `kGoldDark` label.
+- **Phone check (v1.2.2):** with Dark mode on, **Active · Released · Villages · Filter** and
+  **Gold · Silver · Mixed** all read clearly as light grey/white on the dark background (previously
+  black-on-black). No layout shift and the tap behaviour is unchanged.
+- **Build:** v1.2.2 / versionCode 38, `mobile/jewellery_suite_v1.2.2.apk` (`98,982,780` bytes), SHA-256
+  `448243793c51ec3ad36fb193ecb39e2aec60e361b4f99bd22bcce68bb73e8b33`, `flutter analyze lib` clean.
+- **#063 ✅ phone-verified on the same build** (details in the 1d table): chip tap-to-clear, search by
+  name / ID / amount, and the loan-date range all behave as specified, and the summary strip follows
+  the filters (₹0/₹0/₹0 when nothing matches).
+- **Deliberately not changed:** the *same* hard-coded `kInk.withValues(alpha: .7)` pattern still exists
+  in `lib/features/khata/screens/khata_screen.dart` and
+  `lib/features/customers/screens/customer_profile_screen.dart`. They are outside this report; if the
+  shop sees dim text on those screens in dark mode, fix them the same way (`inkOf(context)`), not by
+  changing the palette.
 
