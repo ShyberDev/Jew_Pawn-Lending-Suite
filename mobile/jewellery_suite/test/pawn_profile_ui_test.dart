@@ -148,6 +148,20 @@ void main() {
     await settleWithDb(tester);
   }
 
+  Future<void> pumpLoanForm(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: state,
+        child: const MaterialApp(home: PawnLoanForm()),
+      ),
+    );
+    await settleWithDb(tester);
+  }
+
   testWidgets('pawn rows show village and filter by the Villages dropdown',
       (tester) async {
     await seedPawnLoans();
@@ -237,13 +251,19 @@ void main() {
             '#033: the Silver loan must leave the list, not just the total');
   });
 
-  testWidgets('amount range in the Filter menu narrows the pledge list',
+  testWidgets('amount range narrows the pledge list and the summary strip',
       (tester) async {
     await seedPawnLoans();
     await pumpPawn(tester);
 
     expect(find.text('Ravi'), findsOneWidget);
     expect(find.text('Suresh'), findsOneWidget);
+
+    // Both active loans: ₹63,000 + ₹15,000 invested.
+    final summary = find.byKey(const ValueKey('pawn-summary'));
+    expect(summary, findsOneWidget);
+    expect(find.descendant(of: summary, matching: find.text('₹78,000')),
+        findsOneWidget);
 
     // The filter row scrolls horizontally; the Filter pill sits past the right
     // edge on a 430 dp phone, so bring it into view first.
@@ -261,10 +281,21 @@ void main() {
     await tester.tap(find.text('Apply'));
     await settleWithDb(tester);
 
-    expect(find.text('≥ ₹50,000'), findsOneWidget,
+    expect(find.descendant(of: filterPill, matching: find.text('≥ ₹50,000')),
+        findsOneWidget,
         reason: 'the filter pill must say what is filtered');
     expect(find.text('Ravi'), findsOneWidget);
     expect(find.text('Suresh'), findsNothing);
+
+    // #06G: the summary is the Active book, narrowed by the same range.
+    expect(find.descendant(of: summary, matching: find.text('≥ ₹50,000')),
+        findsOneWidget,
+        reason: 'the summary caption must say what it is filtered by');
+    expect(find.descendant(of: summary, matching: find.text('₹63,000')),
+        findsOneWidget,
+        reason: '#06G: the summary must follow the amount range');
+    expect(find.descendant(of: summary, matching: find.text('₹78,000')),
+        findsNothing);
 
     // Clear puts both pledges back.
     await tester.ensureVisible(filterPill);
@@ -279,6 +310,53 @@ void main() {
     expect(find.text('Filter'), findsOneWidget);
     expect(find.text('Ravi'), findsOneWidget);
     expect(find.text('Suresh'), findsOneWidget);
+    expect(find.descendant(of: summary, matching: find.text('₹78,000')),
+        findsOneWidget);
+  });
+
+  testWidgets('pawn tile shows the sync state and a visible caller menu',
+      (tester) async {
+    await seedPawnLoans();
+    // Only Ravi's pledge has reached the server: Suresh's is still queued.
+    await local.db.update(
+      'pawn_loans',
+      {'server_name': 'srv-ravi', 'dirty': 0},
+      where: 'client_uuid = ?',
+      whereArgs: ['loan-ravi'],
+    );
+    await pumpPawn(tester);
+
+    // #06J: the cloud badge must actually render, with the state it claims.
+    final synced = find.byKey(const ValueKey('pawn-sync-loan-ravi'));
+    final waiting = find.byKey(const ValueKey('pawn-sync-loan-suresh'));
+    expect(synced, findsOneWidget);
+    expect(waiting, findsOneWidget);
+    expect(
+        find.descendant(
+            of: synced, matching: find.byIcon(Icons.cloud_done_outlined)),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: waiting, matching: find.byIcon(Icons.cloud_upload_outlined)),
+        findsOneWidget,
+        reason: 'a pledge the server has not named is a pending upload');
+
+    // #06J: the caller menu needs a visible icon, not only a long-press.
+    expect(find.byKey(const ValueKey('pawn-menu-loan-ravi')), findsOneWidget);
+    expect(find.byKey(const ValueKey('pawn-menu-loan-suresh')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pawn-menu-loan-ravi')));
+    await tester.pumpAndSettle();
+
+    for (final action in const [
+      'Call',
+      'SMS',
+      'WhatsApp',
+      'Move to another pawn profile',
+      'Edit',
+    ]) {
+      expect(find.text(action), findsOneWidget,
+          reason: 'the tile menu must offer $action');
+    }
   });
 
   testWidgets(
@@ -401,5 +479,34 @@ void main() {
         '${expected.month.toString().padLeft(2, '0')}-'
         '${expected.day.toString().padLeft(2, '0')}';
     expect(find.text('Remind ${fmtReminder(expectedIso)}'), findsOneWidget);
+  });
+
+  testWidgets('returning from the + KYC form fills the visible customer name',
+      (tester) async {
+    await seedPawnLoans();
+    await pumpLoanForm(tester);
+
+    await tester.tap(find.byTooltip('Add new customer (Full KYC form)'));
+    await tester.pumpAndSettle();
+    expect(find.text('New Customer'), findsOneWidget);
+
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Customer name *'), 'Test Drag');
+    await tester.tap(find.text('SAVE'));
+    await settleWithDb(tester);
+    // Let the CustomerForm route finish popping before looking at the loan
+    // form; until then both forms are in the tree.
+    await tester.pumpAndSettle();
+
+    // Back on the loan form: the name must be in the visible Autocomplete box,
+    // not only in the hidden value used by Save (#06H).
+    expect(find.text('New Pawn Loan'), findsOneWidget);
+    final nameField = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'Customer * (Type name or search)'));
+    expect(nameField.controller?.text, 'Test Drag');
+    final idField = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'Customer ID'));
+    expect(idField.controller?.text, 'A03',
+        reason: 'the new customer is the third book number after A01/A02');
   });
 }

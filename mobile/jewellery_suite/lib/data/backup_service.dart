@@ -270,16 +270,15 @@ class BackupService {
     Directory? work;
     var closed = false;
     try {
-      final problem =
-          await validateArchive(zipPath, compareWithLive: false);
+      final problem = await validateArchive(zipPath, compareWithLive: false);
       if (problem != null) {
         return RestoreResult(restored: false, problem: problem);
       }
       final manifest = await readManifest(zipPath);
-      if (manifest == null ||
-          manifest['format'] != 'jewellery-suite-backup') {
+      if (manifest == null || manifest['format'] != 'jewellery-suite-backup') {
         return const RestoreResult(
-            restored: false, problem: 'This file is not a Jewellery Suite backup.');
+            restored: false,
+            problem: 'This file is not a Jewellery Suite backup.');
       }
       final format = (manifest['format_version'] as num?)?.toInt() ?? 1;
       if (format > formatVersion) {
@@ -319,9 +318,8 @@ class BackupService {
       try {
         check = await openDatabase(extracted.path, readOnly: true);
         final verdictRows = await check.rawQuery('PRAGMA integrity_check');
-        final verdict = verdictRows.isEmpty
-            ? ''
-            : '${verdictRows.first.values.first}';
+        final verdict =
+            verdictRows.isEmpty ? '' : '${verdictRows.first.values.first}';
         if (verdict.toLowerCase() != 'ok') {
           return RestoreResult(
               restored: false,
@@ -394,6 +392,7 @@ class BackupService {
               key == 'account_password_salt' ||
               key == 'account_created_at' ||
               key == 'session_active' ||
+              key == 'account_signed_out' ||
               key == 'login_password_enabled' ||
               key == 'login_otp_enabled' ||
               key.startsWith('pwd_')) {
@@ -407,9 +406,8 @@ class BackupService {
       await db.close();
       closed = true;
       try {
-        await File(livePath).writeAsBytes(
-            await extracted.readAsBytes(),
-            flush: true);
+        await File(livePath)
+            .writeAsBytes(await extracted.readAsBytes(), flush: true);
         for (final suffix in const ['-wal', '-shm', '-journal']) {
           final side = File('$livePath$suffix');
           if (await side.exists()) await side.delete();

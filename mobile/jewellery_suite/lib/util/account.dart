@@ -47,7 +47,8 @@ class LocalAccount {
   /// A mobile number: 10 digits, optionally with +91 / 0 in front.
   static bool isMobile(String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    return digits.length == 10 || (digits.length == 12 && digits.startsWith('91'));
+    return digits.length == 10 ||
+        (digits.length == 12 && digits.startsWith('91'));
   }
 
   /// Gmail address or mobile number — the two login identifiers the shop asked
@@ -105,7 +106,8 @@ class LocalAccount {
   }) async {
     final id = normalizeIdentifier(identifier);
     if (!isValidIdentifier(id)) {
-      throw const FormatException('Enter a Gmail address or a 10-digit mobile number.');
+      throw const FormatException(
+          'Enter a Gmail address or a 10-digit mobile number.');
     }
     if (password.trim().length < 6) {
       throw const FormatException('Use at least 6 characters.');
@@ -150,6 +152,22 @@ class LocalAccount {
   static Future<void> setSession(LocalDb db, bool active) =>
       db.setSetting(sessionKey, active ? '1' : '0');
 
+  /// Set by Logout and cleared by any successful sign-in (#057).
+  ///
+  /// Without this marker a phone that holds the shop's ledger would reopen
+  /// itself even after the shop deliberately signed out, because "session flag
+  /// missing" and "the shop logged out" would look identical.
+  static const signedOutKey = 'account_signed_out';
+
+  static Future<bool> signedOutByUser(LocalDb db) async =>
+      await db.getSetting(signedOutKey) == '1';
+
+  static Future<void> markSignedOut(LocalDb db) =>
+      db.setSetting(signedOutKey, '1');
+
+  static Future<void> clearSignedOut(LocalDb db) =>
+      db.setSetting(signedOutKey, null);
+
   static Future<bool> passwordLoginEnabled(LocalDb db) async =>
       await db.getSetting(passwordLoginEnabledKey) != '0';
 
@@ -164,27 +182,25 @@ class LocalAccount {
   /// a server/gateway, only this method needs to change: everything else
   /// already verifies a hashed code with an expiry and an attempt cap.
   static Future<String> issueOtp(LocalDb db, {required String purpose}) async {
-    final code = List<int>.generate(6, (_) => Random.secure().nextInt(10)).join();
+    final code =
+        List<int>.generate(6, (_) => Random.secure().nextInt(10)).join();
     final salt = randomSalt();
     await db.setSetting(otpSaltKey, salt);
     await db.setSetting(otpHashKey, hashSecret(code, salt));
     await db.setSetting(otpPurposeKey, purpose);
     await db.setSetting(
-        otpExpiryKey,
-        DateTime.now()
-            .add(otpValidity)
-            .toIso8601String());
+        otpExpiryKey, DateTime.now().add(otpValidity).toIso8601String());
     await db.setSetting(otpAttemptsKey, '0');
     return code;
   }
 
-  static Future<bool> verifyOtp(
-      LocalDb db, String purpose, String code) async {
+  static Future<bool> verifyOtp(LocalDb db, String purpose, String code) async {
     final savedPurpose = await db.getSetting(otpPurposeKey);
     final hash = await db.getSetting(otpHashKey) ?? '';
     final salt = await db.getSetting(otpSaltKey) ?? '';
     final expiry = DateTime.tryParse(await db.getSetting(otpExpiryKey) ?? '');
-    final attempts = int.tryParse(await db.getSetting(otpAttemptsKey) ?? '') ?? 0;
+    final attempts =
+        int.tryParse(await db.getSetting(otpAttemptsKey) ?? '') ?? 0;
     if (savedPurpose != purpose || hash.isEmpty || salt.isEmpty) return false;
     if (expiry == null || DateTime.now().isAfter(expiry)) return false;
     if (attempts >= otpMaxAttempts) return false;
