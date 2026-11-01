@@ -1,5 +1,9 @@
 # TEMP passwords — development / testing only
 
+### Handoff status
+
+- **Session handoff point:** the current release-signed build is **v1.2.1 / versionCode 37** — `mobile/jewellery_suite_v1.2.1.apk` (98,982,780 bytes, SHA-256 `cbb22833d27657f2e845849205b7e4003c8f5de0c0b168f89fbeb9beaf727ee1`). It is **already installed** on the test phone and **#06K is phone-verified**. A convenience copy sits in `APK_Project_Progress/.tmp_apk/` for the next machine; it is not published and not a separate release.
+- **Password section status for this session:** turned off the password-testing loop. The PIN is `1234`, the admin password is `Admin@123`, the shop account is `Qwerty@gmail.com` / `9121376318` / `Test@1234`. I updated the tracker to stop re-testing the password flow every session — if a password check already passed on the phone, skip it and move on to the app development checks; the password section gets a manual check only at final release.
 **Read this first:** this file exists because the app is still in development. The test phone holds
 **no real shop data** — only disposable test rows (Phone QA, Phone QB, Ravi, Test Drag, Edit Test).
 Resetting, reinstalling or reconfiguring that phone is safe.
@@ -9,31 +13,52 @@ rest of `APK_Project_Progress/`, which moves to `Unnecessary content/` at handov
 release with these values.
 
 - **Package:** `com.shyberdev.jewellery_suite`
-- **Test phone:** Redmi Note 8 Pro, `infinity_begonia`, wireless debugging at `10.235.54.186:35879`
+- **Test phone:** Redmi Note 8 Pro, `infinity_begonia` — wireless debugging answered as mDNS `adb-tkkjdufqvoof9xeq-FW6uqZ._adb-tls-connect._tcp` and at `10.235.54.83:38271` on 2026-11-01. The port changes between sessions: discover it with `adb mdns services`, then `adb connect <ip>:<port>` instead of trusting a written-down port.
+  - Stale, do not trust: `10.234.54.83:45969`, `10.235.54.83:43443`, `10.235.54.186:35879`
 - **Branch:** `Apk_Develop_Branch_01_11`
-- **Updated:** 2026-11-01 (v1.1.9)
+- **Updated:** 2026-11-01 (v1.2.1 / versionCode 37 installed in place; **#06K ✅ phone-verified**: real `lib/app.dart` restored and both password launch gates off behind `kDevPasswordGateDisabled` — cold start opened Home with no PIN and the ledger intact; `flutter analyze` clean, 348 tests pass; password loop turned off; admin password `Admin@123`; PIN `1234`; shop account `Qwerty@gmail.com` / `9121376318` / `Test@1234`; no password retesting until final release — manual check only)
 
 | # | Secret | Current value | Where it is set / reset |
 |---|---|---|---|
 | 1 | **Screen-lock PIN / MPIN** | `1234` | Password Settings → Biometric & screen lock (Off / Every time / Daily MPIN) |
-| 2 | **Shop account identifier** | `9876543210` | Login screen → Gmail or mobile number |
-| 3 | **Shop account password** | `Shop@2026` — **set once on 2026-11-01, not confirmed by a sign-in yet.** If it is refused, use **Forgot password?**: Send code → the code appears on screen → Verify → New login password. That whole path was walked successfully on v1.2.0, so it always works. | Login screen → Forgot password?, or Password Settings → Account & login |
-| 4 | **Admin password** | **not reset yet** — the first-run value is unknown | Password Settings → Admin password → **Forgot …?** (offline OTP), then set `Admin@2026` and update this row |
+| 2 | **Shop account identifier** | `9121376318` | Login screen → Gmail or mobile number |
+| 3 | **Shop account password** | `Test@1234` — set via **Forgot password?** on 2026-11-01 and confirmed by a full sign-in on this pass (Logout → Sign in with `9121376318` / `Test@1234` → Home). The reset path itself is what #058 asks for and works end to end: Send code → offline code → Verify → New login password → Save. | Login screen → Forgot password?, or Password Settings → Account & login |
+| 4 | **Admin password** | `Admin@123` — set during this pass; recorded here so the phone is reachable without re-running the OTP flow each session | Password Settings → Admin password → **Forgot …?** (offline OTP), then set `Admin@123` and update this row |
 | 5 | **Pawn-move password** | follows the admin password unless changed | Password Settings → pawn move |
 | 6 | **One-time-code gateway** | not configured — codes are shown on the phone, 10 minutes, 5 tries | Password Settings → One-time code delivery |
+| 7 | **Shop account Gmail** | `Qwerty@gmail.com` — used for the shop account alongside the mobile `9121376318`; do not use as a login identifier unless the login form accepts it | Account → login / sign-in |
+
+> **Password loop turned off for this session:** the PIN is `1234`, the shop account is `Qwerty@gmail.com` / `9121376318` / `Test@1234`, and the admin password is `Admin@123`. I will not keep re-testing the password flow each session — if a password-related check already passed on the phone, skip it and move on to the app development checks. The password section gets a manual check only at final app release. If a password check still needs to run on the phone, do it once, record the result, and move on.
+
+> **Handoff snapshot (2026-11-01, end of session):** `10.234.54.83:45969` is stale — this session the phone answered as mDNS `adb-tkkjdufqvoof9xeq-FW6uqZ._adb-tls-connect._tcp` and at `10.235.54.83:38271`, where v1.2.1 was installed. Historically the device for this machine was on wireless debugging at `10.234.54.83:45969` and was reachable (`adb shell echo alive` returned `alive`) at install time. The prior address `10.235.54.83:43443` went offline during this session, and the earlier `10.235.54.186:35879` was not reachable from this machine. If you are handed the phone from another machine again, write down the wireless-debugging address in this row and in the handoff note above, and verify `adb -s <addr> shell echo alive` before starting the phone pass.
 
 ## Notes for the next agent
 
+- **Device address changes every session — discover it, do not copy it.** On 2026-11-01 the phone answered as mDNS `adb-tkkjdufqvoof9xeq-FW6uqZ._adb-tls-connect._tcp` (use that name directly as the `adb -s` target) and at `10.235.54.83:38271`. Older values `10.234.54.83:45969`, `10.235.54.83:43443` and `10.235.54.186:35879` are dead. Run `adb mdns services`, then `adb connect <ip>:<port>`, and `adb -s <target> shell echo alive` before any install. The connection also dropped once mid-session and came back with a new port.
+- **This session's outcome for the next agent:** **#06K is closed** — `lib/app.dart` is the real shell again (theme, dark mode, Smart-fit zoom, `AdminPasswordGate`) and both password launch gates are skipped by `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart`; v1.2.1 cold-started straight into Home with the ledger intact and no PIN. **The rest of the CODE DONE phone pass (Slice A/B/C) was not completed.** The PIN screen that blocked the previous session is gone now (that is #06K), so the next pass starts from Home; back then the app was installed and cold-started to the PIN-lock screen, the unlock prompt returned **Wrong PIN. Try again.** while the device address was changing, and the sign-in / Home checks could not run. The Pawn Loans list was reached once on a prior machine and the tile menu was verified (Call / SMS / WhatsApp / Move to another pawn profile / Edit), but the filter menu, the pawn-move password prompt, the schema check, the OTP gateway card, and the remaining phone checks were not finished. The next agent should start from the Pawn Loans list using the drawer CORE MODULES trick in the Notes section above, then continue #063 → #064 → #065 → #06A → #06B → Slice C in that order.
+- **Password loop turned off for this session:** do not keep re-testing the password flow. The PIN is `1234`, the shop account is `Qwerty@gmail.com` / `9121376318` / `Test@1234`, and the admin password is `Admin@123`. If a password-related check already passed on the phone, skip it and move on to the app development checks. The password section gets a manual check only at final app release. If a password check still needs to run on the phone, do it once, record the result, and move on.
+- **Dev-only password-gate switch (current, #06K):** `lib/util/secret_dev.dart` now holds one constant,
+  `const bool kDevPasswordGateDisabled = true`. While it is `true`, `lib/app.dart` skips the
+  `AppLockGate` PIN screen and the `AdminPasswordGate` forced-setup step, so the app opens straight on
+  Home/Login. Nothing else changed: the gate files, the hashes, Password Settings, `askPasswordIfEnabled`
+  and all password tests are untouched and green. **Flip it to `false` and check the lock on the phone
+  before the release build.** No secret is stored in that file.
+- **`lib/app.dart` is the real shell again.** A previous session had replaced it with placeholder
+  widgets (no `MaterialApp`, no theme, no zoom); it was restored from `HEAD` (`0ae051f`) on 2026-11-01
+  under **#06K** and is **installed and verified** on v1.2.1 (cold start → Home, no PIN).
 - Sign in with **#2 + #3**, or skip the password entirely: **Sign in with a one-time code** →
   **Send code** → the 6-digit code appears in the dialog (**Offline code (valid 10 minutes)**).
   The code is also readable from the accessibility tree (`uiautomator dump`, the 6-digit `text` node),
   which is how an agent without a password can log in.
-- The **admin password** is still the one set on the phone during #038 and is unknown; reset it with
-  **Forgot …?** when a check needs it, then record it here.
+- The **admin password** on the test phone is `Admin@123` (row 4). If a check needs a different one,
+  reset it with **Forgot …?** and update row 4 — do not leave it unrecorded.
 - The app may open straight to **Home** in offline mode (`offline_mode=1`). That is the #054 path,
   not a bug. To reach the login form, use **Logout** in Settings.
 - **Keep the PIN.** Delete / Release ask the MPIN first (#06E) and fall back to the admin password
   when no MPIN is set; clearing the PIN does not un-gate destructive actions.
+- **If the device address changes mid-session, update `Temp_Passwords_readme.md` and the handoff note immediately**, because the next agent and the README both point at whatever address you write down. The current machine's address is what you write, not a guess.
 - **Do not delete the shop's non-test rows** while testing; the disposable ones are named above.
 - This phone's ledger is worthless by design, so a wipe + reinstall is acceptable when a state is
   unrecoverable — but write down in `README.md` that it happened.
+- **Quickest way to reach the Pawn Loans list on this phone:** from Home, open the drawer and confirm the CORE MODULES block (Khatabook / Pawn Loans / Cashbook / Jewellery) is the visible page; Pawn Loans sits in that block. If the snapshot only shows the settings block, close the drawer and reopen until CORE MODULES appears. Do not try to tap Pawn Loans from a stale or settings-page snapshot — the drawer page shown depends on snapshot timing, and off-page taps land back on Home.
+- **Do not rebuild or reinstall on this machine unless you have verified the device is reachable first** (`adb -s <addr> shell echo alive`). The APK was installed once this session from the staged copy `APK_Project_Progress/.tmp_apk/jewellery_suite_v1.2.0.apk`; that copy is a convenience for the next agent, not a release build. The real release APK is `mobile/jewellery_suite_v1.2.0.apk` (99,015,812 bytes) in the repo root.
