@@ -5,6 +5,12 @@
          none are declared. INTERNET is the only permission. Cleartext HTTP is
          deliberately kept for the LAN server until HTTPS lands (#042). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- #040: local due reminders. POST_NOTIFICATIONS is requested at runtime
+         on Android 13+; RECEIVE_BOOT_COMPLETED lets the scheduled summary
+         survive a reboot. No alarm or exact-alarm permission is used — the
+         reminder is deliberately inexact so it never needs SCHEDULE_EXACT_ALARM. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="Jewellery Suite"
         android:name="${applicationName}"
@@ -32,6 +38,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- #040: flutter_local_notifications reschedules the due summary
+             after a reboot (no boot receiver means a silent, missing reminder). -->
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

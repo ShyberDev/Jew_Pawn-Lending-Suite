@@ -39,7 +39,8 @@ shop already made.
 | Khatabook, collections, refinance, cashbook linkage | ✅ working | Phone-verified; `test/cashbook_linkage_test.dart`. |
 | Backup / restore via the Android file picker | ✅ working | Phone-verified with a safety backup. |
 | Release signing (upload keystore) | ✅ working | `apksigner` verified; keystore is local + gitignored. |
-| Account login + stay-signed-in (#057) | ✅ phone-verified 2026-11-01 (v1.1.9) | Cold start → PIN → Home, no login screen; `test/account_session_test.dart` (6 cases) covers the lost-session case. |
+| Account login + stay-signed-in (#057) | ✅ phone-verified 2026-11-01 (v1.1.9) | Cold start → PIN → Home, no login screen; `test/account_session_test.dart` (6 cases) covers the lost-session case. Logout → login form verified on v1.2.0. |
+| Dev credentials written down | ✅ `APK_Project_Progress/Temp_Passwords_readme.md` | Account password reset through the Forgot-password OTP flow so any agent can sign in; delete before handover. |
 | Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 code done, phone pass pending | Unit tests only; #065 also needs the shop's gateway URL. |
 | Pawn tile density, caller menu, categories, filters | 🟨 code done, phone pass pending | Unit tests only. |
 | Pawn tile sync cloud + visible ⋮ caller icon (#06J) | ✅ verified on the phone 2026-11-01 (v1.1.8) | Gold `cloud_upload` badge on row 2 and ⋮ on row 1 of the Phone QB tile; tapping ⋮ opened Call / SMS / WhatsApp / Move / Edit. Test in `test/pawn_profile_ui_test.dart`. |
@@ -53,7 +54,9 @@ shop already made.
 | Cashbook manual-row edit (#044) | ✅ phone-verified 2026-11-01 (v1.1.9) | Edit sheet reopened pre-filled, saved over the same row (CASH→UPI, ₹750 kept, no duplicate), then reverted. |
 | You Gave payment mode on ledger rows (#046) | ✅ phone-verified 2026-11-01 (v1.1.9) | Row read `₹50 · Bal ₹1,150 · Late fee — test · UPI`. |
 | Release build v1.1.6 published on GitHub | ✅ built + uploaded, not installed | Asset `jewellery_suite_v1.1.6.apk`, SHA-256 `a2da42f4…3adcf583`. |
-| Biometric unlock (#066), notifications, report export, HTTPS | 🔵 deferred | Not started. |
+| Due reminders (#040) | ✅ phone-verified 2026-11-01 (v1.2.0) | Toggle in Settings raised the Android permission prompt, Allow accepted, card then read “One 9:00 notification…” |
+| Report export (#041), HTTPS (#042) | 🔵 deferred | Not started. |
+| Biometric unlock (#066) | 🔵 deferred | `local_auth` needs a `FlutterFragmentActivity` and device enrolment. |
 
 **Rule of thumb:** 🟨 means *compiles and is unit-tested*, not *seen working*. Never mark something ✅
 DONE without a phone observation written into `README.md`.

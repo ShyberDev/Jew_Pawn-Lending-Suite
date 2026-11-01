@@ -6,10 +6,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' show getDatabasesPath;
 
 import '../data/api_client.dart';
+import '../data/due_notifications.dart';
 import '../data/local_db.dart';
 import '../data/migration_v12.dart';
 import '../data/sync_service.dart';
 import '../util/account.dart';
+import '../util/due_reminders.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
 import '../util/secret_hash.dart';
@@ -30,6 +32,9 @@ class AppState extends ChangeNotifier {
   /// Set when the shop chose to work without a server. The database is still
   /// the source of truth; only sync is unavailable. Cleared by a real login.
   static const offlineKey = 'offline_mode';
+
+  /// #040: the shop's choice to receive a daily due-reminder notification.
+  static const dueRemindersKey = 'due_reminders_enabled';
   bool syncing = false;
   int pending = 0;
   SyncSummary? lastSync;
@@ -47,6 +52,9 @@ class AppState extends ChangeNotifier {
   /// Admin). Users who find it annoying can turn it off — it never blocks
   /// normal use, only destructive actions.
   bool adminConfirm = true;
+
+  /// #040: a 9:00 summary naming who is due today. Off until the shop asks.
+  bool dueRemindersEnabled = false;
 
   /// Shopkeeper user profile (photo shown on the home button, phone/email on
   /// the User Details panel).
@@ -98,6 +106,7 @@ class AppState extends ChangeNotifier {
     final fs = double.tryParse(await db.getSetting('font_scale') ?? '');
     fontScale = (fs == null || fs <= 0) ? 1.0 : fs.clamp(0.8, 1.5);
     adminConfirm = await db.getSetting('admin_confirm') != '0';
+    dueRemindersEnabled = await db.getSetting(dueRemindersKey) == '1';
     userPhoto = await db.getSetting('user_photo') ?? '';
     userPhone = await db.getSetting('user_phone') ?? '';
     userEmail = await db.getSetting('user_email') ?? '';
@@ -223,6 +232,42 @@ class AppState extends ChangeNotifier {
     // Remember that this was a deliberate Logout, so the ledger fallback in
     // load() does not silently sign the shop back in on the next launch.
     await LocalAccount.markSignedOut(db);
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------ due reminders
+  /// The plan behind the #040 notification — also used by the Settings card so
+  /// what the phone says and what the toggle claims are the same thing.
+  Future<DueReminderPlan> dueReminderPlan({DateTime? today}) async {
+    final loans = await db.query('khatabook_loans');
+    return planDueReminders(loans: loans, today: today ?? DateTime.now());
+  }
+
+  /// Reschedules (or clears) the single daily summary. Safe to call on every
+  /// start and after any write: a member who has just paid drops out because
+  /// the schedule is recomputed, not stored.
+  Future<void> refreshDueReminders() async {
+    if (!dueRemindersEnabled) {
+      await DueNotifications.cancel();
+      return;
+    }
+    final plan = await dueReminderPlan();
+    if (plan.isEmpty) {
+      // Nobody is due — a nightly "0 accounts" ping would train the shop to
+      // ignore the notification, so the summary is removed instead.
+      await DueNotifications.cancel();
+      return;
+    }
+    await DueNotifications.scheduleDaily(title: plan.title, body: plan.body);
+  }
+
+  /// Settings → Due reminders. Turning it on asks Android for POST_NOTIFICATIONS
+  /// and schedules straight away, so the switch never lies about being on.
+  Future<void> setDueReminders(bool on) async {
+    dueRemindersEnabled = on;
+    await db.setSetting(dueRemindersKey, on ? '1' : '0');
+    if (on) await DueNotifications.requestPermission();
+    await refreshDueReminders();
     notifyListeners();
   }
 
