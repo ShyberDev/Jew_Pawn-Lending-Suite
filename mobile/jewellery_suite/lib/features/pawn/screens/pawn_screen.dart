@@ -856,7 +856,7 @@ class _PawnScreenState extends State<PawnScreen> {
                           _filter == value ? FontWeight.w700 : FontWeight.w500,
                       color: _filter == value
                           ? kGoldDark
-                          : kInk.withValues(alpha: .7)),
+                          : inkOf(context).withValues(alpha: .7)),
                   // Tapping the selected chip clears it, so the list shows
                   // Active + Released together.
                   onSelected: (_) => setState(
@@ -903,7 +903,7 @@ class _PawnScreenState extends State<PawnScreen> {
                       Icon(Icons.location_on_outlined,
                           size: 15,
                           color: selectedVillage == null
-                              ? kInk.withValues(alpha: .7)
+                              ? inkOf(context).withValues(alpha: .7)
                               : kGoldDark),
                       const SizedBox(width: 4),
                       Text(
@@ -916,7 +916,7 @@ class _PawnScreenState extends State<PawnScreen> {
                               ? FontWeight.w500
                               : FontWeight.w700,
                           color: selectedVillage == null
-                              ? kInk.withValues(alpha: .7)
+                              ? inkOf(context).withValues(alpha: .7)
                               : kGoldDark,
                         ),
                       ),
@@ -1057,7 +1057,7 @@ class _PawnScreenState extends State<PawnScreen> {
                           _metal == value ? FontWeight.w700 : FontWeight.w500,
                       color: _metal == value
                           ? kGoldDark
-                          : kInk.withValues(alpha: .7)),
+                          : inkOf(context).withValues(alpha: .7)),
                   // Same as Active / Released: tap again to clear it.
                   onSelected: (_) =>
                       setState(() => _metal = _metal == value ? 'all' : value),
@@ -1426,13 +1426,13 @@ class _PawnScreenState extends State<PawnScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon,
-              size: 15, color: active ? kGoldDark : kInk.withValues(alpha: .7)),
+              size: 15, color: active ? kGoldDark : inkOf(context).withValues(alpha: .7)),
           const SizedBox(width: 4),
           Text(label,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active ? kGoldDark : kInk.withValues(alpha: .7))),
+                  color: active ? kGoldDark : inkOf(context).withValues(alpha: .7))),
           if (trailing != null) ...[
             const SizedBox(width: 4),
             trailing,

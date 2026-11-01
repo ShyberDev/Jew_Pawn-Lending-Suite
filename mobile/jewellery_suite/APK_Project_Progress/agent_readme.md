@@ -41,6 +41,8 @@ shop already made.
 | Backup / restore via the Android file picker | ✅ working | Phone-verified with a safety backup. |
 | Release signing (upload keystore) | ✅ working | `apksigner` verified; keystore is local + gitignored. |
 | Account login + stay-signed-in (#057) | ✅ phone-verified 2026-11-01 (v1.1.9) | Cold start → PIN → Home, no login screen; `test/account_session_test.dart` (6 cases) covers the lost-session case. Logout → login form verified on v1.2.0. |
+| Pawn filters + search (#063) | ✅ phone-verified 2026-11-01 (v1.2.2 / versionCode 38) | Chip tap-to-clear, name / ID / amount search and the loan-date range all behave as specified on the phone; the summary strip follows the filters (₹0/₹0/₹0 when nothing matches). |
+| Dark-mode pawn chips readable (#06L) | ✅ phone-verified 2026-11-01 (v1.2.2) | Unselected chip/pill labels used hard-coded `kInk` (near-black at 70 %) so **Released / Gold / Silver / Mixed** were black-on-black in dark mode. Now `inkOf(context)` — readable in both themes. |
 | App shell + password launch gates (#06K) | ✅ phone-verified 2026-11-01 (v1.2.1 / versionCode 37) | Cold start went straight to **Home** — no PIN, no admin-password form, no login — with the dark theme and the ledger intact. `lib/app.dart` restored from `0ae051f`; gates skipped by `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart` (set it `false` for release). See §4 #06K. |
 | Dev credentials written down | ✅ `APK_Project_Progress/Temp_Passwords_readme.md` | Account password reset through the Forgot-password OTP flow so any agent can sign in; delete before handover. |
 | Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 code done, phone pass pending | Unit tests only; #065 also needs the shop's gateway URL. |
