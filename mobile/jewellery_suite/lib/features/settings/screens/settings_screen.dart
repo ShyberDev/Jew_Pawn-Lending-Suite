@@ -41,7 +41,8 @@ class SettingsScreen extends StatelessWidget {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Dark mode (Beta)'),
-                subtitle: const Text('Beta — try it, some screens may not be fully dark yet'),
+                subtitle: const Text(
+                    'Beta — try it, some screens may not be fully dark yet'),
                 value: state.darkMode,
                 onChanged: (v) => state.setDarkMode(v),
               ),
@@ -53,12 +54,40 @@ class SettingsScreen extends StatelessWidget {
               // v1.0.9: QR codes, About App, Help & Support, Biometric and
               // Change password now live ONLY in the home side dashboard, so
               // they are not repeated here.
-              _tile(context, icon: Icons.language, title: 'Languages',
+              _tile(context,
+                  icon: Icons.language,
+                  title: 'Languages',
                   onTap: () => comingSoon(context)),
-              _tile(context, icon: Icons.notifications_outlined,
-                  title: 'Notifications', onTap: () => comingSoon(context)),
-              _tile(context, icon: Icons.alarm, title: 'Reminders',
-                  onTap: () => comingSoon(context)),
+              // #040: a real reminder instead of two "coming later" rows — one
+              // 9:00 summary naming the khatabook accounts due or overdue today.
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                secondary:
+                    Icon(Icons.notifications_active_outlined, color: kGoldDark),
+                title: const Text('Due reminders',
+                    style:
+                        TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                    state.dueRemindersEnabled
+                        ? 'One 9:00 notification with who is due or overdue today'
+                        : 'Off — turn on to be told each morning who to collect from',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color:
+                            Theme.of(context).hintColor.withValues(alpha: .8))),
+                value: state.dueRemindersEnabled,
+                onChanged: (v) async {
+                  await state.setDueReminders(v);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(SnackBar(
+                        content: Text(v
+                            ? 'Due reminders on — Android will ask to allow notifications.'
+                            : 'Due reminders off.')));
+                },
+              ),
               // Screen lock, daily MPIN and every password now live together
               // in Password Settings.
               _tile(context,
@@ -66,10 +95,10 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Password Settings',
                   subtitle: 'Screen lock, MPIN and delete / release passwords',
                   onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const PasswordSettingsScreen()),
-                  )),
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PasswordSettingsScreen()),
+                      )),
               const Divider(height: 24),
               // v1.0.12: backups and the sample-data clean-up. Nothing here
               // runs by itself — the shopkeeper creates a backup or removes
@@ -80,9 +109,9 @@ class SettingsScreen extends StatelessWidget {
                   subtitle:
                       'Save a verified copy of your data · remove sample data',
                   onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BackupScreen()),
-                  )),
+                        context,
+                        MaterialPageRoute(builder: (_) => const BackupScreen()),
+                      )),
               // v1.0.21: one tap adds one member per visible condition, each
               // named after it, so the due / upcoming / chips / refinance /
               // interest-only paths can all be tried. Safe to run twice.
@@ -91,18 +120,17 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Add sample data',
                   subtitle:
                       '11 members — one per condition (due, overdue, chips, '
-                      'refinance, interest-only, loss)',
-                  onTap: () async {
-                    final added =
-                        await context.read<AppState>().addSampleMembers();
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(SnackBar(content: Text(added == 0
+                      'refinance, interest-only, loss)', onTap: () async {
+                final added = await context.read<AppState>().addSampleMembers();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(SnackBar(
+                      content: Text(added == 0
                           ? 'Sample data is already added.'
                           : 'Added $added sample member(s) — open Khatabook → '
                               'a village.')));
-                  }),
+              }),
             ],
           ),
           const SizedBox(height: 60),
@@ -153,7 +181,9 @@ class _ZoomCard extends StatelessWidget {
             const Spacer(),
             Text('${(scale * 100).round()}%',
                 style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800, color: kGoldDark)),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: kGoldDark)),
           ],
         ),
         const SizedBox(height: 4),
@@ -167,9 +197,8 @@ class _ZoomCard extends StatelessWidget {
           children: [
             IconButton(
               icon: const Icon(Icons.remove_circle_outline),
-              onPressed: scale > 0.8
-                  ? () => state.setFontScale(scale - 0.05)
-                  : null,
+              onPressed:
+                  scale > 0.8 ? () => state.setFontScale(scale - 0.05) : null,
             ),
             Expanded(
               child: Slider(
@@ -183,9 +212,8 @@ class _ZoomCard extends StatelessWidget {
             ),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
-              onPressed: scale < 1.5
-                  ? () => state.setFontScale(scale + 0.05)
-                  : null,
+              onPressed:
+                  scale < 1.5 ? () => state.setFontScale(scale + 0.05) : null,
             ),
           ],
         ),
@@ -257,15 +285,16 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
           decoration: fieldDecoration('e.g. PhonePe / Bank of India'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, nameCtl.text.trim()),
+              onPressed: () => Navigator.pop(ctx, nameCtl.text.trim()),
               child: const Text('Save')),
         ],
       ),
     );
-    final name = (label == null || label.isEmpty) ? 'QR ${_codes.length + 1}' : label;
+    final name =
+        (label == null || label.isEmpty) ? 'QR ${_codes.length + 1}' : label;
     await state.addQrCode(name, path);
     await _load();
   }
@@ -298,8 +327,9 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
       ),
       body: _codes.isEmpty
           ? const Center(
-              child: Text('No QR codes yet.\nTap "Add QR" to add your bank / UPI QR code.'),
-          )
+              child: Text(
+                  'No QR codes yet.\nTap "Add QR" to add your bank / UPI QR code.'),
+            )
           : Column(
               children: [
                 Expanded(
@@ -326,13 +356,17 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
                                 borderRadius: BorderRadius.circular(18),
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withValues(alpha: .12),
-                                      blurRadius: 16, offset: const Offset(0, 6)),
+                                      color:
+                                          Colors.black.withValues(alpha: .12),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6)),
                                 ],
                               ),
                               child: photoThumb(
                                 code['path']?.toString(),
-                                width: 260, height: 260, fit: BoxFit.contain,
+                                width: 260,
+                                height: 260,
+                                fit: BoxFit.contain,
                                 fallback: const Icon(Icons.qr_code_2,
                                     size: 200, color: Colors.black26),
                               ),
@@ -358,7 +392,9 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
                         height: 8,
                         margin: const EdgeInsets.symmetric(horizontal: 3),
                         decoration: BoxDecoration(
-                          color: i == _index ? kGoldDark : kInk.withValues(alpha: .25),
+                          color: i == _index
+                              ? kGoldDark
+                              : kInk.withValues(alpha: .25),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),

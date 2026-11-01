@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
-import 'data/db_setup_stub.dart' if (dart.library.js_interop) 'data/db_setup_web.dart';
+import 'data/db_setup_stub.dart'
+    if (dart.library.js_interop) 'data/db_setup_web.dart';
+import 'data/due_notifications.dart';
 import 'data/local_db.dart';
 import 'state/app_state.dart';
 import 'util/app_version.dart';
@@ -35,6 +37,10 @@ Future<void> main() async {
     await db.init();
     final state = AppState(db);
     await state.load();
+    // #040: roll the due-reminder summary forward. Failures are swallowed inside
+    // DueNotifications — a phone that refuses notifications still opens.
+    await DueNotifications.init();
+    await state.refreshDueReminders();
     // Production data must never be mixed with, or recreated from, sample
     // records. Sample data used to be re-seeded automatically whenever the
     // villages table happened to be empty (e.g. right after the last khata
