@@ -36,12 +36,14 @@ class KhataLoanState {
   });
 
   /// Capital currently deployed — what the shop can call its own money.
-  double get investment =>
-      Num.money(originalPrincipal - principalRecovered).clamp(0, double.infinity);
+  double get investment => Num.money(originalPrincipal - principalRecovered)
+      .clamp(0, double.infinity);
 
   /// Everything the customer still owes, ignoring held credit.
-  double get outstandingBalance => Num.money(
-      investment + interestOutstanding + lateFeeOutstanding + otherChargeOutstanding);
+  double get outstandingBalance => Num.money(investment +
+      interestOutstanding +
+      lateFeeOutstanding +
+      otherChargeOutstanding);
 
   /// Outstanding less any credit already in hand — what is actually collectable.
   double get netOutstanding =>
@@ -160,13 +162,15 @@ class KhataLoanState {
     final principal = Num.toDouble(loan['principal_amount']);
     final storedOutstanding = loan['principal_outstanding'];
     return KhataLoanState(
-      originalPrincipal: Num.toDouble(
-          loan['original_principal'] ?? principal),
+      originalPrincipal: Num.toDouble(loan['original_principal'] ?? principal),
       principalRecovered: Num.toDouble(loan['principal_recovered']),
       // A pre-v10 row has no separate interest, so whatever is outstanding
       // beyond the principal is treated as interest.
-      interestOutstanding: Num.toDouble(
-          loan['interest_outstanding'] ?? Num.toDouble(loan['outstanding']) - (storedOutstanding != null ? Num.toDouble(storedOutstanding) : principal)),
+      interestOutstanding: Num.toDouble(loan['interest_outstanding'] ??
+          Num.toDouble(loan['outstanding']) -
+              (storedOutstanding != null
+                  ? Num.toDouble(storedOutstanding)
+                  : principal)),
       lateFeeOutstanding: Num.toDouble(loan['late_fee_outstanding']),
       otherChargeOutstanding: Num.toDouble(loan['other_charge_outstanding']),
       unappliedCredit: Num.toDouble(loan['unapplied_credit']),
