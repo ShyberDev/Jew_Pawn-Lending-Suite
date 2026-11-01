@@ -17,15 +17,19 @@ release with these values.
 |---|---|---|---|
 | 1 | **Screen-lock PIN / MPIN** | `1234` | Password Settings → Biometric & screen lock (Off / Every time / Daily MPIN) |
 | 2 | **Shop account identifier** | `9876543210` | Login screen → Gmail or mobile number |
-| 3 | **Shop account password** | `Shop@2026` | Login screen → Forgot password? (OTP is shown on the phone when no gateway is set) or Password Settings → Account & login |
-| 4 | **Admin password** | `Admin@2026` | Password Settings → Admin password → Forgot …? |
+| 3 | **Shop account password** | `Shop@2026` — **set once on 2026-11-01, not confirmed by a sign-in yet.** If it is refused, use **Forgot password?**: Send code → the code appears on screen → Verify → New login password. That whole path was walked successfully on v1.2.0, so it always works. | Login screen → Forgot password?, or Password Settings → Account & login |
+| 4 | **Admin password** | **not reset yet** — the first-run value is unknown | Password Settings → Admin password → **Forgot …?** (offline OTP), then set `Admin@2026` and update this row |
 | 5 | **Pawn-move password** | follows the admin password unless changed | Password Settings → pawn move |
 | 6 | **One-time-code gateway** | not configured — codes are shown on the phone, 10 minutes, 5 tries | Password Settings → One-time code delivery |
 
 ## Notes for the next agent
 
-- Sign in with **#2 + #3**. If either is refused, use **Forgot password?** on that screen: the code
-  appears in a dialog labelled **Offline code (valid 10 minutes)** (no SMS/e-mail gateway is set).
+- Sign in with **#2 + #3**, or skip the password entirely: **Sign in with a one-time code** →
+  **Send code** → the 6-digit code appears in the dialog (**Offline code (valid 10 minutes)**).
+  The code is also readable from the accessibility tree (`uiautomator dump`, the 6-digit `text` node),
+  which is how an agent without a password can log in.
+- The **admin password** is still the one set on the phone during #038 and is unknown; reset it with
+  **Forgot …?** when a check needs it, then record it here.
 - The app may open straight to **Home** in offline mode (`offline_mode=1`). That is the #054 path,
   not a bug. To reach the login form, use **Logout** in Settings.
 - **Keep the PIN.** Delete / Release ask the MPIN first (#06E) and fall back to the admin password
