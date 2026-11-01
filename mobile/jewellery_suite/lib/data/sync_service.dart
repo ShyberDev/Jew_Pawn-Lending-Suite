@@ -212,7 +212,8 @@ class SyncService {
         await db.upsert(table, row);
 
         if (entry.key == 'Pawn Loan' && doc['items'] is List) {
-          await _replaceItems(row['client_uuid'] as String, doc['items'] as List);
+          await _replaceItems(
+              row['client_uuid'] as String, doc['items'] as List);
         }
       }
       summary.pulled += list.length;
