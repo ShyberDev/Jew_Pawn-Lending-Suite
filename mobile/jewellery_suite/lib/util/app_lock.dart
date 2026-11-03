@@ -21,6 +21,7 @@ class AppLock {
   static const saltKey = 'app_lock_salt';
   static const hashKey = 'app_lock_hash';
   static const unlockedOnKey = 'app_lock_unlocked_on';
+  static const biometricKey = 'app_lock_biometric';
 
   static const off = 'off';
   static const always = 'always';
@@ -77,6 +78,15 @@ class AppLock {
       return await db.getSetting(unlockedOnKey) != _today();
     }
     return true;
+  }
+
+  /// Whether the lock screen also offers fingerprint / face unlock (#066).
+  /// The PIN always stays as the fallback, so this can never lock the shop out.
+  static Future<bool> biometricEnabled(LocalDb db) async =>
+      await db.getSetting(biometricKey) == '1';
+
+  static Future<void> setBiometric(LocalDb db, bool on) async {
+    await db.setSetting(biometricKey, on ? '1' : '0');
   }
 
   /// Records today's unlock for the daily MPIN, so the same day stays open.

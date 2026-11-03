@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../util/app_lock.dart';
+import '../util/biometrics.dart';
 import 'otp_flow.dart';
 import 'palette.dart';
 import 'secret_dialogs.dart';
@@ -130,17 +131,52 @@ class _LockScreenState extends State<_LockScreen> {
   final _focus = FocusNode();
   bool _checking = false;
   bool _daily = false;
+  bool _bioAvailable = false;
+  bool _bioBusy = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _readMode();
+    _setupBiometrics();
   }
 
   Future<void> _readMode() async {
     final mode = await AppLock.mode(context.read<AppState>().db);
     if (mounted) setState(() => _daily = mode == AppLock.daily);
+  }
+
+  /// Offers fingerprint / face unlock when the shop turned it on and this phone
+  /// can do it. The PIN field stays below as the fallback, so a missed finger
+  /// never blocks the shop.
+  Future<void> _setupBiometrics() async {
+    final db = context.read<AppState>().db;
+    if (!await AppLock.biometricEnabled(db)) return;
+    if (!await Biometrics.available()) return;
+    if (!mounted) return;
+    setState(() => _bioAvailable = true);
+    await _unlockWithBiometrics();
+  }
+
+  Future<void> _unlockWithBiometrics() async {
+    if (_bioBusy) return;
+    setState(() {
+      _bioBusy = true;
+      _error = null;
+    });
+    final db = context.read<AppState>().db;
+    final ok = await Biometrics.prompt();
+    if (!mounted) return;
+    if (ok) {
+      await AppLock.markUnlocked(db);
+      if (mounted) widget.onUnlocked();
+      return;
+    }
+    setState(() {
+      _bioBusy = false;
+      _error = 'Fingerprint not recognised — enter your PIN.';
+    });
   }
 
   @override
@@ -271,6 +307,17 @@ class _LockScreenState extends State<_LockScreen> {
                       label: Text(_checking ? 'Checking…' : 'Unlock'),
                     ),
                   ),
+                  if (_bioAvailable)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: OutlinedButton.icon(
+                        key: const ValueKey('lock-biometric'),
+                        onPressed:
+                            _checking || _bioBusy ? null : _unlockWithBiometrics,
+                        icon: const Icon(Icons.fingerprint, size: 19),
+                        label: const Text('Use fingerprint'),
+                      ),
+                    ),
                   TextButton.icon(
                     onPressed: _checking ? null : _forgotPin,
                     icon: const Icon(Icons.help_outline, size: 17),
