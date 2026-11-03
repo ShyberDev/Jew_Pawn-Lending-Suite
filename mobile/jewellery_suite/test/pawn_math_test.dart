@@ -63,7 +63,10 @@ void main() {
   });
 
   test('a released loan is settled and never accrues', () {
-    final l = {...loan(paid: 109000, anchor: '2026-04-01'), 'status': 'Released'};
+    final l = {
+      ...loan(paid: 109000, anchor: '2026-04-01'),
+      'status': 'Released'
+    };
     expect(PawnMath.isSettled(l, DateTime(2026, 9, 1)), isTrue);
     expect(PawnMath.outstanding(l, DateTime(2026, 9, 1)), 0);
   });
@@ -71,7 +74,10 @@ void main() {
   test('totals sum the same per-loan figures the screens show', () {
     final loans = [
       loan(anchor: '2026-04-01'),
-      loan(principal: 50000, storedInterest: 4500, paid: 10000,
+      loan(
+          principal: 50000,
+          storedInterest: 4500,
+          paid: 10000,
           anchor: '2026-04-01'),
     ];
     final t = PawnMath.totals(loans, DateTime(2026, 4, 1));
@@ -90,11 +96,35 @@ void main() {
     expect(s['last_interest_date'], '2026-05-01');
   });
 
+  test('due-date filter prefers the actual due date over the promised one', () {
+    final promised = loan(due: '2026-04-01');
+    expect(PawnMath.dueDateIso(promised), '2026-04-01');
+    expect(PawnMath.dueBetween(promised, '2026-03-01', '2026-04-01'), isTrue);
+    expect(PawnMath.dueBetween(promised, '2026-04-02', '2026-04-30'), isFalse);
+
+    final closed = {...promised, 'pawn_due_actual': '2026-05-15'};
+    expect(PawnMath.dueDateIso(closed), '2026-05-15');
+    expect(PawnMath.dueBetween(closed, '2026-04-01', '2026-04-30'), isFalse);
+    expect(PawnMath.dueBetween(closed, '2026-05-01', '2026-05-31'), isTrue);
+  });
+
+  test('a loan with no due date never matches a due-date range', () {
+    final noDue = loan()..remove('due_date');
+    expect(PawnMath.dueDateIso(noDue), '');
+    expect(PawnMath.dueBetween(noDue, '2000-01-01', '2100-12-31'), isFalse);
+  });
+
   test('totals agree with per-loan outstanding (no double counting)', () {
     final loans = [
-      loan(principal: 100000, storedInterest: 9000, paid: 50000,
+      loan(
+          principal: 100000,
+          storedInterest: 9000,
+          paid: 50000,
           anchor: '2026-04-01'),
-      loan(principal: 20000, storedInterest: 1800, paid: 0,
+      loan(
+          principal: 20000,
+          storedInterest: 1800,
+          paid: 0,
           anchor: '2026-04-01'),
     ];
     final t = PawnMath.totals(loans, DateTime(2026, 4, 11));

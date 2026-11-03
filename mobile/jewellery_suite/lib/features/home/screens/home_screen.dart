@@ -10,6 +10,7 @@ import '../../../ui/customers_screen.dart';
 import '../../../ui/password_settings_screen.dart';
 import '../../../features/history/screens/history_screen.dart';
 import '../../../features/interest_calculator/screens/interest_calculator_screen.dart';
+import '../../../features/jewellery/screens/jewellery_screen.dart';
 import '../../../features/khata/screens/khata_screen.dart';
 import '../../../ui/palette.dart';
 import '../../../features/pawn/screens/pawn_screen.dart';
@@ -49,10 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _open(Widget screen) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     await _refresh();
-  }
-
-  void _comingSoon() {
-    comingSoon(context);
   }
 
   /// Coming-soon used inside the side drawer: close the drawer first so the
@@ -397,7 +394,8 @@ class _HomeScreenState extends State<HomeScreen> {
           () => _open(const PawnScreen())),
       (Icons.account_balance_wallet_outlined, 'Cashbook',
           () => _open(const CashbookScreen())),
-      (Icons.diamond_outlined, 'Jewellery', _comingSoon),
+      (Icons.diamond_outlined, 'Jewellery',
+          () => _open(const JewelleryScreen())),
     ];
     return GridView.count(
       crossAxisCount: 2,

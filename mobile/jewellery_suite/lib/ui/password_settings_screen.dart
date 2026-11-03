@@ -34,6 +34,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   Map<String, bool> _toggles = {};
   bool _loading = true;
   bool _isDefault = false;
+  bool _pawnMoveIsDefault = true;
   String _lockMode = AppLock.off;
   final _gatewayCtl = TextEditingController();
   String _gatewayChannel = 'sms';
@@ -59,6 +60,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     }
     await ensureAdminPassword(state);
     final isDefault = await adminPasswordIsDefault(state);
+    final pawnMoveDefault = await state.pawnMovePasswordIsDefault();
     final mode = await AppLock.mode(state.db);
     final gatewayUrl = await OtpGateway.url(state.db);
     final channel = await OtpGateway.channel(state.db);
@@ -66,6 +68,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     setState(() {
       _toggles = toggles;
       _isDefault = isDefault;
+      _pawnMoveIsDefault = pawnMoveDefault;
       _lockMode = mode;
       _gatewayCtl.text = gatewayUrl;
       _gatewayChannel = channel;
@@ -89,7 +92,9 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   // ------------------------------------------------------------- admin password
   Future<void> _changePassword() async {
     final state = context.read<AppState>();
-    final pin = await askPinDialog(context,
+    // A password, not a PIN: askPinDialog is digits-only and would cut
+    // 'Admin@123' down to '123'.
+    final pin = await askPasswordDialog(context,
         title: 'Change admin password', label: 'Current password');
     if (pin == null) return;
     if (!await verifyAdminPassword(state, pin)) {
@@ -131,6 +136,50 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     }
     await _load();
     _toast('Admin password reset.');
+  }
+
+  // -------------------------------------------------------- pawn-move password
+  /// Sets the secret the pawn "Move to another pawn profile" action asks for.
+  /// Until one is set the action asks for the admin password, which is why the
+  /// current secret is checked with [AppState.verifyPawnMovePassword] — it
+  /// accepts the dedicated secret or the admin fallback.
+  Future<void> _changePawnMovePassword() async {
+    final state = context.read<AppState>();
+    final current = await askPasswordDialog(context,
+        title: 'Change pawn-move password', label: 'Current password');
+    if (current == null) return;
+    if (!await state.verifyPawnMovePassword(current)) {
+      _toast('Current password is wrong.');
+      return;
+    }
+    if (!mounted) return;
+    final next =
+        await askNewPasswordDialog(context, title: 'New pawn-move password');
+    if (next == null) return;
+    try {
+      await state.setPawnMovePassword(next);
+    } on FormatException catch (e) {
+      _toast(e.message);
+      return;
+    }
+    await _load();
+    _toast('Pawn-move password changed.');
+  }
+
+  /// Drops the dedicated secret again so the move asks for the admin password.
+  Future<void> _resetPawnMovePassword() async {
+    final state = context.read<AppState>();
+    final allowed = await confirmAdmin(
+      context,
+      action: 'stop using a separate pawn-move password',
+      confirmLabel: 'Use admin',
+      labelText: 'Type pawn-move password',
+      verify: state.verifyPawnMovePassword,
+    );
+    if (!allowed || !mounted) return;
+    await state.clearPawnMovePassword();
+    await _load();
+    _toast('Move will ask for the admin password.');
   }
 
   // ------------------------------------------------------------ login account
@@ -329,6 +378,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                 _accountCard(state),
                 _lockCard(state),
                 _deleteReleaseCard(state),
+                _pawnMoveCard(state),
                 _adminCard(state),
                 _otpDeliveryCard(),
                 const SizedBox(height: 40),
@@ -571,6 +621,53 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                     'Turn on Biometric & screen lock above to use the MPIN instead.',
             style: TextStyle(fontSize: 11, color: mutedOf(context)),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pawnMoveCard(AppState state) {
+    return SectionCard(
+      title: 'Pawn-move password',
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.swap_horiz, color: kGoldDark),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _pawnMoveIsDefault
+                    ? 'Moving a pledge asks for the admin password.'
+                    : 'Moving a pledge asks for this password, not the admin '
+                        'one.',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _changePawnMovePassword,
+              icon: const Icon(Icons.lock_reset_outlined, size: 18),
+              label: Text(_pawnMoveIsDefault
+                  ? 'Set a password'
+                  : 'Change password'),
+            ),
+            if (!_pawnMoveIsDefault)
+              TextButton.icon(
+                onPressed: _resetPawnMovePassword,
+                icon: const Icon(Icons.undo, size: 17),
+                label: const Text('Use admin password'),
+              ),
+          ],
+        ),
+        Text(
+          'Only this action uses it; delete and release keep their own secret. '
+          'Stored as a salted hash.',
+          style: TextStyle(fontSize: 11, color: mutedOf(context)),
         ),
       ],
     );

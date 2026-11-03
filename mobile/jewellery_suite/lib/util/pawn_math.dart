@@ -31,6 +31,24 @@ class PawnMath {
     return lent ?? DateTime.now();
   }
 
+  /// The date a pledge is actually due: the shop's closed actual due date when
+  /// present, otherwise the promised due date. ISO `YYYY-MM-DD` strings sort
+  /// correctly, so the list filter can compare them directly.
+  static String dueDateIso(Map<String, Object?> loan) {
+    final actual = loan['pawn_due_actual']?.toString().trim() ?? '';
+    if (actual.isNotEmpty) return actual;
+    return loan['due_date']?.toString().trim() ?? '';
+  }
+
+  /// True when the effective due date falls inside the inclusive ISO-day range.
+  static bool dueBetween(
+      Map<String, Object?> loan, String fromIso, String toIso) {
+    final due = dueDateIso(loan);
+    return due.isNotEmpty &&
+        due.compareTo(fromIso) >= 0 &&
+        due.compareTo(toIso) <= 0;
+  }
+
   /// Principal still with the customer ("Investment" in pawn).
   static double principalOut(Map<String, Object?> loan) =>
       math.max(0, Num.toDouble(loan['loan_amount']));

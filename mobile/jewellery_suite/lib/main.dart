@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -56,6 +58,9 @@ Future<void> main() async {
         child: const JewelleryApp(),
       ),
     );
+    // #048: the daily automatic backup starts after the first frame, so it can
+    // never delay opening the shop. runAutoBackupIfDue swallows its failures.
+    unawaited(state.runAutoBackupIfDue());
   } catch (e, st) {
     debugPrint('STARTUP FAIL: $e\n$st');
     runApp(MaterialApp(

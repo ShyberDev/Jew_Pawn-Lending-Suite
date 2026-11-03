@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'local_db.dart';
-import 'migration_v16.dart';
+import 'migration_v20.dart';
 
 /// One backup file on disk.
 class BackupInfo {
@@ -133,6 +133,16 @@ class BackupService {
     'khatabook_refinances',
     'khatabook_allocations',
     'khatabook_installments',
+    'jewellery_rates',
+    'jewellery_invoices',
+    'jewellery_invoice_items',
+    'jewellery_payments',
+    'jewellery_old_metal',
+    'jewellery_stock_movements',
+    'jewellery_worker_orders',
+    'jewellery_worker_txns',
+    'jewellery_returns',
+    'jewellery_return_items',
     'cashbook_entries',
     'customer_id_pool',
     'history_log',
@@ -175,7 +185,13 @@ class BackupService {
   }
 
   /// Creates a backup and verifies it.
-  Future<BackupResult> createBackup({bool includePhotos = true}) async {
+  ///
+  /// [prefix] names the file (`auto_jewellery_suite_…` for the daily automatic
+  /// copy, #048), so pruning never has to guess which archives it may delete.
+  Future<BackupResult> createBackup({
+    bool includePhotos = true,
+    String prefix = 'jewellery_suite',
+  }) async {
     final createdAt = DateTime.now();
     final counts = await liveCounts();
 
@@ -201,7 +217,7 @@ class BackupService {
         //    manifest that describes both.
         final photos = includePhotos ? await photoFiles() : const <File>[];
         final dir = await backupDir();
-        final target = await _uniquePath(dir, createdAt);
+        final target = await _uniquePath(dir, createdAt, prefix);
         final manifest = <String, Object?>{
           'format': 'jewellery-suite-backup',
           'format_version': formatVersion,
@@ -330,7 +346,7 @@ class BackupService {
         final version = versionRows.isEmpty
             ? 0
             : ((versionRows.first.values.first as num?)?.toInt() ?? 0);
-        if (version > MigrationV16.version) {
+        if (version > MigrationV20.version) {
           return RestoreResult(
               restored: false,
               problem: 'The backup database is newer than this app.',
@@ -684,12 +700,13 @@ class BackupService {
   }
 
   /// Never overwrites: a name collision gets a counter instead.
-  Future<String> _uniquePath(Directory dir, DateTime at) async {
+  Future<String> _uniquePath(Directory dir, DateTime at,
+      [String prefix = 'jewellery_suite']) async {
     final stamp = DateFormat('yyyy-MM-dd_HH-mm-ss').format(at);
-    var candidate = p.join(dir.path, 'jewellery_suite_$stamp.zip');
+    var candidate = p.join(dir.path, '${prefix}_$stamp.zip');
     var n = 2;
     while (await File(candidate).exists()) {
-      candidate = p.join(dir.path, 'jewellery_suite_${stamp}_$n.zip');
+      candidate = p.join(dir.path, '${prefix}_${stamp}_$n.zip');
       n++;
     }
     return candidate;

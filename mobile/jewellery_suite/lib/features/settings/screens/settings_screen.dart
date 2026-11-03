@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../state/app_state.dart';
+import '../../../util/auto_backup.dart';
 import '../../../features/backup/screens/backup_screen.dart';
 import '../../../ui/password_settings_screen.dart';
 import '../../../ui/palette.dart';
@@ -86,6 +87,40 @@ class SettingsScreen extends StatelessWidget {
                         content: Text(v
                             ? 'Due reminders on — Android will ask to allow notifications.'
                             : 'Due reminders off.')));
+                },
+              ),
+              // #048: one verified backup a day, after the app has opened.
+              // Only copies this feature made are pruned, and only beyond the
+              // newest few — a manual backup is never touched.
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                secondary: Icon(Icons.backup_outlined, color: kGoldDark),
+                title: const Text('Automatic backup',
+                    style:
+                        TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                    state.autoBackupEnabled
+                        ? (state.autoBackupStatus.isEmpty
+                            ? 'One verified backup a day, kept in Backup & data '
+                                '(newest ${AutoBackupPolicy.defaultKeep})'
+                            : 'Last automatic backup ${state.autoBackupStatus} '
+                                '· keeps the newest ${AutoBackupPolicy.defaultKeep}')
+                        : 'Off — turn on to get a verified backup every day',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color:
+                            Theme.of(context).hintColor.withValues(alpha: .8))),
+                value: state.autoBackupEnabled,
+                onChanged: (v) async {
+                  await state.setAutoBackup(v);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(SnackBar(
+                        content: Text(v
+                            ? 'Automatic backup on — the first copy runs next time the app starts.'
+                            : 'Automatic backup off.')));
                 },
               ),
               // Screen lock, daily MPIN and every password now live together

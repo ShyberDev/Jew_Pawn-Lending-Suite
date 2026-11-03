@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -7,6 +8,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:jewellery_suite/data/local_db.dart';
 import 'package:jewellery_suite/state/app_state.dart';
 import 'package:jewellery_suite/ui/admin_guard.dart';
+import 'package:jewellery_suite/ui/secret_dialogs.dart';
 import 'package:jewellery_suite/util/app_lock.dart';
 import 'package:jewellery_suite/util/secret_hash.dart';
 
@@ -120,5 +122,60 @@ void main() {
       expect(await local.getSetting(AppLock.hashKey), isNull);
       expect(await AppLock.verify(local, '2580'), isFalse);
     });
+  });
+
+  group('pawn-move password (#06A)', () {
+    test('falls back to the admin password until one is set', () async {
+      await setAdminPassword(state, 'shop-2026');
+      expect(await state.pawnMovePasswordIsDefault(), isTrue);
+      expect(await state.verifyPawnMovePassword('shop-2026'), isTrue);
+      expect(await state.verifyPawnMovePassword('move-2026'), isFalse);
+    });
+
+    test('a dedicated secret replaces the fallback and can be cleared',
+        () async {
+      await setAdminPassword(state, 'shop-2026');
+      await state.setPawnMovePassword('move-2026');
+
+      expect(await state.pawnMovePasswordIsDefault(), isFalse);
+      expect(await state.verifyPawnMovePassword('move-2026'), isTrue);
+      expect(await state.verifyPawnMovePassword('shop-2026'), isFalse,
+          reason: '#06A: the move secret is independent of the admin password');
+      expect(await verifyAdminPassword(state, 'shop-2026'), isTrue,
+          reason: 'setting a move secret must not touch the admin password');
+
+      // "Use admin password" in Password Settings drops it again.
+      await state.clearPawnMovePassword();
+      expect(await state.pawnMovePasswordIsDefault(), isTrue);
+      expect(await state.verifyPawnMovePassword('shop-2026'), isTrue);
+    });
+  });
+
+  testWidgets(
+      'the password prompt keeps letters, unlike the digits-only PIN prompt',
+      (tester) async {
+    // Found on the phone 2026-11-02: the cards asked for a password through
+    // askPinDialog, whose digitsOnly formatter turned 'Admin@123' into '123',
+    // so a text password could never be entered.
+    String? typed;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (ctx) => Scaffold(
+          body: ElevatedButton(
+            onPressed: () async {
+              typed = await askPasswordDialog(ctx,
+                  title: 'Change pawn-move password');
+            },
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Admin@123');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(typed, 'Admin@123');
   });
 }

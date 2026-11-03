@@ -169,10 +169,16 @@ String todayIso() => DateTime.now().toIso8601String().substring(0, 10);
 
 /// A simple card wrapper used across the forms.
 class SectionCard extends StatelessWidget {
-  const SectionCard({super.key, required this.title, required this.children});
+  const SectionCard({
+    super.key,
+    required this.title,
+    required this.children,
+    this.trailing,
+  });
 
   final String title;
   final List<Widget> children;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -183,11 +189,18 @@ class SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
             const SizedBox(height: 10),
             ...children,
           ],

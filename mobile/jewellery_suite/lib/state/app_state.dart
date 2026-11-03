@@ -7,10 +7,12 @@ import 'package:sqflite/sqflite.dart' show getDatabasesPath;
 
 import '../data/api_client.dart';
 import '../data/due_notifications.dart';
+import '../data/jewellery_store.dart';
 import '../data/local_db.dart';
 import '../data/migration_v12.dart';
 import '../data/sync_service.dart';
 import '../util/account.dart';
+import '../util/auto_backup.dart';
 import '../util/due_reminders.dart';
 import '../util/format.dart';
 import '../util/ids.dart';
@@ -55,6 +57,11 @@ class AppState extends ChangeNotifier {
 
   /// #040: a 9:00 summary naming who is due today. Off until the shop asks.
   bool dueRemindersEnabled = false;
+
+  /// #048: one verified automatic backup a day, pruned to the newest few.
+  bool autoBackupEnabled = false;
+  DateTime? autoBackupLast;
+  String? autoBackupError;
 
   /// Shopkeeper user profile (photo shown on the home button, phone/email on
   /// the User Details panel).
@@ -107,6 +114,9 @@ class AppState extends ChangeNotifier {
     fontScale = (fs == null || fs <= 0) ? 1.0 : fs.clamp(0.8, 1.5);
     adminConfirm = await db.getSetting('admin_confirm') != '0';
     dueRemindersEnabled = await db.getSetting(dueRemindersKey) == '1';
+    autoBackupEnabled = await db.getSetting(AutoBackupPolicy.enabledKey) == '1';
+    autoBackupLast =
+        DateTime.tryParse(await db.getSetting(AutoBackupPolicy.lastKey) ?? '');
     userPhoto = await db.getSetting('user_photo') ?? '';
     userPhone = await db.getSetting('user_phone') ?? '';
     userEmail = await db.getSetting('user_email') ?? '';
@@ -268,6 +278,41 @@ class AppState extends ChangeNotifier {
     await db.setSetting(dueRemindersKey, on ? '1' : '0');
     if (on) await DueNotifications.requestPermission();
     await refreshDueReminders();
+    notifyListeners();
+  }
+
+  /// 'dd-MM-yy HH:mm' of the last verified automatic backup, or '' when none
+  /// has been made yet. Kept as a plain string so the Settings card needs no
+  /// date formatter of its own.
+  String get autoBackupStatus {
+    final d = autoBackupLast;
+    if (d == null) return '';
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(d.day)}-${two(d.month)}-${d.year % 100} '
+        '${two(d.hour)}:${two(d.minute)}';
+  }
+
+  /// Settings → Automatic backup (#048).
+  Future<void> setAutoBackup(bool on) async {
+    autoBackupEnabled = on;
+    await db.setSetting(AutoBackupPolicy.enabledKey, on ? '1' : '0');
+    notifyListeners();
+  }
+
+  /// Runs today's automatic backup when one has not been made yet.
+  ///
+  /// Never throws: the shop must open even when the phone cannot write a
+  /// backup, and a failed attempt leaves the "last" marker alone so the next
+  /// start tries again.
+  Future<void> runAutoBackupIfDue() async {
+    try {
+      final result = await runAutoBackup(db);
+      autoBackupError = result.problem;
+      autoBackupLast = DateTime.tryParse(
+          await db.getSetting(AutoBackupPolicy.lastKey) ?? '');
+    } catch (_) {
+      autoBackupError = 'The automatic backup could not run.';
+    }
     notifyListeners();
   }
 
@@ -460,6 +505,14 @@ class AppState extends ChangeNotifier {
     final salt = randomSalt();
     await db.setSetting(kPawnMovePasswordSaltKey, salt);
     await db.setSetting(kPawnMovePasswordHashKey, hashSecret(trimmed, salt));
+    notifyListeners();
+  }
+
+  /// Drops the dedicated pawn-move secret so the move asks for the admin
+  /// password again. Used by "Use admin password" in Password Settings.
+  Future<void> clearPawnMovePassword() async {
+    await db.setSetting(kPawnMovePasswordHashKey, null);
+    await db.setSetting(kPawnMovePasswordSaltKey, null);
     notifyListeners();
   }
 
@@ -663,6 +716,282 @@ class AppState extends ChangeNotifier {
 
     await refreshCounts();
     return uuid;
+  }
+
+  // --------------------------------------------------------------- jewellery
+  /// The jewellery document store (rates, invoices, payments, stock).
+  JewelleryStore get jewelleryStore => JewelleryStore(db);
+
+  Future<void> saveJewelleryRate(String metal, double rate,
+      {DateTime? date}) async {
+    await jewelleryStore.saveRate(metal, rate, date: date);
+    notifyListeners();
+  }
+
+  /// Saves a jewellery sale/purchase and its linked cash movement.
+  ///
+  /// The store computes the document (one old-metal deduction, whole-rupee
+  /// round-off) and moves stock. This hook mirrors the money the shop actually
+  /// received/paid into the Cashbook under a `JEWELLERY_` category, so the
+  /// module can be recognised as its own source and edited only here.
+  Future<String> saveJewelleryInvoice({
+    required String docType,
+    required String partyName,
+    required DateTime date,
+    required String metal,
+    required List<JewelleryItemInput> items,
+    double discount = 0,
+    double amountPaid = 0,
+    String paymentMode = 'CASH',
+    OldMetalInput? oldMetal,
+    String notes = '',
+    double costTotal = 0,
+    DateTime? promisedDate,
+    String mobile = '',
+    String address = '',
+    String photoPath = '',
+    String slipPhotoPath = '',
+  }) async {
+    final uuid = await jewelleryStore.saveInvoice(
+      docType: docType,
+      partyName: partyName,
+      date: date,
+      metal: metal,
+      items: items,
+      discount: discount,
+      amountPaid: amountPaid,
+      paymentMode: paymentMode,
+      oldMetal: oldMetal,
+      notes: notes,
+      costTotal: costTotal,
+      promisedDate: promisedDate,
+      mobile: mobile,
+      address: address,
+      photoPath: photoPath,
+      slipPhotoPath: slipPhotoPath,
+      status: docType == JewelleryStore.orderDoc ? 'Pending' : 'Active',
+    );
+    final purchase = docType == JewelleryStore.purchaseDoc;
+    final order = docType == JewelleryStore.orderDoc;
+    await _syncCashbookEntry(
+      category: purchase
+          ? 'JEWELLERY_PURCHASE'
+          : order
+              ? 'JEWELLERY_ORDER'
+              : 'JEWELLERY_SALE',
+      referenceId: uuid,
+      entryType: purchase ? 'OUT' : 'IN',
+      amount: amountPaid,
+      date: _isoDay(date),
+      paymentMode: paymentMode.toUpperCase(),
+      partyName: partyName,
+      notes: purchase
+          ? 'Jewellery purchase payment'
+          : order
+              ? 'Jewellery order advance'
+              : 'Jewellery sale receipt',
+    );
+    await refreshCounts();
+    return uuid;
+  }
+
+  /// Adds one receipt against a jewellery invoice and records the cash movement.
+  ///
+  /// The document type decides the direction: a purchase payment is cash **OUT**
+  /// (`JEWELLERY_PURCHASE`), an order advance is **IN** (`JEWELLERY_ORDER`) and
+  /// a sale receipt is **IN** (`JEWELLERY_COLLECT`). The screen that opened the
+  /// sheet cannot flip the direction.
+  Future<void> addJewelleryPayment({
+    required String invoiceUuid,
+    required String partyName,
+    required double amount,
+    required DateTime date,
+    String mode = 'CASH',
+    bool isPurchase = false,
+  }) async {
+    final invoice = await jewelleryStore.invoice(invoiceUuid);
+    final docType = invoice?['doc_type']?.toString() ?? '';
+    final purchase = docType == JewelleryStore.purchaseDoc;
+    final order = docType == JewelleryStore.orderDoc;
+    final uuid = await jewelleryStore.addPayment(
+      invoiceUuid: invoiceUuid,
+      amount: amount,
+      date: date,
+      mode: mode,
+      notes: purchase
+          ? 'Jewellery purchase payment'
+          : order
+              ? 'Jewellery order payment'
+              : 'Jewellery invoice payment',
+    );
+    await _syncCashbookEntry(
+      category: purchase
+          ? 'JEWELLERY_PURCHASE'
+          : order
+              ? 'JEWELLERY_ORDER'
+              : 'JEWELLERY_COLLECT',
+      referenceId: uuid,
+      entryType: purchase ? 'OUT' : 'IN',
+      amount: amount,
+      date: _isoDay(date),
+      paymentMode: mode.toUpperCase(),
+      partyName: partyName,
+      notes: purchase
+          ? 'Jewellery purchase payment'
+          : order
+              ? 'Jewellery order payment'
+              : 'Jewellery invoice payment',
+    );
+    notifyListeners();
+  }
+
+  /// Completes an order and mirrors the extra collection/refund.
+  Future<void> deliverJewelleryOrder({
+    required String orderUuid,
+    required DateTime date,
+    required double deliveredGrossWeight,
+    double stoneWeight = 0,
+    double extraAmount = 0,
+    double refundAmount = 0,
+    String paymentMode = 'CASH',
+    String notes = '',
+  }) async {
+    final result = await jewelleryStore.deliverOrder(
+      uuid: orderUuid,
+      date: date,
+      deliveredGrossWeight: deliveredGrossWeight,
+      stoneWeight: stoneWeight,
+      extraAmount: extraAmount,
+      refundAmount: refundAmount,
+      paymentMode: paymentMode,
+      notes: notes,
+    );
+    final party =
+        (await jewelleryStore.invoice(orderUuid))?['party_name']?.toString() ??
+            '';
+    if (result.extra > 0 && result.paymentUuid.isNotEmpty) {
+      await _syncCashbookEntry(
+        category: 'JEWELLERY_ORDER',
+        referenceId: result.paymentUuid,
+        entryType: 'IN',
+        amount: result.extra,
+        date: _isoDay(date),
+        paymentMode: paymentMode.toUpperCase(),
+        partyName: party,
+        notes: 'Jewellery order delivery extra',
+      );
+    }
+    if (result.refund > 0) {
+      await _syncCashbookEntry(
+        category: 'JEWELLERY_RETURN',
+        referenceId: '${orderUuid}_refund',
+        entryType: 'OUT',
+        amount: result.refund,
+        date: _isoDay(date),
+        paymentMode: paymentMode.toUpperCase(),
+        partyName: party,
+        notes: 'Jewellery order refund',
+      );
+    }
+    notifyListeners();
+  }
+
+  /// Records a worker cash/gold movement and the shop cash side.
+  Future<String> saveJewelleryWorkerTransaction({
+    required String workerName,
+    required DateTime date,
+    required String type,
+    double cashAmount = 0,
+    double goldWeight = 0,
+    String metal = JewelleryStore.gold,
+    double ratePerGram = 0,
+    double purity = 100,
+    String orderUuid = '',
+    String notes = '',
+  }) async {
+    final uuid = await jewelleryStore.saveWorkerTransaction(
+      workerName: workerName,
+      date: date,
+      type: type,
+      cashAmount: cashAmount,
+      goldWeight: goldWeight,
+      metal: metal,
+      ratePerGram: ratePerGram,
+      purity: purity,
+      orderUuid: orderUuid,
+      notes: notes,
+    );
+    if (cashAmount.abs() > 0.005) {
+      await _syncCashbookEntry(
+        category: 'JEWELLERY_WORKER',
+        referenceId: uuid,
+        entryType: cashAmount > 0 ? 'OUT' : 'IN',
+        amount: cashAmount.abs(),
+        date: _isoDay(date),
+        paymentMode: 'CASH',
+        partyName: workerName,
+        notes: cashAmount > 0
+            ? 'Jewellery worker cash paid'
+            : 'Jewellery worker cash returned',
+      );
+    }
+    notifyListeners();
+    return uuid;
+  }
+
+  /// Creates a linked return, posts the refund and leaves the sale untouched.
+  Future<String> saveJewelleryReturn({
+    required String sourceInvoiceUuid,
+    required DateTime date,
+    required List<JewelleryReturnItemInput> items,
+    double refundAmount = 0,
+    String notes = '',
+  }) async {
+    final uuid = await jewelleryStore.saveReturn(
+      sourceInvoiceUuid: sourceInvoiceUuid,
+      date: date,
+      items: items,
+      refundAmount: refundAmount,
+      notes: notes,
+    );
+    if (refundAmount > 0) {
+      final party =
+          (await jewelleryStore.invoice(sourceInvoiceUuid))?['party_name']
+                  ?.toString() ??
+              '';
+      await _syncCashbookEntry(
+        category: 'JEWELLERY_RETURN',
+        referenceId: uuid,
+        entryType: 'OUT',
+        amount: refundAmount,
+        date: _isoDay(date),
+        paymentMode: 'CASH',
+        partyName: party,
+        notes: 'Jewellery return refund',
+      );
+    }
+    notifyListeners();
+    return uuid;
+  }
+
+  Future<void> deleteJewelleryReturn(String uuid) async {
+    final refs = await jewelleryStore.deleteReturn(uuid);
+    await db.deleteCashbookForReferences(refs);
+    notifyListeners();
+  }
+
+  Future<void> deleteJewelleryWorkerTransaction(String uuid) async {
+    final refs = await jewelleryStore.deleteWorkerTransaction(uuid);
+    await db.deleteCashbookForReferences(refs);
+    notifyListeners();
+  }
+
+  /// Deletes a jewellery document, its payments, old-metal voucher and stock
+  /// movements, and every cash entry those rows created.
+  Future<void> deleteJewelleryInvoice(String uuid) async {
+    final refs = await jewelleryStore.deleteInvoice(uuid);
+    await db.deleteCashbookForReferences(refs);
+    notifyListeners();
   }
 
   /// Stores a photo path on a record and queues it for upload once the record
