@@ -251,6 +251,21 @@ void main() {
             '#033: the Silver loan must leave the list, not just the total');
   });
 
+  testWidgets('pawn filter offers loan-date and due-date ranges',
+      (tester) async {
+    await seedPawnLoans();
+    await pumpPawn(tester);
+
+    final filterPill = find.byKey(const ValueKey('pawn-filter'));
+    await tester.ensureVisible(filterPill);
+    await tester.pumpAndSettle();
+    await tester.tap(filterPill);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Loan date range'), findsOneWidget);
+    expect(find.text('Due date range'), findsOneWidget);
+  });
+
   testWidgets('amount range narrows the pledge list and the summary strip',
       (tester) async {
     await seedPawnLoans();
@@ -357,6 +372,49 @@ void main() {
       expect(find.text(action), findsOneWidget,
           reason: 'the tile menu must offer $action');
     }
+  });
+
+  testWidgets('moving a pledge asks the pawn-move password (#06A)',
+      (tester) async {
+    await seedPawnLoans();
+    await state.setPawnMovePassword('move-1234');
+    await pumpPawn(tester);
+
+    Future<Object?> categoryOf(String uuid) async {
+      final rows = await local.db.query('pawn_loans',
+          columns: ['category'], where: 'client_uuid = ?', whereArgs: [uuid]);
+      return rows.single['category'];
+    }
+
+    Future<void> chooseMove() async {
+      await tester.tap(find.byKey(const ValueKey('pawn-menu-loan-ravi')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move to another pawn profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pawn_Removed'));
+      await tester.pumpAndSettle();
+    }
+
+    // The move does not happen on a tap alone: the secret is asked first, and
+    // a wrong secret leaves the pledge where it was.
+    await chooseMove();
+    expect(find.text('Type pawn-move password'), findsOneWidget,
+        reason: '#06A: moving a pledge must ask the pawn-move password');
+    expect(await categoryOf('loan-ravi'), isNull);
+
+    await tester.enterText(find.byType(TextField).last, 'wrong-secret');
+    await tester.tap(find.text('Move'));
+    await settleWithDb(tester);
+    expect(await categoryOf('loan-ravi'), isNull,
+        reason: 'a wrong password must never move a pledge');
+
+    // The right secret moves it, and the tile says so.
+    await chooseMove();
+    await tester.enterText(find.byType(TextField).last, 'move-1234');
+    await tester.tap(find.text('Move'));
+    await settleWithDb(tester);
+    expect(await categoryOf('loan-ravi'), 'Pawn_Removed');
+    expect(find.text('Moved to Pawn_Removed.'), findsOneWidget);
   });
 
   testWidgets(

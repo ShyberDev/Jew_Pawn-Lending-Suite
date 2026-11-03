@@ -12,6 +12,9 @@ import 'migration_v14.dart';
 import 'migration_v15.dart';
 import 'migration_v16.dart';
 import 'migration_v17.dart';
+import 'migration_v18.dart';
+import 'migration_v19.dart';
+import 'migration_v20.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -46,7 +49,7 @@ class LocalDb {
   Future<void> _open(String file) async {
     _db = await openDatabase(
       file,
-      version: MigrationV16.version,
+      version: MigrationV20.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
@@ -251,6 +254,21 @@ class LocalDb {
       await MigrationV17.addSchema(db);
       await MigrationV17.ensureCategories(db);
     }
+    if (oldVersion < 18) {
+      // v18: jewellery core — saved rates, invoices/items, payments, the
+      // old-metal voucher and stock movements. See migration_v18.dart.
+      await MigrationV18.addSchema(db);
+    }
+    if (oldVersion < 19) {
+      // v19: jewellery operations — order delivery fields, worker ledgers and
+      // linked returns. See migration_v19.dart.
+      await MigrationV19.addSchema(db);
+    }
+    if (oldVersion < 20) {
+      // v20: retail sale pricing — billing basis, KDM wastage, flat making and
+      // fine metal content. See migration_v20.dart.
+      await MigrationV20.addSchema(db);
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -431,6 +449,12 @@ class LocalDb {
     // password registration. Fresh installs get these columns from the
     // CREATE TABLE below.
     await MigrationV17.addSchema(db);
+    // v18: jewellery core tables. A fresh phone starts with the module ready.
+    await MigrationV18.addSchema(db);
+    // v19: jewellery operations (orders delivery, workers, returns).
+    await MigrationV19.addSchema(db);
+    // v20: retail sale pricing fields.
+    await MigrationV20.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings
@@ -752,9 +776,7 @@ class LocalDb {
       where: category == null
           ? 'reference_id = ?'
           : 'reference_id = ? AND category = ?',
-      whereArgs: category == null
-          ? [referenceId]
-          : [referenceId, category],
+      whereArgs: category == null ? [referenceId] : [referenceId, category],
       orderBy: 'entry_date asc, entry_time asc',
     );
   }

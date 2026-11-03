@@ -1,12 +1,12 @@
 # Jewellery Suite — Master Task & Feature Tracker
 
 **Folder:** `mobile/jewellery_suite/APK_Project_Progress/`
-**Last updated:** 2026-11-01 (**v1.2.2** built + installed — **#06L** dark-mode chip contrast fixed on the phone, and **#063** pawn filters/search ✅ phone-verified. **v1.2.1** restored the real app shell (**#06K** ✅). **v1.2.0** carried **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log). Latest code change: **#06K** — the placeholder shell that had replaced `lib/app.dart` was removed, the real app shell is back, and both password launch gates are switched off behind one dev flag (see the newest change-log entry).
+**Last updated:** 2026-11-03 (**v1.2.8** is still the installed build — **#06L** dark-mode chip contrast fixed on the phone, and **#063** pawn filters/search ✅ phone-verified. **v1.2.1** restored the real app shell (**#06K** ✅). **v1.2.0** carried **#040 due reminders**; **#06G/#06H/#06I/#06J**, **#057**, **#044**, **#046** and **#040** phone-verified — see sections 1d/1e/1g/3 and the change log). Latest code change: **#043 jewellery is 🟨 CODE DONE** (schema v20) — **KDM / Non-KDM retail sale pricing**, separate sale/purchase forms, **Customer Credit Book · Orders · Workers · Old Metal · Returns · Reports**, **Supplier Payables**, **stock valuation**, **document search/filter** and a package-free **six-month sales/purchases chart** are built. **#047** pawn due-date filtering is 🟨 CODE DONE too. `flutter analyze` clean, **456 tests passing**. **v1.3.0 (versionCode 2046) arm64 split APK is built and release-signed but NOT installed** — installing it and running the consolidated phone pass are the next step.
 **Working branch for APK + GitHub traceability:** `Apk_Develop_Branch_01_11` (created 01/11/2026). This branch is the current APK develop loop: release-sign the build → install on the phone via wireless debugging → do the hands-on phone pass → record the result here → commit and push on this branch.
-**App version installed for testing:** v1.2.2 (versionCode 38, **release-signed**) — installed in place over v1.2.1 on 2026-11-01 via wireless debugging (`adb-tkkjdufqvoof9xeq-FW6uqZ` mDNS, `10.235.54.83:38271`), data kept
-**Release build:** v1.2.2 (versionCode 38, **release-signed**) — `mobile/jewellery_suite_v1.2.2.apk` (`98,982,780` bytes), SHA-256 `448243793c51ec3ad36fb193ecb39e2aec60e361b4f99bd22bcce68bb73e8b33`, built 2026-11-01. Previous: v1.2.1 (versionCode 37) SHA-256 `cbb22833…af727ee1`; v1.2.0 (versionCode 36) SHA-256 `36b9a2a7…1b7171`
+**App version installed for testing:** v1.2.8 (versionCode 44, **release-signed**) — installed in place over v1.2.7 on 2026-11-02 over wireless debugging to the Redmi Note 8 Pro (`adb-tkkjdufqvoof9xeq-FW6uqZ._adb-tls-connect._tcp` mDNS name; the printed IP:port changes every session), data kept. **This install predates the 2026-11-03 jewellery feature batch. The v1.3.0 arm64 split APK is built but has NOT been installed yet; install it for the phone pass.**
+**Release build:** v1.3.0 (versionCode 2046, **release-signed**, arm64 split) — `mobile/jewellery_suite_v1.3.0-arm64-v8a.apk` (`37,172,836` bytes), SHA-256 `bf6ef15f318fecaa8163921f4b9b8b6280a1d6f4c87df8c71313bfb80127d36b`, built 2026-11-03 from `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`. **Built but NOT installed.** Use split APKs (`flutter build apk --release --split-per-abi`): the universal versionCode 46 cannot upgrade the installed split build. Previous: v1.2.8 (44) SHA-256 `1bf11e52159933e632fb5ecb26233ae12c1346117c8bf077af40098894470c58`; v1.2.7 (43) SHA-256 `acb59224…7e3b312`; v1.2.6 (42) SHA-256 `015c8746…b0f4da`; v1.2.5 (41) SHA-256 `db39a8ba…6579a1b`; v1.2.4 (40) SHA-256 `128e227c…a9ff633`; v1.2.3 (39) SHA-256 `479cae95…2c71579`; v1.2.2 (versionCode 38) SHA-256 `44824379…73e8b33`; v1.2.1 (versionCode 37) SHA-256 `cbb22833…af727ee1`; v1.2.0 (versionCode 36) SHA-256 `36b9a2a7…1b7171`
 **Published APK:** GitHub release **v1.1.6**, asset `jewellery_suite_v1.1.6.apk`; v1.1.7 is built and installed but **not published yet** — `mobile/.gitignore` excludes `*.apk`, so APKs ship as release assets
-**Next target:** finish the phone pass on the remaining CODE DONE items: **#064** (schema v16 / category table), **#065** (OTP gateway card — needs the shop's SMS/e-mail URL) and **#06A** (pawn-move gate), then **#041/#042** and **#066**. **#040** (due reminders), **#057** (stay signed in), **#044** (cashbook edit), **#046** (You Gave mode) and **#06J** (pawn tile cloud + ⋮) are ✅ phone-verified on v1.2.0/v1.1.9/v1.1.8. After that, continue with the deferred items **#040–#043** (notifications, report export, HTTPS, jewellery module) and **#066** (fingerprint). **Play Store work is parked until v2.**
+**Next target:** `adb connect 10.235.54.170:36357`, install the built **v1.3.0 arm64 split APK** (`adb install -r`), then run the consolidated **#043** jewellery phone pass (KDM ₹1,66,000, non-KDM ₹1,51,000, order delivery, worker ledger, return, old-metal register, reports, stock valuation, document filters, chart, supplier payable and purchase cash OUT), then check **#047** due-date filtering on the phone, then configure a real SMS/e-mail gateway for **#065**, **#049** (encrypted DB) and **#066** (biometric). **#041** now ships its **CSV export** (v1.2.8) and the **jewellery chart** (2026-11-03, package-free); only PDF/Excel remain blocked on the missing packages. **#06A** (v1.2.5), **#048** (v1.2.6) and **#064** (v1.2.3) are closed, all phone-verified. **#040** (due reminders), **#057** (stay signed in), **#044** (cashbook edit), **#046** (You Gave mode) and **#06J** (pawn tile cloud + ⋮) are ✅ phone-verified on v1.2.0/v1.1.9/v1.1.8. **Play Store work is parked until v2.**
 
 
 ---
@@ -145,7 +145,7 @@ Everything below was 🟨 **CODE DONE** in v1.1.4. The hands-on pass on v1.1.7 n
 | **#061** | ✅ DONE | Pawn actions | **Pawn Loans → tile menu** | Caller functions like Khatabook | Every tile has a ⋮ / long-press menu: **Call · SMS · WhatsApp · Move to another pawn profile · Edit**. Edit changes principal (only when nothing is paid), interest rate and both dates, and recalculates interest/payable/balance. Phone check: long-press opens **Call / SMS / WhatsApp / Move / Edit**. |
 | **#062** | ✅ DONE | Pawn categories | **Pawn Loans → Categories** | Categories beside Active / Released / Villages, with custom names and multi-move | New **Categories ▾** filter seeded with **Forgot_Slip_List** and **Pawn_Removed**. Manage screen adds custom categories, renames them (loans follow) and removes labels. App-bar checklist turns on **multi-select**; the bottom bar moves every selected loan in one go. Phone check: both seeded names plus **Add Custom** are present. |
 | **#063** | ✅ DONE | Pawn filters / search | **Pawn Loans → filters** | Toggle chips off, search by name/ID/amount, date range | Tapping the selected **Active**, **Released**, **Gold**, **Silver** or **Mixed** chip clears it (shows everything). Search matches **name, book ID, amount**, phone or village. New **Date** chip opens a from–to range on the loan date and can be cleared. **Phone check (v1.2.2, 2026-11-01):** tapping **Active** cleared it and the list then showed both **Phone QA A03 · ₹60,000 · Released** and **Phone QB A04 · ₹20,000**; search `A04` and `20000` both kept the ₹20,000 row, `A049` emptied the list (*No pawn loans here.*) and zeroed the strip to ₹0/₹0/₹0, `Phone` showed both accounts; **Date range** applied `1 Nov – 30 Nov` (pill + caption under the summary, loan kept) and then `1 Dec – 31 Dec`, which emptied the list and zeroed the summary. | |
-| **#064** | 🟨 CODE DONE | Database | **Schema** | — | **v16**: `pawn_loans.category` + `pawn_categories` table, seeded once. Backups track the new table, and restore now keeps the phone's account + lock settings across the replacement. |
+| **#064** | ✅ DONE | Database | **Schema** | — | **v16**: `pawn_loans.category` + `pawn_categories` table, seeded once. Backups track the new table, and restore now keeps the phone's account + lock settings across the replacement. **Phone check (v1.2.3, 2026-11-02):** the pawn Filter menu listed **All categories · Forgot_Slip_List · Pawn_Removed** and the move sheet listed both seeded names, so the v16 table is live on the device; **Pawn Categories** showed both with `0 loan(s)`, and a custom **QA_Cat** was added from **Add Custom** (appeared as `0 loan(s)`) and removed again through its menu → OK (*Remove the category "QA_Cat"?*). The phone was left with the two seeded categories only. |
 
 > **OTP delivery — known limitation.** The app is offline and ships no SMS/e-mail gateway, so
 > the one-time code is generated on the phone and shown in the dialog, clearly marked
@@ -165,7 +165,7 @@ Everything below was 🟨 **CODE DONE** in v1.1.4. The hands-on pass on v1.1.7 n
 | **#044** | ✅ DONE | Cashbook | **Cashbook → a manual row → edit icon** | The entry sheet reopens pre-filled and saves over the same row (amount, category, mode, party, notes, date). Module-owned rows are refused with an explanation. **Phone check (v1.1.9):** the manual **Edit Test** row’s **Edit this entry** button opened **Edit Cash IN** pre-filled (Customer Payment, CASH, ₹750); switching to **UPI** and **SAVE CASH IN** changed that same row to `Edit Test | UPI | 11:31:04 • CUSTOMER PAYMENT • manual row | +₹750` — amount kept, no duplicate row — and it was then reverted to **CASH**. |
 | **#045** | ✅ DONE | Cashbook | **Cashbook → VIEW chips** | **Day · This month · All time · Range**. The list and the tally both use the chosen span; `Range` opens a date-range picker. Phone check: all four chips and the date picker work. |
 | **#046** | ✅ DONE | Customer Profile | **You Gave ledger rows** | The stored payment mode is appended to the row note (`Late fee — note · UPI`). **Phone check (v1.1.9):** the **Phone QA (A03)** ledger row read `01 Nov 26 11:38 AM | ₹50 | Bal ₹1,150 | Late fee — test · UPI` — the note, the stored reason and the mode together. |
-| **#065** | 🟨 CODE DONE | Passwords / OTP | **Password Settings → One-time code delivery** | Optional gateway URL + SMS/E-mail channel. Codes are really sent when it is set; otherwise the on-phone fallback stays, so nobody is locked out. |
+| **#065** | 🟧 PARTIAL | Passwords / OTP | **Password Settings → One-time code delivery** | Optional gateway URL + SMS/E-mail channel. Codes are really sent when it is set; otherwise the on-phone fallback stays, so nobody is locked out. **Phone check (v1.2.3, 2026-11-02):** the card took `https://shop.local/otp`, the **SMS** channel and **Save gateway** → *“Codes will be sent by SMS.”*; **Remove gateway** → *“Gateway removed — codes are shown on this phone.”* and the offline fallback was restored. **Not verified:** an actual send to a provider — the test phone has no gateway account, so the network path is exercised only by `test/cashbook_edit_range_test.dart`'s config case. |
 
 
 ---
@@ -182,7 +182,7 @@ needs its own phone check.
 | **#067** | ✅ DONE | Pawn list | **Pawn Loans → loan tiles** | Removed the wide customer-name / ID / three-dot gap. Row 1 is now photo + **Name** + **₹Amount** only; row 2 is a highlighted gold **ID** badge, village, loan date and item. The wasted **Active** word is gone and a released tile is muted with a **Released** tag. **Phone check:** density and tag are correct; the missing sync-state cloud and caller icon were logged as **#06J**, fixed and phone-verified on v1.1.8 (gold `cloud_upload` badge + ⋮ on the tile). |
 | **#068** | ✅ DONE | Pawn list | **Pawn Loans → each tile** | Caller functions: every pledge now offers **Call · SMS · WhatsApp · Move to another pawn profile · Edit** from the long-press menu, and Customer KYC & Details stays inside the customer/pawn profile beside the phone number. Phone check: all five actions appear on long-press. |
 | **#069** | ✅ DONE | Pawn profile | **Customer Pawn Profile → Loan details** | Added a **Due Date (promised)**, an **Actual Due Date** and **Outstanding** that always refers to the actual due date. The form now also keeps the promised/actual due separate, and the **Edit** sheet keeps the actual column when the shop closes the date. Phone check: the three labels read correctly. |
-| **#06A** | 🟨 CODE DONE | Pawn list | **Pawn Loans → Move to another pawn profile** | The move action asks for the simple pawn-move password (independent of delete/release; defaults to the admin secret, swappable in Password Settings), then moves one or many selected loans into a category. The delete / release ask-password prompt still lives only in **Settings** and **Password Settings** — it is not duplicated on the tile. |
+| **#06A** | ✅ DONE | Pawn list | **Pawn Loans → Move to another pawn profile** | The move action asks for the simple pawn-move password (independent of delete/release; defaults to the admin secret, swappable in Password Settings), then moves one or many selected loans into a category. **Defect found on the phone (v1.2.2, 2026-11-02):** the move happened with **no prompt at all** — `AppState.verifyPawnMovePassword` existed but nothing ever called it. **Fixed in v1.2.3:** `_chooseCategory` now goes through `confirmAdmin` with `verifyPawnMovePassword`, fails closed, and the label reads **Type pawn-move password**. **Phone check (v1.2.3):** choosing **Pawn_Removed** raised *“Are you sure to move to another pawn profile?”* with **Cancel / Move**, and a wrong secret left the loan uncategorised (both categories still `0 loan(s)`). **Closed in v1.2.5 (phone-verified 2026-11-02):** Password Settings gained a **Pawn-move password** card — it states whether the move asks for the admin password or its own, with **Set a password / Change password** and **Use admin password** to drop the dedicated secret again (`AppState.clearPawnMovePassword`). On the phone: the admin password was first reset through **Forgot password?** (offline code) because `Admin@123` was rejected; **Set a password** then accepted it and saved `Move@1234`, the card read *“Moving a pledge asks for this password, not the admin one.”*, the move asked **Type pawn-move password** and `Move@1234` produced *“Moved to Pawn_Removed.”*, moving the pledge back produced *“Category removed.”*, and **Use admin password** produced *“Move will ask for the admin password.”* with the card back to the fallback. | The delete / release ask-password prompt still lives only in **Settings** and **Password Settings** — it is not duplicated on the tile. |
 | **#06B** | ✅ DONE | Pawn categories | **Pawn Loans → Categories** | Seeded defaults are **Forgot_Slip_List** and **Pawn_Removed**; **Add Custom** creates a new named category any time. Names can be renamed later and loans follow. Phone check: both defaults and **Add Custom** are present. |
 
 
@@ -248,16 +248,16 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
 | # | Status | Area | Feature | Notes |
 |---|---|---|---|---|
 | **#040** | ✅ DONE | Reminders | Local notifications for due / overdue members | **v1.2.0:** Settings → **Due reminders** switch, one 9:00 summary naming who is collectable today (never the outstanding), scheduled with `flutter_local_notifications` + `timezone`, Android 13+ permission requested when the switch is turned on, `POST_NOTIFICATIONS` and `RECEIVE_BOOT_COMPLETED` declared, boot receiver re-arms after a reboot, Gradle core-library desugaring enabled. The arithmetic lives in `lib/util/due_reminders.dart` (7 tests: arrears + arrived installment, oldest-first collections, closed loans silent, no-schedule skipped, ordering, wording). **Phone check (v1.2.0):** turning the switch on raised *“Allow Jewellery Suite to send you notifications?”*, **Allow** was accepted (`appops … POST_NOTIFICATION` → default allow) and the card then read **“One 9:00 notification with who is due or overdue today”**. |
-| **#041** | 🔵 DEFERRED | Reports | Export (PDF/Excel) and charts | Deferred from v1.1.1. |
+| **#041** | 🟧 PARTIAL | Reports | Export (PDF/Excel) and charts | Deferred from v1.1.1. **Blocked by the offline pub cache (checked 2026-11-02):** `~/.pub-cache` holds `intl` and `share_plus` but **no `pdf`, `printing` or `excel`**, so PDF/Excel cannot be built on this machine without network access. The app already has `share_plus` + the SAF save channel (`BackupFiles.saveCopy`), so a **CSV** export is the slice that can ship today if the shop accepts CSV as the first step; the charts and PDF/Excel stay behind the same number once the packages are available. **CSV shipped in v1.2.8:** the Reports app bar has an **export** action that writes the visible tab’s own figures (`lib/util/report_csv.dart`, fed by the views’ `_r`) and opens the Android share sheet. **Phone check (v1.2.8, 2026-11-02):** the share sheet opened with *“Sharing 1 file”* and `jewellery_suite_khata_2026-11-02_09-07.csv`, and logcat showed no exception. **Fixed in the same round:** the first build crashed on the tap because the export read the tab from `DefaultTabController.of(context)` using the screen State’s own context, which sits *above* the controller it builds — the index is tracked in state now (v1.2.7 → v1.2.8). **Charts shipped 2026-11-03 without packages:** Jewellery → Reports now has a **Sales vs purchases · last 6 months** grouped bar chart, fed by `JewelleryStore.monthlyTotals()` and drawn with ordinary widgets. Orders and cancelled documents are excluded; the six-month view is independent of the Day/Month/All money chips. Unit-tested in `test/jewellery_store_test.dart` (six-month fill, order/cancelled exclusion, shorter window); phone check pending. **Still blocked:** PDF and Excel export only, because the offline pub cache has no `pdf`, `printing` or `excel`. |
 | **#042** | 🔵 DEFERRED | Sync / Security | Enforce HTTPS for server sync | Keep LAN HTTP working for v1.1.1; revisit certificate/pinning. |
-| **#043** | 🔵 DEFERRED | Jewellery module | Full buy/sell/stock/valuation module | The Home card currently says “coming soon”. |
+| **#043** | 🟨 CODE DONE | Jewellery module | Full buy/sell/stock/valuation module | **Feature batch code-complete 2026-11-03 (schema v20); APK build + consolidated phone pass pending.** Home → **Jewellery** dashboard has saved gold/silver rates, raw/finished/old-metal stock, today's figures, documents with **search + type/metal/payment-status filters**, and tiles for **Customer Credit Book · Supplier Payables · Orders · Workers · Old Metal · Returns · Reports**. **Sale/order and purchase are now different forms.** Retail sale/order lines choose **KDM** (`(net + wastage%) × rate + flat making`) or **Non-KDM** (`net × rate + flat making`), show billing weight live, and record actual purity + optional cost-to-shop for profit. Purchase keeps `weight × purity% × rate` and supplier making modes. Multi-line entry, old-metal exchange, payments, notes, whole-rupee round-off and stored rate snapshots are in place. **Customer Credit Book** groups sales by customer name, shows billed/received/outstanding, and posts receipts. **Supplier Payables** mirrors it for purchases: one row per supplier, a ledger with purchases as credits and purchase payments as debits, and **Pay supplier** posts cash **OUT**. **Orders** are Pending → Ready → Delivered/Cancelled and move stock only on delivery. **Workers** have signed cash/gold ledgers and worker orders. **Returns** are linked credit notes that never rewrite the sale and guard against over-return. **Old-metal register** and **Reports** are built; Reports now include **stock valuation** (fine grams × latest saved pure rate, old metal included as an asset) and a package-free **six-month sales/purchases bar chart**. Schema **v18 + v19 + v20** tracked by backups; cashbook: sale/order receipts IN, purchase payments OUT. Tests: maths 42 (C01–C15), store 22, credit book 8, operations 15, supplier 6; full suite **456 passing**, `flutter analyze` clean. **Still open:** phone verification of this batch; PDF/Excel export (offline packages); encrypted DB/biometric/real OTP gateway. |
 | **#044** | ✅ DONE | Cashbook | Manual entry edit (v1.1.5) | A hand-typed row has an **edit** icon that reopens the entry sheet pre-filled (amount, category, mode, party, notes, date). Rows created by Khatabook / Pawn / Jewellery are refused — they must be corrected in their own module, so source and cash never disagree. `test/cashbook_edit_range_test.dart`. |
 | **#045** | ✅ DONE | Cashbook | Date-range view (v1.1.5) | New **VIEW** row: **Day · This month · All time · Range**. Month/range use an inclusive `from`/`to` in the database, and the tally card follows the same filter. |
 | **#046** | ✅ DONE | Customer Profile | Payment mode on You Gave rows (v1.1.5) | The ledger note now ends with the stored mode (`Late fee — note · UPI`). |
-| **#047** | ⬜ TODO | Pawn | Filter/search pledge list by metal, status, due date | Partly exists; complete the list side (#033). |
-| **#048** | ⬜ TODO | Backup | Scheduled/automatic local backup | Manual only today. |
+| **#047** | 🟨 CODE DONE | Pawn | Filter/search pledge list by metal, status, due date | **2026-11-03:** metal (Gold/Silver/Mixed) and Active/Released were already on the list; the missing **due-date** filter is now built. **Filter ▾ → Due date range** picks an inclusive from–to on the **actual due date**, falling back to the promised `due_date` when no actual date is set. The same predicate feeds the list and the summary strip, so they cannot disagree. **Clear date filters** clears loan-date and due-date ranges together. Covered by `PawnMath.dueDateIso` / `PawnMath.dueBetween` tests in `test/pawn_math_test.dart` and a menu-presence widget test in `test/pawn_profile_ui_test.dart`. Phone check pending. |
+| **#048** | ✅ DONE | Backup | Scheduled/automatic local backup | **v1.2.6:** Settings → **Automatic backup**. While on, one **verified** copy is written per calendar day, started after the first frame so it never delays opening the app. Archives are named `auto_jewellery_suite_*.zip`, the newest 7 are kept, and pruning can only delete copies this feature made — a manual backup is never touched. A failed or unverified attempt does not mark the day covered, so the next start retries. **Phone check (v1.2.6, 2026-11-02):** switching it on read *“One verified backup a day, kept in Backup & data (newest 7)”*; after a force-stop and relaunch the card read *“Last automatic backup 02-11-26 08:53 · keeps the newest 7”* and **Backup & data** listed `auto_2026-11-02_08-53-00.zip` (10 KB) under *Saved backups (1)*. Covered by `test/auto_backup_test.dart` (4 cases: off, one per day, pruning keeps manual copies, retention clamp). |
 | **#049** | ⬜ TODO | Security | Encrypted local DB | PIN lock (#037) and admin password (#038) are done; encryption is the remaining piece. |
-| **#065** | 🟨 CODE DONE | Login / OTP | Deliver one-time codes by real SMS / Gmail | v1.1.5 adds **Password Settings → One-time code delivery**: paste an SMS/e-mail gateway URL, choose SMS or E-mail, and the app POSTs `{to, channel, purpose, code, message}`. Any 2xx counts as sent; the code is only shown on the phone when no gateway is set or the send fails. **Still needs the shop's gateway URL** (provider account) to leave the phone in production. |
+| **#065** | 🟧 PARTIAL | Login / OTP | Deliver one-time codes by real SMS / Gmail | v1.1.5 adds **Password Settings → One-time code delivery**: paste an SMS/e-mail gateway URL, choose SMS or E-mail, and the app POSTs `{to, channel, purpose, code, message}`. Any 2xx counts as sent; the code is only shown on the phone when no gateway is set or the send fails. **Still needs the shop's gateway URL** (provider account) to leave the phone in production. |
 | **#066** | ⬜ TODO | Security | Fingerprint / face unlock | The entry now lives in Password Settings (#059). Deferred: `local_auth` is not in the offline pub cache and the prompt would need a `FlutterFragmentActivity` switch plus device enrolment to verify, so the PIN / Daily MPIN remains the only method for now. |
 
 ---
@@ -290,6 +290,32 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
 ---
 
 ## 5. Change log
+
+### 2026-11-03 — jewellery completion round: supplier payables, valuation, filters, chart; pawn due-date filter
+- **Supplier Payables built.** Purchases are grouped by supplier name (case-insensitive), with billed/paid/outstanding, an open-purchase chooser, and a ledger where a purchase is a credit and every purchase payment is a debit. **Pay supplier** posts **OUT/red** (`JEWELLERY_PURCHASE`); customer sales never appear in the supplier book. New `test/jewellery_supplier_test.dart` — **6 cases**.
+- **Stock valuation built.** `JewelleryStore.stockValuation()` reads fine grams from the stock ledger and multiplies by the newest saved pure-metal rate for each metal. Old metal is included as an asset. Reports shows raw/finished/old fine grams and values per metal plus a total. Old-metal movements now store their purity as 100 because their weight is already pure-equivalent; the valuation query also treats historical OLD rows that way. `test/jewellery_store_test.dart` gained two valuation cases.
+- **Jewellery document search/filter built.** The dashboard list now has a search box (doc no / party / notes) and chips for **All types · Sales · Purchases**, **All metals · Gold · Silver**, **All status · Dues · Settled**. The store's `invoices()` supports the same `search`, `metal`, `paymentStatus`, and `partial` / `unpaid` predicates. Three store cases cover search, type+metal, and payment status.
+- **Package-free chart built.** Jewellery → Reports adds **Sales vs purchases · last 6 months**, fed by `JewelleryStore.monthlyTotals()` and drawn with ordinary widgets. Orders and cancelled documents are excluded. Two store cases cover the six-month fill and a shorter window. #041 remains 🟧 PARTIAL because **PDF/Excel** still need unavailable packages.
+- **Pawn #047 due-date filter built.** **Filter ▾ → Due date range** uses the actual due date when present, else the promised date, and narrows both the list and the summary strip. **Clear date filters** clears loan-date and due-date ranges. `PawnMath.dueDateIso` / `dueBetween` have two new cases; the filter menu has a widget test.
+- **Checks:** `flutter analyze` → **No issues found**; full suite **456 tests passing**. **Release build:** v1.3.0 / versionCode 2046, arm64 split APK `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` (`37,172,836` bytes, SHA-256 `bf6ef15f318fecaa8163921f4b9b8b6280a1d6f4c87df8c71313bfb80127d36b`), copied to `mobile/jewellery_suite_v1.3.0-arm64-v8a.apk`; release certificate SHA-256 `54f9833223d1a85278a749b89ffa613cecc88e147dca25fa1cf6bad52ab61c09`. **Built but NOT installed** — the consolidated phone pass is still the gate for ✅.
+
+### 2026-11-03 — jewellery feature batch code-complete (schema v20), phone pass pending
+- **Retail sale pricing corrected.** A sale/order no longer applies purity to the selling price. **KDM** bills `(net + wastage%) × rate + flat making`; **non-KDM** bills `net × rate + flat making`. The owner's examples are now acceptance tests: 10 g + 10% at ₹15,000 + ₹1,000 making = **₹1,66,000**; 10 g non-KDM at ₹15,000 + ₹1,000 making = **₹1,51,000** at 60%, 80% or 85% actual purity. Purity is cost-only and drives `fine_weight`; optional cost-to-shop gives the profit/loss preview.
+- **Sale/order vs purchase forms split.** The sale/order form now shows KDM/Non-KDM chips, wastage %, flat making ₹, actual purity % and cost-to-shop ₹, with a retail billing-weight preview. The purchase form keeps purity-based raw metal and supplier making modes (% / grams / ₹). They no longer look or calculate like the same document.
+- **Schema v20:** `jewellery_invoice_items.billing_basis`, `wastage_pct`, `making_charge`, `fine_weight`; old rows default to `raw` so historical totals are unchanged. Wired into `LocalDb` (version 20), fresh installs and `BackupService`.
+- **Feature screens built:** Customer Credit Book (list + customer ledger + receive payment), old-metal register, customer orders (list/detail/status/delivery), worker list/ledger/transaction/order, returns (list/form), and on-screen reports. Dashboard tiles added; orders are excluded from the sale/purchase list. Shared invoice sheet shows retail vs raw line breakdowns, wastage/billing weight, order labels and return credit.
+- **Cash direction:** purchase payments post **OUT/red** (`JEWELLERY_PURCHASE`); customer receipts post **IN/green** (`JEWELLERY_SALE` / `JEWELLERY_COLLECT`); order advances are IN. `AppState` derives direction from the document type.
+- **Profit fix:** reports now start from `subtotal − invoice discount`, not the invoice total, so old-metal credit is treated as an asset exchange and no longer understates profit. If only item actual cost is recorded, profit uses it instead of reporting a fake zero-cost profit.
+- **Tests:** `test/jewellery_math_test.dart` **42** (C01–C15), `test/jewellery_store_test.dart` **15**, `test/jewellery_credit_book_test.dart` **8**, `test/jewellery_operations_test.dart` **15**; full suite **440 passing**, `flutter analyze` clean.
+- **Not done at the time of this entry:** release APK build/install, consolidated phone pass, supplier ledgers, PDF/Excel/charts, encrypted DB, biometric and real OTP gateway. **Superseded by the completion-round entry above** for supplier ledgers, stock valuation, filters and charts. No status below is upgraded to ✅ without a phone observation.
+
+### 2026-11-02 — jewellery core (schema v18), code complete, build pending
+- **Calculation engine:** `lib/util/jewellery_math.dart` is now the one formula home for the jewellery module. It implements the owner's purity-rate rule, percentage / fixed-weight / flat-rupee making (one mode per line), sale discount reducing sale value, supplier costing, worker return suggestions (never posted), old-metal equivalent and suggested credit, weight-proportional shared expenses, half-up whole-rupee rounding + stored adjustment, recovery colours, outstanding with one old-metal credit, worker cash↔metal conversion with a kept remainder, payment allocation and estimated/final profit.
+- **Acceptance tests:** `test/jewellery_math_test.dart` — **37 cases, C01–C14 all passing** (`flutter test test/jewellery_math_test.dart`).
+- **Schema v18:** `jewellery_rates`, `jewellery_invoices`, `jewellery_invoice_items`, `jewellery_payments`, `jewellery_old_metal`, `jewellery_stock_movements`; added to `BackupService.trackedTables`. `LocalDb` now opens at version 18, which also applies the v17 pawn-date migration that upgrades had skipped.
+- **Store + screens:** `lib/data/jewellery_store.dart` computes and persists a document atomically (totals, old metal once, round-off, stock, payment), and `lib/features/jewellery/screens/` provides the dashboard and the sale/purchase form. **Home → Jewellery** no longer says “coming soon”. Cashbook receives the money side under `JEWELLERY_*` categories, and deleting a document removes its cash rows and stock movement too.
+- **Store tests:** `test/jewellery_store_test.dart` — **12 cases passing** (rate history, sale/purchase totals, old metal counted once, stock, sequences, part payment, overpayment refusal, cascade delete, grey-without-cost recovery).
+- **Not done:** APK build/install/phone pass, customer + worker orders, returns, ledgers, worker settlement UI, reports, multi-line entry and actual-cost entry.
 
 ### 2026-10-30 — v1.1.5 built, installed and published
 - **Signed release APK:** v1.1.5 / versionCode 31, 98.6 MB (`98,554,731` bytes), `mobile/jewellery_suite-release.apk`, SHA-256 `91b4f83801ac6c4e82c222dd353924104efde99dc40b814d9280ae7ae8f2dbb2`.
@@ -583,9 +609,146 @@ is text colour very dim which is not visible.”
   black-on-black). No layout shift and the tap behaviour is unchanged.
 - **Build:** v1.2.2 / versionCode 38, `mobile/jewellery_suite_v1.2.2.apk` (`98,982,780` bytes), SHA-256
   `448243793c51ec3ad36fb193ecb39e2aec60e361b4f99bd22bcce68bb73e8b33`, `flutter analyze lib` clean.
-- **#063 ✅ phone-verified on the same build** (details in the 1d table): chip tap-to-clear, search by
-  name / ID / amount, and the loan-date range all behave as specified, and the summary strip follows
-  the filters (₹0/₹0/₹0 when nothing matches).
+- **#063 ✅ phone-verified on the same build** (details in the 1d table): chip tap-to-clear, search by  name / ID / amount, and the loan-date range all behave as specified, and the summary strip follows the
+  filters (₹0/₹0/₹0 when nothing matches).
+
+### 2026-11-02 — v1.2.3 — #06A move gate repaired, #064 and #065 phone-checked
+
+**What the phone found first.** On v1.2.2, **Pawn Loans → ⋮ → Move to another pawn profile →
+Pawn_Removed** moved the pledge instantly with **no password prompt** (*“Moved to Pawn_Removed.”*).
+`AppState.verifyPawnMovePassword` had been written for #06A and **was never called from anywhere** —
+the gate existed in the state layer only, so the tracker's “asks for the simple pawn-move password”
+was never true on the device.
+
+- **#06A fixed.** `_chooseCategory` (`lib/features/pawn/screens/pawn_screen.dart`) now asks the secret
+  through `confirmAdmin` (`verify: state.verifyPawnMovePassword`), fails closed, carries
+  **Type pawn-move password** / **Move**, and skips a no-op tap on the category the loan already has.
+  The dedicated secret is used when one is set; otherwise it falls back to the admin password —
+  a fallback, not a bypass.
+- **A second defect found by the new test:** `confirmAdmin` created its `TextEditingController` and
+  disposed it in a `finally` as soon as `showDialog` returned. The route is still animating out and
+  rebuilds the `TextField` once more, so Flutter threw *“A TextEditingController was used after being
+  disposed”* — the same trap recorded for the amount-range dialog in #06G. The controller now lives in
+  a small `_SecretPrompt` `StatefulWidget` and is disposed when the dialog is really gone. This was
+  breaking three other widget tests (collection reminder, pawn profile, KYC name) as well.
+- **New regression test:** `test/pawn_profile_ui_test.dart` → *“moving a pledge asks the pawn-move
+  password (#06A)”* — with a dedicated secret set, tapping a category must show the prompt, a wrong
+  secret must leave `category` NULL, and the right one must set it to `Pawn_Removed` with the
+  `Moved to Pawn_Removed.` confirmation. The old code fails this test at the first assertion.
+- **#064 ✅ phone-verified.** Filter menu shows **All categories · Forgot_Slip_List · Pawn_Removed**;
+  **Pawn Categories** listed both with `0 loan(s)`; **Add Custom** created **QA_Cat** (`0 loan(s)`) and
+  its **Remove category → OK** removed it again. The v16 category table is live and writable.
+- **#065 🟧 PARTIAL phone-checked.** **One-time code delivery** accepted `https://shop.local/otp` +
+  **SMS** → *“Codes will be sent by SMS.”*; **Remove gateway** → *“Gateway removed — codes are shown on
+  this phone.”* The offline fallback is back on the phone. **No real send was observed** — there is no
+  gateway account on the test phone, so the network path still needs the shop's URL.
+- **Checks:** `flutter analyze lib test` → **No issues found**; `flutter test` → **349 pass**, exit 0
+  (348 + the #06A case). Run with `TMPDIR=$PWD/.dart_tool/tmp`.
+- **Build:** v1.2.3 / versionCode 39, `mobile/jewellery_suite_v1.2.3.apk` (`98,982,780` bytes),
+  SHA-256 `479cae9542dda36a6844077a87aec6e728bb0831cf87b713cfdde91992c71579`, release-signed with the
+  same upload keystore (certificate SHA-256 `54f98332…ab61c09`), `assembleRelease` 163.8 s.
+- **Installed in place** over v1.2.2 → **Success**, `dumpsys` reports **1.2.3 / versionCode 39**;
+  cold start went straight to **Home** with the ledger (₹20,000 pawn, ₹1,000 khata) intact.
+- **Left on the phone:** the test pledge is uncategorised again and the only categories are the two
+  seeded names; no loan, collection or cashbook row was created or deleted this round.
+- **Still open for #06A (at v1.2.3):** a dedicated pawn-move password could not be set from the UI
+  (`setPawnMovePassword` had no caller, despite #06A and `Temp_Passwords_readme.md` row 5 both saying
+  Password Settings could change it), and the admin password on this phone was **not** `Admin@123` —
+  a correct-secret move was never observed on the device. **Both were closed in v1.2.5 — see the next
+  entry.**
+
+### 2026-11-02 — v1.2.4 / v1.2.5 — Pawn-move password card, and the digits-only prompt behind it
+
+- **#06A gets its own secret (v1.2.4).** Password Settings carries a **Pawn-move password** card
+  between the delete/release card and the admin card. It says whether the move asks for the admin
+  password or its own, offers **Set a password / Change password**, and **Use admin password** to
+  drop the dedicated secret again. New `AppState.clearPawnMovePassword()` backs that last action;
+  `verifyPawnMovePassword` was already there and is now actually called.
+- **Why setting it looked broken (found on the phone).** The card asked for the current secret with
+  `askPinDialog` — the MPIN dialog, which carries `FilteringTextInputFormatter.digitsOnly` and
+  `maxLength: 6`. Typing `Admin@123` delivered `123` to the verifier, so the card reported a wrong
+  password while the code was correct. The **admin** card's *Change password* had the same flaw, so
+  the admin password could only ever be digits. Both now use a new `askPasswordDialog`
+  (`lib/ui/secret_dialogs.dart`): plain text field, controller owned by the dialog's `State` so it
+  cannot be disposed while the route animates out.
+- **Tests:** `test/secret_test.dart` gains two state cases (admin fallback → dedicated secret →
+  clear, and the secrets staying independent) plus a widget case asserting the prompt returns
+  `Admin@123` unchanged. `flutter analyze lib test` → **No issues found**; **352 tests pass**, exit 0.
+- **Builds:** v1.2.4 / versionCode 40, SHA-256 `128e227c…a9ff633` (intermediate, superseded).
+  **v1.2.5 / versionCode 41** — `mobile/jewellery_suite_v1.2.5.apk` (`98,999,244` bytes), SHA-256
+  `db39a8ba5b1834912ef2749b4033e6e1b03b1bf1bc105a670744880f46579a1b`, release-signed with the same
+  upload keystore, `assembleRelease` 94.6 s; installed in place over v1.2.4 (`dumpsys` 1.2.5 / 41).
+- **Phone pass (v1.2.5, 2026-11-02):** `Admin@123` was rejected, so the admin password was reset
+  through **Admin password → Forgot password?** → **Send code** (offline code `256725`) → **Verify** →
+  **New admin password**. `Pawn-move password → Set a password` then accepted `Admin@123` and saved
+  `Move@1234`; the card read *“Moving a pledge asks for this password, not the admin one.”*
+  **Pawn Loans → ⋮ → Move to another pawn profile → Pawn_Removed** asked **Type pawn-move password**,
+  and `Move@1234` produced *“Moved to Pawn_Removed.”* Moving the same pledge back produced
+  *“Category removed.”*, and **Use admin password** produced *“Move will ask for the admin password.”*
+  with the card reverted to the fallback.
+- **State left on the phone:** the test pledge is uncategorised again, the pawn-move secret is unset
+  (admin fallback, `Admin@123`), and no loan, collection or cashbook row was created or deleted.
+- **#06A is ✅ DONE.**
+
+### 2026-11-02 — v1.2.6 — #048 automatic daily backup (phone-verified)
+
+- **Settings → Automatic backup.** While the switch is on, one **verified** backup is written per
+  calendar day. It starts after the first frame (`main()` calls `AppState.runAutoBackupIfDue()` through
+  `unawaited`), so a ten-second photo archive can never delay opening the shop, and the runner
+  swallows its own failures — a phone that cannot write a backup still opens.
+- **Rules (in `lib/util/auto_backup.dart`):** off unless the shop turns it on; at most one copy per
+  **calendar day** (`auto_backup_last`), however many times the app is opened; a failed or unverified
+  archive does **not** update that marker, so the next start tries again instead of pretending the day
+  is covered; the newest `auto_backup_keep` copies are kept (default 7, clamped 1–30, so a bad setting
+  can never mean "keep none").
+- **Pruning is scoped.** `BackupService.createBackup()` gained a `prefix` argument, so automatic copies
+  are named `auto_jewellery_suite_<stamp>.zip` and pruning only ever considers `auto_` files. The
+  shop's own backups — the copies that get handed over — are never deleted by this feature.
+- **Tests:** new `test/auto_backup_test.dart` (4 cases) — does nothing while off; one copy per day and
+  none for a second run the same day, with a new one the next day; pruning leaves exactly the newest 3
+  automatic copies and keeps a manual backup; the retention setting clamps. `flutter analyze lib test`
+  → **No issues found**; **356 tests pass**, exit 0.
+- **Build:** v1.2.6 / versionCode 42 — `mobile/jewellery_suite_v1.2.6.apk` (`99,015,628` bytes),
+  SHA-256 `015c8746986389a1d15ccca567ce789cf9f86c1694f677f8c5a647feb0b0f4da`, release-signed with the
+  same upload keystore, `assembleRelease` 91.3 s; installed in place over v1.2.5 (`dumpsys` 1.2.6 / 42).
+- **Phone pass (v1.2.6, 2026-11-02):** Settings showed **Automatic backup — Off — turn on to get a
+  verified backup every day**; tapping it turned the switch on and toasted *“Automatic backup on — the
+  first copy runs next time the app starts.”* After a force-stop and relaunch the card read **“Last
+  automatic backup 02-11-26 08:53 · keeps the newest 7”**, and **Backup & data** listed
+  `auto_2026-11-02_08-53-00.zip` (10 KB) under *Saved backups (1)* with its verified status line.
+- **Not verified on the phone:** that the 8th day's copy removes the oldest (a day boundary cannot be
+  faked on the device) — that is covered by the pruning test.
+- **Kept on for the phone:** the switch is left **on**, so the test phone now makes one automatic
+  backup a day; the shop's test rows are disposable, and this is the behaviour the release should ship.
+
+### 2026-11-02 — v1.2.7 / v1.2.8 — #041 CSV report export (phone-verified)
+
+- **Reports → app-bar export.** The Reports screen gained an export action that writes the **visible
+  tab’s own figures** — `lib/util/report_csv.dart` is fed the `_r` map each view already computed, so the
+  spreadsheet cannot disagree with the screen. Khata exports the summary plus overdue / today /
+  village / customer lists; Pawn exports the metric cards plus every loan in view. Cells are quoted per
+  RFC 4180, rows end CRLF, and amounts are plain numbers so a spreadsheet reads them as money.
+- **Why CSV and not PDF.** `~/.pub-cache` has no `pdf`, `printing` or `excel` package, so PDF/Excel
+  cannot be built on this machine. `share_plus` and `intl` are already dependencies, so this slice ships
+  today and the number keeps its remainder (PDF/Excel + charts) for when the packages exist.
+- **A crash found by the phone pass, not by the suite (v1.2.7 → v1.2.8).** `_exportCsv` read the tab with
+  `DefaultTabController.of(context)` using the `_ReportsScreenState` context — which sits **above** the
+  `DefaultTabController` that build() returns — so it threw *“Null check operator used on a null value”*
+  on every tap and nothing happened on screen. The index is tracked in `_tab` and updated from
+  `TabBar.onTap`. **Lesson for the tracker:** an `AppBar` action that reads an inherited widget created
+  *inside its own build* must not use the State's context.
+- **Tests:** new `test/report_csv_test.dart` (4 cases) — quoting rules, CRLF rows, the Khata summary plus
+  a comma-containing customer name, the Pawn loan table, and both file names. `flutter analyze lib test`
+  → **No issues found**; **360 tests pass**, exit 0.
+- **Builds:** v1.2.7 / versionCode 43 SHA-256 `acb59224…7e3b312` (crashed on export, superseded).
+  **v1.2.8 / versionCode 44** — `mobile/jewellery_suite_v1.2.8.apk` (`99,032,012` bytes), SHA-256
+  `1bf11e52159933e632fb5ecb26233ae12c1346117c8bf077af40098894470c58`, release-signed with the same
+  upload keystore; installed in place.
+- **Phone pass (v1.2.8, 2026-11-02):** **Reports → export** opened the Android share sheet reading
+  *“Sharing 1 file”* with `jewellery_suite_khata_2026-11-02_09-07.csv`; logcat showed no
+  `Unhandled Exception`. The sheet was dismissed without sending the file.
+- **Not verified on the phone:** opening the CSV in a spreadsheet app, and the **Pawn** tab’s export
+  (same code path, different builder — covered by the unit test).
 - **Deliberately not changed:** the *same* hard-coded `kInk.withValues(alpha: .7)` pattern still exists
   in `lib/features/khata/screens/khata_screen.dart` and
   `lib/features/customers/screens/customer_profile_screen.dart`. They are outside this report; if the

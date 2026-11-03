@@ -164,37 +164,76 @@ Future<bool> confirmAdmin(
   TextInputType? keyboardType,
   required Future<bool> Function(String typed) verify,
 }) async {
-  final pw = TextEditingController();
   final subject = detail == null || detail.isEmpty ? '' : ' $detail';
-  try {
-    final typed = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Are you sure to $action$subject?'),
-        content: TextField(
-          controller: pw,
-          obscureText: true,
-          autofocus: true,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            labelText: labelText,
-            border: const OutlineInputBorder(),
-          ),
+  final typed = await showDialog<String>(
+    context: context,
+    builder: (_) => _SecretPrompt(
+      title: 'Are you sure to $action$subject?',
+      labelText: labelText,
+      confirmLabel: confirmLabel,
+      keyboardType: keyboardType,
+    ),
+  );
+  if (typed == null) return false;
+  return await verify(typed);
+}
+
+/// The password question itself.
+///
+/// The controller lives HERE, not in [confirmAdmin]: disposing it as soon as
+/// `showDialog` returned threw *“A TextEditingController was used after being
+/// disposed”*, because the route is still animating out and rebuilds its
+/// `TextField` once more. Owning it in a `State` disposes it only when the
+/// dialog is really gone.
+class _SecretPrompt extends StatefulWidget {
+  const _SecretPrompt({
+    required this.title,
+    required this.labelText,
+    required this.confirmLabel,
+    this.keyboardType,
+  });
+
+  final String title;
+  final String labelText;
+  final String confirmLabel;
+  final TextInputType? keyboardType;
+
+  @override
+  State<_SecretPrompt> createState() => _SecretPromptState();
+}
+
+class _SecretPromptState extends State<_SecretPrompt> {
+  final _pw = TextEditingController();
+
+  @override
+  void dispose() {
+    _pw.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _pw,
+        obscureText: true,
+        autofocus: true,
+        keyboardType: widget.keyboardType,
+        decoration: InputDecoration(
+          labelText: widget.labelText,
+          border: const OutlineInputBorder(),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, pw.text),
-            child: Text(confirmLabel),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _pw.text),
+          child: Text(widget.confirmLabel),
+        ),
+      ],
     );
-    if (typed == null) return false;
-    return await verify(typed);
-  } finally {
-    pw.dispose();
   }
 }

@@ -39,6 +39,7 @@ class _PawnScreenState extends State<PawnScreen> {
   List<String> _categories = const [];
   String? _category;
   DateTimeRange? _range;
+  DateTimeRange? _dueRange;
   (double, double)? _amountRange;
   final Set<String> _selected = {};
   bool _selectMode = false;
@@ -265,6 +266,12 @@ class _PawnScreenState extends State<PawnScreen> {
         final d = r['loan_date']?.toString() ?? '';
         return d.isNotEmpty && d.compareTo(from) >= 0 && d.compareTo(to) <= 0;
       }).toList();
+    }
+    if (_dueRange != null) {
+      final from = _dueRange!.start.toIso8601String().substring(0, 10);
+      final to = _dueRange!.end.toIso8601String().substring(0, 10);
+      filtered =
+          filtered.where((r) => PawnMath.dueBetween(r, from, to)).toList();
     }
     // Amount range. A missing side is open-ended: 0 = "no minimum",
     // infinity = "no maximum", so "above ₹50,000" or "under ₹5,000" both work.
@@ -759,10 +766,12 @@ class _PawnScreenState extends State<PawnScreen> {
           'mixed' => 'Gold + Silver pawns (mixed)',
           _ => null,
         };
-        final filterCaption =
-            _category != null || _range != null || _amountRange != null
-                ? _filterLabel
-                : null;
+        final filterCaption = _category != null ||
+                _range != null ||
+                _dueRange != null ||
+                _amountRange != null
+            ? _filterLabel
+            : null;
         final captions = [
           if (caption != null) caption,
           if (r['village'] != null) 'Village: ${r['village']}',
@@ -940,6 +949,17 @@ class _PawnScreenState extends State<PawnScreen> {
                     _pickDateRange();
                     return;
                   }
+                  if (value == '__due_date__') {
+                    _pickDueDateRange();
+                    return;
+                  }
+                  if (value == '__clear_dates__') {
+                    setState(() {
+                      _range = null;
+                      _dueRange = null;
+                    });
+                    return;
+                  }
                   if (value.startsWith('__amount__')) {
                     _pickAmountRange();
                     return;
@@ -963,9 +983,30 @@ class _PawnScreenState extends State<PawnScreen> {
                           Icon(Icons.date_range_outlined,
                               size: 18, color: kGoldDark),
                           SizedBox(width: 10),
-                          Text('Date range'),
+                          Text('Loan date range'),
                         ],
                       )),
+                  const PopupMenuItem<String>(
+                      value: '__due_date__',
+                      child: Row(
+                        children: [
+                          Icon(Icons.event_available_outlined,
+                              size: 18, color: kGoldDark),
+                          SizedBox(width: 10),
+                          Text('Due date range'),
+                        ],
+                      )),
+                  if (_range != null || _dueRange != null)
+                    const PopupMenuItem<String>(
+                        value: '__clear_dates__',
+                        child: Row(
+                          children: [
+                            Icon(Icons.event_busy_outlined,
+                                size: 18, color: kGoldDark),
+                            SizedBox(width: 10),
+                            Text('Clear date filters'),
+                          ],
+                        )),
                   PopupMenuItem<String>(
                     value: '__amount__',
                     child: Row(
@@ -986,6 +1027,7 @@ class _PawnScreenState extends State<PawnScreen> {
                   label: _filterLabel,
                   active: _category != null ||
                       _range != null ||
+                      _dueRange != null ||
                       _amountRange != null,
                 ),
               ),
@@ -997,17 +1039,25 @@ class _PawnScreenState extends State<PawnScreen> {
   }
 
   String get _filterLabel {
-    if (_category != null) return 'Category: $_category';
+    final parts = <String>[];
+    if (_category != null) parts.add('Category: $_category');
     if (_range != null) {
-      return '${_short(_range!.start)} – ${_short(_range!.end)}';
+      parts.add('Loan ${_short(_range!.start)} – ${_short(_range!.end)}');
+    }
+    if (_dueRange != null) {
+      parts.add('Due ${_short(_dueRange!.start)} – ${_short(_dueRange!.end)}');
     }
     if (_amountRange != null) {
       final (lo, hi) = _amountRange!;
-      if (hi.isInfinite) return '≥ ₹${moneyWhole(lo)}';
-      if (lo <= 0) return '≤ ₹${moneyWhole(hi)}';
-      return '₹${moneyWhole(lo)} – ₹${moneyWhole(hi)}';
+      if (hi.isInfinite) {
+        parts.add('≥ ₹${moneyWhole(lo)}');
+      } else if (lo <= 0) {
+        parts.add('≤ ₹${moneyWhole(hi)}');
+      } else {
+        parts.add('₹${moneyWhole(lo)} – ₹${moneyWhole(hi)}');
+      }
     }
-    return 'Filter';
+    return parts.isEmpty ? 'Filter' : parts.join(' · ');
   }
 
   /// Amount range for the pledge list. Either side may be left blank, so the
@@ -1110,6 +1160,19 @@ class _PawnScreenState extends State<PawnScreen> {
     setState(() => _range = picked);
   }
 
+  Future<void> _pickDueDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: _dueRange,
+      helpText: 'Pawn loans by due date',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _dueRange = picked);
+  }
+
   Future<void> _openCategories() async {
     await Navigator.push(context,
         MaterialPageRoute(builder: (_) => const PawnCategoriesScreen()));
@@ -1163,11 +1226,24 @@ class _PawnScreenState extends State<PawnScreen> {
       await _openCategories();
       return;
     }
-    await state.setPawnCategory(uuids, chosen == '__none__' ? null : chosen);
+    final target = chosen == '__none__' ? null : chosen;
+    if (current != null && target == current) return;
+    // #06A: moving a pledge changes which list it lives in, so it asks the
+    // pawn-move secret first (the dedicated one when set, the admin password
+    // otherwise). Fails closed — no secret, no move.
+    final allowed = await confirmAdmin(
+      context,
+      action: 'move to another pawn profile',
+      detail: uuids.length > 1 ? '${uuids.length} pawn loans' : null,
+      confirmLabel: 'Move',
+      labelText: 'Type pawn-move password',
+      verify: state.verifyPawnMovePassword,
+    );
+    if (!allowed || !mounted) return;
+    await state.setPawnCategory(uuids, target);
     if (!mounted) return;
     setState(() => _selected.clear());
-    _toast(context,
-        chosen == '__none__' ? 'Category removed.' : 'Moved to $chosen.');
+    _toast(context, target == null ? 'Category removed.' : 'Moved to $target.');
   }
 
   // --------------------------------------------------------------- actions
@@ -1426,13 +1502,16 @@ class _PawnScreenState extends State<PawnScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon,
-              size: 15, color: active ? kGoldDark : inkOf(context).withValues(alpha: .7)),
+              size: 15,
+              color: active ? kGoldDark : inkOf(context).withValues(alpha: .7)),
           const SizedBox(width: 4),
           Text(label,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active ? kGoldDark : inkOf(context).withValues(alpha: .7))),
+                  color: active
+                      ? kGoldDark
+                      : inkOf(context).withValues(alpha: .7))),
           if (trailing != null) ...[
             const SizedBox(width: 4),
             trailing,

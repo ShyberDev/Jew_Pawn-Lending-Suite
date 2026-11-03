@@ -47,6 +47,80 @@ Future<String?> askPinDialog(
   }
 }
 
+/// Asks for an existing **password** (letters, digits and symbols).
+///
+/// [askPinDialog] is digits-only with a six-character cap — correct for the
+/// MPIN, but it silently mangles a text password (`Admin@123` arrived as
+/// `123`). The admin and pawn-move cards ask through this one instead.
+Future<String?> askPasswordDialog(
+  BuildContext context, {
+  required String title,
+  String label = 'Current password',
+  String confirmLabel = 'Continue',
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) => _PasswordPrompt(
+      title: title,
+      label: label,
+      confirmLabel: confirmLabel,
+    ),
+  );
+}
+
+/// The prompt itself. The controller lives in a `State` so it is disposed with
+/// the route instead of while the dialog is still animating out.
+class _PasswordPrompt extends StatefulWidget {
+  const _PasswordPrompt({
+    required this.title,
+    required this.label,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final String label;
+  final String confirmLabel;
+
+  @override
+  State<_PasswordPrompt> createState() => _PasswordPromptState();
+}
+
+class _PasswordPromptState extends State<_PasswordPrompt> {
+  final _pw = TextEditingController();
+
+  @override
+  void dispose() {
+    _pw.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _pw,
+        autofocus: true,
+        obscureText: true,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _pw.text),
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+}
+
 /// Asks for a new 4–6 digit PIN twice. Returns null on cancel or mismatch.
 Future<String?> askNewPinDialog(
   BuildContext context, {

@@ -3,3 +3,6 @@
 *.aab
 *.keystore
 *.jks
+
+# Scratch APKs and phone screenshots used during the APK loop
+.tmp_apk/

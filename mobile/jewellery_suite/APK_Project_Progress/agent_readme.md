@@ -9,8 +9,9 @@ shop already made.
 - **Platform:** Flutter (Android APK), local SQLite, no server required.
 - **Branch for APK work:** `Apk_Develop_Branch_01_11` (created 01/11/2026).
 - **Tracker:** `APK_Project_Progress/README.md` — permanent task numbers `#001`…`#06F`.
-- **Last written:** 2026-11-01 (latest: §4 #06K — the placeholder shell was removed and the real
-  `lib/app.dart` restored; §5 item 12 records how it happened).
+- **Last written:** 2026-11-02 (latest: **#041** CSV report export shipped and phone-verified on
+  v1.2.8 (its first build v1.2.7 crashed on the tap — §4); before that **#048** automatic daily backup
+  shipped and phone-verified on v1.2.6; before that §4 #06A was closed — the move asks its own password, Password Settings has the card, and the password prompts are text prompts again; §5 item 14 records how the digits-only prompt hid for so long).
 
 ---
 
@@ -45,8 +46,11 @@ shop already made.
 | Dark-mode pawn chips readable (#06L) | ✅ phone-verified 2026-11-01 (v1.2.2) | Unselected chip/pill labels used hard-coded `kInk` (near-black at 70 %) so **Released / Gold / Silver / Mixed** were black-on-black in dark mode. Now `inkOf(context)` — readable in both themes. |
 | App shell + password launch gates (#06K) | ✅ phone-verified 2026-11-01 (v1.2.1 / versionCode 37) | Cold start went straight to **Home** — no PIN, no admin-password form, no login — with the dark theme and the ledger intact. `lib/app.dart` restored from `0ae051f`; gates skipped by `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart` (set it `false` for release). See §4 #06K. |
 | Dev credentials written down | ✅ `APK_Project_Progress/Temp_Passwords_readme.md` | Account password reset through the Forgot-password OTP flow so any agent can sign in; delete before handover. |
-| Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 code done, phone pass pending | Unit tests only; #065 also needs the shop's gateway URL. |
-| Pawn tile density, caller menu, categories, filters | 🟨 code done, phone pass pending | Unit tests only. |
+| Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 #065 card phone-checked 2026-11-02 | The **One-time code delivery** card saved `https://shop.local/otp` + **SMS** (*“Codes will be sent by SMS.”*) and **Remove gateway** restored the offline fallback (*“Gateway removed — codes are shown on this phone.”*). A real send still needs the shop's gateway URL. |
+| Pawn tile density, caller menu, categories, filters | ✅ category table phone-checked 2026-11-02 (#064) | Filter menu showed **All categories · Forgot_Slip_List · Pawn_Removed**, **Add Custom** created **QA_Cat** and its menu removed it again. |
+| CSV report export (#041, first slice) | ✅ phone-verified 2026-11-02 (v1.2.8) | **Reports → export** opened the share sheet (*“Sharing 1 file”*, `jewellery_suite_khata_2026-11-02_09-07.csv`). v1.2.7 crashed on the tap (`DefaultTabController.of` through the screen’s own context) — fixed in v1.2.8 by tracking `_tab`.
+| Automatic daily backup (#048) | ✅ phone-verified 2026-11-02 (v1.2.6) | Settings → **Automatic backup** on; after a restart the card read *“Last automatic backup 02-11-26 08:53 · keeps the newest 7”* and **Backup & data** listed `auto_2026-11-02_08-53-00.zip`. Pruning/off-by-default covered by `test/auto_backup_test.dart`. |
+| Pawn move asking its own password (#06A) | ✅ phone-verified 2026-11-02 (v1.2.5) | Password Settings → **Pawn-move password** → **Set a password** accepted `Admin@123` + `Move@1234`, the pledge moved with `Move@1234` (*“Moved to Pawn_Removed.”*), moved back (*“Category removed.”*), and **Use admin password** restored the fallback. |
 | Pawn tile sync cloud + visible ⋮ caller icon (#06J) | ✅ verified on the phone 2026-11-01 (v1.1.8) | Gold `cloud_upload` badge on row 2 and ⋮ on row 1 of the Phone QB tile; tapping ⋮ opened Call / SMS / WhatsApp / Move / Edit. Test in `test/pawn_profile_ui_test.dart`. |
 | Feature-folder refactor (`lib/features/...`) | 🟨 partly done | Screens moved; some helpers still in `lib/ui/`. |
 | Drag-to-delete bin | 🟨 fixed in code 2026-11-01, covered by 2 new tests, not yet phone-checked | Root cause found (§4). |
@@ -139,6 +143,17 @@ device is full” while copying `listener.dart.dill`. Run tests with
 `TMPDIR=$PWD/.dart_tool/tmp flutter test`. Before blaming a hanging test command, check `df -h /tmp`.
 
 ### Still open / risky
+
+- **Report export (#041) is blocked by the offline pub cache, not by design.** Checked 2026-11-02:
+  `~/.pub-cache/hosted/pub.dev` has `intl-0.20.3` and `share_plus-13.3.0` but **no `pdf`, `printing`
+  or `excel`**. The **CSV slice shipped in v1.2.8** (`lib/util/report_csv.dart` + the Reports app-bar
+  action); PDF/Excel and charts still need the packages, so do not promise a PDF export on this
+  machine without them.
+- **A widget built inside `build()` cannot be read back through the State's own `context`.**
+  `DefaultTabController.of(context)` in a Reports app-bar handler returned null because the
+  `DefaultTabController` is created *by* that build method — the tap crashed silently on the phone
+  (v1.2.7), the suite stayed green, and only logcat showed it. Track the index in state, or put the
+  action below the controller.
 
 - **Amount range** in the pawn Filter menu is done (#06G); the old stub note here was stale and is removed.
 - **Visual state deleted during cleanup, twice.** #06C dropped the tile's cloud badge and move dot while
@@ -244,6 +259,27 @@ These are recorded so the next session does not repeat them.
     and the app was gone. Rule: a lint error is a message about a *real* file. Fix the line, never the
     feature; and if a symbol the shell needs does not exist, add it to the file that owns it instead
     of inventing a placeholder screen to satisfy the compiler.
+13. **Wrote a security gate and never called it.** #06A was marked 🟨 CODE DONE with “asks for the
+    simple pawn-move password”, and `AppState.verifyPawnMovePassword` did exist, with the right salted
+    hash and the admin fallback. Nothing called it: `_chooseCategory` went straight to
+    `setPawnCategory`. The phone moved a pledge with no prompt, and no unit test drove the move flow,
+    so 348 green tests said nothing. Same shape as items 5 and 6 — behaviour that lives in a
+    description rather than in a code path. Rule: when a tracker line says “asks for X”, the same
+    commit must contain a test that taps through the flow and fails if the prompt is missing.
+    **Side effect of fixing it:** `confirmAdmin` disposed its `TextEditingController` in a `finally`
+    right after `showDialog` returned, and the still-animating route rebuilt the `TextField` once more
+    → *“A TextEditingController was used after being disposed”*. That was breaking three unrelated
+    widget tests (collection reminder, pawn profile, KYC name) and would have crashed the delete /
+    release prompt in debug builds. Its controller now lives in a `StatefulWidget`.
+14. **Used a digits-only prompt for a text password.** So that “Set a password” could be tested, the
+    new pawn-move card asked for the current secret with `askPinDialog` — the MPIN dialog, which has
+    `FilteringTextInputFormatter.digitsOnly` and `maxLength: 6`. On the phone `Admin@123` arrived at
+    the verifier as `123`, so the card looked broken while the code was correct. The admin card's
+    **Change password** had the same flaw (so the admin password could only ever be digits), which is
+    why the reset path had to go through Forgot-password OTP. Both now use a new `askPasswordDialog`
+    with a plain text field, and `test/secret_test.dart` asserts that prompt returns `Admin@123`
+    unchanged. Rule: a PIN prompt and a password prompt are different widgets — check the input
+    formatters before reusing one for the other.
 
 ---
 

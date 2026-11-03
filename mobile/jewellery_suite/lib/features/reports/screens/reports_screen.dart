@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../state/app_state.dart';
 import '../../../data/migration_v11.dart';
 import '../../../util/format.dart';
+import '../../../util/report_csv.dart';
 import '../../../util/khata_loan_state.dart';
 import '../../../util/pawn_math.dart';
 import '../../../features/khata/screens/khata_screen.dart' show LoanBucket, loanBucket;
@@ -76,6 +81,41 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  /// The latest figures each tab computed, so the export writes exactly what
+  /// the screen shows instead of re-deriving it (#041).
+  Map<String, Object?> _khata = {};
+  Map<String, Object?> _pawn = {};
+
+  /// Which tab is showing. Kept here rather than read back from
+  /// `DefaultTabController.of(context)`: this State's own context is ABOVE the
+  /// controller it builds, so that lookup returned null and the export tap
+  /// crashed on the phone (fixed in v1.2.8).
+  int _tab = 0;
+
+  Future<void> _exportCsv() async {
+    final at = DateTime.now();
+    final index = _tab;
+    final csv = index == 0
+        ? khataReportCsv(_khata, at: at)
+        : pawnReportCsv(_pawn, at: at);
+    final name = index == 0 ? khataReportFileName(at) : pawnReportFileName(at);
+    try {
+      final file = File('${Directory.systemTemp.path}/$name');
+      await file.writeAsString(csv, flush: true);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'text/csv')],
+        subject: 'Jewellery Suite report',
+        text: 'Generated ${DateFormat('d MMM yyyy, HH:mm').format(at)}.',
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+            content: Text('The report could not be shared.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -85,7 +125,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
         backgroundColor: bgOf(context),
         appBar: AppBar(
           title: const Text('Reports'),
-          bottom: const TabBar(
+          actions: [
+            IconButton(
+              key: const ValueKey('reports-export'),
+              tooltip: 'Export this tab as CSV',
+              icon: const Icon(Icons.ios_share),
+              onPressed: _exportCsv,
+            ),
+          ],
+          bottom: TabBar(
+            onTap: (i) => setState(() => _tab = i),
             indicatorColor: kGold,
             labelColor: kInk,
             unselectedLabelColor: Color(0xFF8A8A80),
@@ -96,8 +145,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [KhataReportsView(), PawnReportsView()],
+        body: TabBarView(
+          children: [
+            KhataReportsView(onData: (r) => _khata = r),
+            PawnReportsView(onData: (r) => _pawn = r),
+          ],
         ),
       ),
     );
@@ -109,7 +161,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
 // ---------------------------------------------------------------------------
 
 class KhataReportsView extends StatefulWidget {
-  const KhataReportsView({super.key});
+  const KhataReportsView({super.key, this.onData});
+
+  /// Hands the computed figures to the Reports shell for the CSV export.
+  final void Function(Map<String, Object?> data)? onData;
 
   @override
   State<KhataReportsView> createState() => _KhataReportsViewState();
@@ -262,6 +317,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
         };
         _loading = false;
       });
+      widget.onData?.call(_r);
     }
   }
 
@@ -508,7 +564,10 @@ class _KhataReportsViewState extends State<KhataReportsView> {
 // ---------------------------------------------------------------------------
 
 class PawnReportsView extends StatefulWidget {
-  const PawnReportsView({super.key});
+  const PawnReportsView({super.key, this.onData});
+
+  /// Hands the computed figures to the Reports shell for the CSV export.
+  final void Function(Map<String, Object?> data)? onData;
 
   @override
   State<PawnReportsView> createState() => _PawnReportsViewState();
@@ -606,6 +665,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
         };
         _loading = false;
       });
+      widget.onData?.call(_r);
     }
   }
 
