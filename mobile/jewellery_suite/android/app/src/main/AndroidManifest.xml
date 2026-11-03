@@ -5,6 +5,9 @@
          none are declared. INTERNET is the only permission. Cleartext HTTP is
          deliberately kept for the LAN server until HTTPS lands (#042). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- #066: fingerprint / face unlock for the screen lock. No data leaves the
+         phone; the OS does the matching and returns only success or failure. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- #040: local due reminders. POST_NOTIFICATIONS is requested at runtime
          on Android 13+; RECEIVE_BOOT_COMPLETED lets the scheduled summary
          survive a reboot. No alarm or exact-alarm permission is used — the

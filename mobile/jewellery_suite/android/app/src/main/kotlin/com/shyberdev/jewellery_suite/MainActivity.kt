@@ -1,7 +1,7 @@
 package com.shyberdev.jewellery_suite
 
 import android.content.Intent
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -11,11 +11,13 @@ import java.io.File
  *
  * * `app_info` — the installed APK's real size for the About screen (#039).
  * * `backup_files` — Android's own "save as" / "open" pickers, so a backup can
+ *   `FlutterFragmentActivity` (not the plain activity) is required by
+ *   `local_auth`, which hosts Android's BiometricPrompt in a fragment (#066).
  *   leave the app (Downloads, Drive, USB) and come back after a reinstall.
  *   Both use the Storage Access Framework, which grants access to the one file
  *   the shopkeeper picked. No storage permission is declared or needed (#029).
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private var exportResult: MethodChannel.Result? = null
     private var exportSource: String? = null
     private var importResult: MethodChannel.Result? = null

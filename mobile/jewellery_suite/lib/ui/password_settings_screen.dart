@@ -6,6 +6,7 @@ import '../util/app_lock.dart';
 import '../util/otp_gateway.dart';
 import 'admin_guard.dart';
 import 'otp_flow.dart';
+import '../util/biometrics.dart';
 import 'palette.dart';
 import 'secret_dialogs.dart';
 import 'widgets.dart';
@@ -36,6 +37,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   bool _isDefault = false;
   bool _pawnMoveIsDefault = true;
   String _lockMode = AppLock.off;
+  bool _biometric = false;
+  bool _biometricAvailable = false;
   final _gatewayCtl = TextEditingController();
   String _gatewayChannel = 'sms';
 
@@ -62,6 +65,9 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
     final isDefault = await adminPasswordIsDefault(state);
     final pawnMoveDefault = await state.pawnMovePasswordIsDefault();
     final mode = await AppLock.mode(state.db);
+    final biometric = await AppLock.biometricEnabled(state.db);
+    final biometricAvailable =
+        mode == AppLock.off ? false : await Biometrics.available();
     final gatewayUrl = await OtpGateway.url(state.db);
     final channel = await OtpGateway.channel(state.db);
     if (!mounted) return;
@@ -70,6 +76,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       _isDefault = isDefault;
       _pawnMoveIsDefault = pawnMoveDefault;
       _lockMode = mode;
+      _biometric = biometric;
+      _biometricAvailable = biometricAvailable;
       _gatewayCtl.text = gatewayUrl;
       _gatewayChannel = channel;
       _loading = false;
@@ -304,6 +312,15 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
         : mode == AppLock.daily
             ? 'Daily MPIN on — asked once a day.'
             : 'PIN lock on — asked every time.');
+  }
+
+  Future<void> _setBiometric(bool value) async {
+    final db = context.read<AppState>().db;
+    await AppLock.setBiometric(db, value);
+    if (mounted) setState(() => _biometric = value);
+    _toast(value
+        ? 'Fingerprint unlock on — the PIN stays as the fallback.'
+        : 'Fingerprint unlock off.');
   }
 
   Future<void> _changePin() async {
@@ -574,6 +591,19 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
                 label: const Text('Forgot PIN?'),
               ),
             ],
+          ),
+          SwitchListTile(
+            key: const ValueKey('biometric-unlock'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Unlock with fingerprint'),
+            subtitle: Text(
+              _biometricAvailable
+                  ? 'The PIN stays as the fallback when a finger is not recognised.'
+                  : 'No fingerprint or face is enrolled on this phone. Add one in Android settings first.',
+              style: TextStyle(fontSize: 11, color: mutedOf(context)),
+            ),
+            value: _biometric && _biometricAvailable,
+            onChanged: _biometricAvailable ? _setBiometric : null,
           ),
           Text(
             'The PIN is stored only as a salted hash. Resetting it needs the '
