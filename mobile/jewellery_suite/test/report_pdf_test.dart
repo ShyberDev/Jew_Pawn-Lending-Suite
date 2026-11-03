@@ -5,15 +5,21 @@ import 'package:jewellery_suite/util/report_pdf.dart';
 /// #041 — the PDF export must carry exactly the rows the CSV and the screen
 /// carry, and must be a real PDF file rather than an empty buffer.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final at = DateTime(2026, 11, 2, 9, 30);
 
-  Map<String, Object?> khata() => {
+  Map<String, Object?> khata({String customer = 'Ravi'}) => {
         'today_col': 1500.0,
         'week_col': 4000.0,
         'overdue_count': 1,
         'overdue_amt': 5000.0,
         'overdue_rows': [
-          {'customer_name': 'Ravi', 'amount': 5000.0, 'outstanding': 12000.0},
+          {
+            'customer_name': customer,
+            'amount': 5000.0,
+            'outstanding': 12000.0,
+          },
         ],
       };
 
@@ -58,9 +64,9 @@ void main() {
         csvText(pawnReportRows(pawn(), at: at)));
   });
 
-  test('text the built-in font cannot draw falls back to ?', () {
-    expect(pdfSafe('Ravi'), 'Ravi');
-    expect(pdfSafe('தமிழ்'), '?????');
-    expect(pdfSafe(null), '');
+  test('a Tamil customer name renders instead of failing', () async {
+    final bytes = await khataReportPdf(khata(customer: 'தமிழ்'), at: at);
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    expect(bytes.length, greaterThan(1000));
   });
 }
