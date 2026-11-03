@@ -32,8 +32,10 @@ String khataReportFileName(DateTime at) =>
 String pawnReportFileName(DateTime at) =>
     'jewellery_suite_pawn_${_stamp(at)}.csv';
 
-/// The Khata tab: the summary card first, then the lists behind its rows.
-String khataReportCsv(Map<String, Object?> r, {required DateTime at}) {
+/// The Khata tab rows: the summary card first, then the lists behind its
+/// rows. Shared by the CSV and the PDF export so both carry the same figures.
+List<List<Object?>> khataReportRows(Map<String, Object?> r,
+    {required DateTime at}) {
   final overdue = (r['overdue_rows'] as List? ?? const [])
       .cast<Map<String, Object?>>();
   final villages =
@@ -79,11 +81,17 @@ String khataReportCsv(Map<String, Object?> r, {required DateTime at}) {
     ['Customer', 'Outstanding'],
     for (final c in customers) [c['name'], c['amount']],
   ];
-  return csvText(rows);
+  return rows;
 }
 
-/// The Pawn tab: the metric cards, then every loan the filters left in view.
-String pawnReportCsv(Map<String, Object?> r, {required DateTime at}) {
+/// The Khata tab as CSV.
+String khataReportCsv(Map<String, Object?> r, {required DateTime at}) =>
+    csvText(khataReportRows(r, at: at));
+
+/// The Pawn tab rows: the metric cards, then every loan the filters left in
+/// view. Shared by the CSV and the PDF export.
+List<List<Object?>> pawnReportRows(Map<String, Object?> r,
+    {required DateTime at}) {
   final loans = (r['rows'] as List? ?? const []).cast<Map<String, Object?>>();
   final rows = <List<Object?>>[
     ['Jewellery Suite — Pawn report'],
@@ -123,5 +131,9 @@ String pawnReportCsv(Map<String, Object?> r, {required DateTime at}) {
         l['amount_paid'],
       ],
   ];
-  return csvText(rows);
+  return rows;
 }
+
+/// The Pawn tab as CSV.
+String pawnReportCsv(Map<String, Object?> r, {required DateTime at}) =>
+    csvText(pawnReportRows(r, at: at));

@@ -9,6 +9,7 @@ import '../../../state/app_state.dart';
 import '../../../data/migration_v11.dart';
 import '../../../util/format.dart';
 import '../../../util/report_csv.dart';
+import '../../../util/report_pdf.dart';
 import '../../../util/khata_loan_state.dart';
 import '../../../util/pawn_math.dart';
 import '../../../features/khata/screens/khata_screen.dart' show LoanBucket, loanBucket;
@@ -116,6 +117,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  /// Same figures as the CSV, laid out for printing.
+  Future<void> _exportPdf() async {
+    final at = DateTime.now();
+    final index = _tab;
+    final bytes = index == 0
+        ? await khataReportPdf(_khata, at: at)
+        : await pawnReportPdf(_pawn, at: at);
+    final name =
+        index == 0 ? khataReportPdfFileName(at) : pawnReportPdfFileName(at);
+    try {
+      final file = File('${Directory.systemTemp.path}/$name');
+      await file.writeAsBytes(bytes, flush: true);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/pdf')],
+        subject: 'Jewellery Suite report',
+        text: 'Generated ${DateFormat('d MMM yyyy, HH:mm').format(at)}.',
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+            content: Text('The PDF could not be shared.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -126,6 +153,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         appBar: AppBar(
           title: const Text('Reports'),
           actions: [
+            IconButton(
+              key: const ValueKey('reports-pdf'),
+              tooltip: 'Export this tab as PDF',
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              onPressed: _exportPdf,
+            ),
             IconButton(
               key: const ValueKey('reports-export'),
               tooltip: 'Export this tab as CSV',
