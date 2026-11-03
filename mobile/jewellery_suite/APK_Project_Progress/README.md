@@ -292,6 +292,15 @@ secret either way. If the shop wants those two to stay admin-only, add a per-act
 
 ## 5. Change log
 
+### 2026-11-03 — #041 PDF export shipped (v1.3.1)
+- **PDF export added** beside the CSV action: the Reports app bar now has an **Export this tab as PDF** action. `lib/util/report_pdf.dart` renders the same rows as the CSV — `report_csv.dart` exposes `khataReportRows` / `pawnReportRows`, and both exports read them — so the screen, the CSV and the PDF cannot disagree.
+- **Why it was blocked before, and the fix:** pub.dev answers again, so `pdf: ^3.13.1` was added. Its `image` dependency resolved to 4.11.0, which calls `ZLibDecoder.decodeLazy` — removed in the `archive 4.x` this app pins — and every test file failed to compile. Pinning `image: ^4.12.0` (needs archive ^4.5.0) fixed it. **PDF is no longer blocked; Excel (.xlsx) is the remaining slice of #041.**
+- **Rendering:** A4, one line per row (the pawn report has nine columns, so a table would not fit), bold section headings, page footer; non-Latin-1 characters (e.g. Tamil names) print as `?` because the built-in Helvetica font cannot draw them — the CSV keeps the full text.
+- **Version:** `pubspec.yaml` is now **1.3.1+47**.
+- **Checks:** `flutter analyze` → **No issues found**; full suite **461 passing, exit 0** via `./tool/test.sh`, including `test/report_pdf_test.dart` (real `%PDF-` header, nine-column pawn report, timestamped file names, CSV/PDF row parity, Latin-1 fallback).
+- **Not done yet:** Excel export, the v1.3.1 APK build/install and the on-device share-sheet check — the release build was stopped when the session ran out of time.
+
+
 ### 2026-11-03 — v1.3.0 installed on the phone; retail pricing and #047 due-date filter checked on-device
 - **Installed in place** at `10.235.54.170:33013` with `adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` → **Success**; `dumpsys package` reports **versionName 1.3.0 / versionCode 2046**, data kept, and the v20 schema opened without a migration error.
 - **Launch smoke test:** force-stop → launcher → `topResumedActivity=com.shyberdev.jewellery_suite/.MainActivity`, with **no FATAL EXCEPTION / E/flutter** lines in logcat.
