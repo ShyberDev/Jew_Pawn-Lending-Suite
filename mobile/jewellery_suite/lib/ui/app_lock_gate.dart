@@ -29,6 +29,11 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   bool _enabled = false;
   bool _locked = true;
 
+  /// True while the system fingerprint / face prompt is on screen. That prompt
+  /// backgrounds the app, and the pause/resume pair it causes is not the shop
+  /// leaving — treating it as one re-locked the app and re-armed the prompt.
+  bool _bioPrompting = false;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +49,9 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // #066: the biometric prompt is a system window, so showing it pauses the
+    // app and dismissing it resumes it. Ignore that round trip entirely.
+    if (_bioPrompting) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       // Only "every time" locks on background; the daily MPIN stays open for
@@ -59,7 +67,12 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     final db = context.read<AppState>().db;
     final mode = await AppLock.mode(db);
     if (!mounted) return;
-    if (mode == AppLock.always && await AppLock.isEnabled(db)) {
+    // Only a real state change rebuilds the gate. Setting it while already
+    // locked replaced the Overlay and remounted the lock screen, which fired
+    // its auto-prompt again.
+    if (mode == AppLock.always &&
+        await AppLock.isEnabled(db) &&
+        !_locked) {
       setState(() => _locked = true);
     }
   }
@@ -70,8 +83,14 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     if (!mounted) return;
     final db = context.read<AppState>().db;
     final enabled = await AppLock.isEnabled(db);
-    final locked = await AppLock.shouldLock(db);
+    // #066 phone finding: this used to re-lock on every resume. A fingerprint
+    // prompt backgrounds the app, so the resume after a *successful* match
+    // locked it again, rebuilt the Overlay and auto-prompted — the lock screen
+    // looped three times and then sat on the prompt. Locking is the `paused`
+    // handler's job; resuming only picks up settings changes.
+    final locked = enabled && _locked;
     if (!mounted) return;
+    if (enabled == _enabled && locked == _locked) return;
     setState(() {
       _enabled = enabled;
       _locked = locked;
@@ -108,6 +127,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
           OverlayEntry(
             builder: (_) => _LockScreen(
               onUnlocked: () => setState(() => _locked = false),
+              onBioPrompt: (active) => _bioPrompting = active,
             ),
           ),
         ],
@@ -118,9 +138,13 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 }
 
 class _LockScreen extends StatefulWidget {
-  const _LockScreen({required this.onUnlocked});
+  const _LockScreen({required this.onUnlocked, required this.onBioPrompt});
 
   final VoidCallback onUnlocked;
+
+  /// Tells the gate when the system prompt opens and closes, so the pause and
+  /// resume it causes are not mistaken for the shop leaving the app.
+  final ValueChanged<bool> onBioPrompt;
 
   @override
   State<_LockScreen> createState() => _LockScreenState();
@@ -166,7 +190,9 @@ class _LockScreenState extends State<_LockScreen> {
       _error = null;
     });
     final db = context.read<AppState>().db;
+    widget.onBioPrompt(true);
     final ok = await Biometrics.prompt();
+    widget.onBioPrompt(false);
     if (!mounted) return;
     if (ok) {
       await AppLock.markUnlocked(db);

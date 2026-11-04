@@ -306,7 +306,18 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       await AppLock.setMode(db, mode);
     }
     final saved = await AppLock.mode(db);
-    if (mounted) setState(() => _lockMode = saved);
+    // #066 phone finding: availability used to be read only when the screen
+    // loaded, which happened while the lock was still Off — so it stayed
+    // `false` and the fingerprint switch stayed disabled with a "no fingerprint
+    // enrolled" subtitle until the screen was reopened. Re-read it here.
+    final biometricAvailable =
+        saved == AppLock.off ? false : await Biometrics.available();
+    if (mounted) {
+      setState(() {
+        _lockMode = saved;
+        _biometricAvailable = biometricAvailable;
+      });
+    }
     _toast(mode == AppLock.off
         ? 'Screen lock is off.'
         : mode == AppLock.daily
