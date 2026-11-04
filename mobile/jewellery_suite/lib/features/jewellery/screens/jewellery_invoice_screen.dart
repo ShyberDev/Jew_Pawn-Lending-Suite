@@ -7,6 +7,7 @@ import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
 import '../../../util/jewellery_math.dart';
+import '../../../util/phone.dart';
 
 /// New jewellery sale / purchase / customer order.
 ///
@@ -264,6 +265,14 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
       _toast('Enter the old-metal purity.');
       return;
     }
+    // An order carries the customer's mobile for delivery; a typo there is
+    // only discovered when the shop tries to call, so check it here.
+    if (_isOrder &&
+        _mobile.text.trim().isNotEmpty &&
+        !Phone.isValid(_mobile.text)) {
+      _toast(Phone.invalidMessage);
+      return;
+    }
     setState(() => _saving = true);
     try {
       await state.saveJewelleryInvoice(
@@ -360,7 +369,8 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
                 TextField(
                   controller: _mobile,
                   keyboardType: TextInputType.phone,
-                  decoration: fieldDecoration('Mobile'),
+                  decoration: fieldDecoration('Mobile',
+                      hint: '9876543210 or +91 …'),
                 ),
                 const SizedBox(height: 10),
                 TextField(

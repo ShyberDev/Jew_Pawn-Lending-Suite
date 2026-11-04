@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../data/local_db.dart';
+import 'phone.dart';
 import 'secret_hash.dart';
 
 /// The shop's own account on this phone.
@@ -44,12 +45,8 @@ class LocalAccount {
   // ------------------------------------------------------------- identifiers
   static final _email = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
 
-  /// A mobile number: 10 digits, optionally with +91 / 0 in front.
-  static bool isMobile(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    return digits.length == 10 ||
-        (digits.length == 12 && digits.startsWith('91'));
-  }
+  /// An Indian mobile: 10 digits (6–9 first), optionally with +91 / 0.
+  static bool isMobile(String value) => Phone.isValid(value);
 
   /// Gmail address or mobile number — the two login identifiers the shop asked
   /// for. Any e-mail domain is accepted; Gmail is simply the common one.
@@ -63,7 +60,11 @@ class LocalAccount {
   static String normalizeIdentifier(String value) {
     final v = value.trim();
     if (v.contains('@')) return v.toLowerCase();
-    final digits = v.replaceAll(RegExp(r'\D'), '');
+    final national = Phone.national(v);
+    if (national.isNotEmpty) return national;
+    // Lenient fallback so an account made before the Indian-mobile rules
+    // (#070) can still sign in: keep its last ten digits.
+    final digits = Phone.digits(v);
     return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
   }
 
@@ -107,7 +108,7 @@ class LocalAccount {
     final id = normalizeIdentifier(identifier);
     if (!isValidIdentifier(id)) {
       throw const FormatException(
-          'Enter a Gmail address or a 10-digit mobile number.');
+          'Enter a Gmail address or a 10-digit mobile number (or +91 …).');
     }
     if (password.trim().length < 6) {
       throw const FormatException('Use at least 6 characters.');

@@ -15,6 +15,7 @@ import '../../../util/khata_alloc.dart';
 import '../../../util/khata_loan_state.dart';
 import '../../../util/khata_math.dart';
 import '../../../util/khata_schedule.dart';
+import '../../../util/phone.dart';
 import '../../../ui/customers_screen.dart';
 import '../../../features/khata/screens/khata_screen.dart' show loanNextDue;
 import '../../../features/khatabook/screens/khatabook_screen.dart';
@@ -140,48 +141,46 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           Num.toDouble(l['principal_amount'])));
 
   // ------------------------------------------------------------ contact calls
-  Future<void> _call() async {
+  // All three go through [Phone]: an Indian mobile is accepted as 10 digits or
+  // with +91, and WhatsApp gets the `91` prefix `wa.me` requires.
+  String get _message =>
+      'Namaste $_name 🙏\nYour khata balance is ₹${moneyWholeDown(_outstanding)}'
+      ' (Paid ₹${moneyWholeDown(_paid)}).';
+
+  /// Returns the number to use, or null after telling the shopkeeper why.
+  String? _usablePhone() {
     final phone = _phone.trim();
     if (phone.isEmpty) {
       _toast('No phone number saved.');
-      return;
+      return null;
     }
-    final ok = await launchUrl(Uri.parse('tel:$phone'),
-        mode: LaunchMode.externalApplication);
+    if (!Phone.isValid(phone)) {
+      _toast(Phone.invalidMessage);
+      return null;
+    }
+    return phone;
+  }
+
+  Future<void> _call() async {
+    final phone = _usablePhone();
+    if (phone == null) return;
+    final ok = await launchUrl(Phone.tel(phone)!, mode: LaunchMode.externalApplication);
     if (!ok) _toast('Could not open dialer.');
   }
 
   Future<void> _sms() async {
-    final phone = _phone.trim();
-    if (phone.isEmpty) {
-      _toast('No phone number saved.');
-      return;
-    }
+    final phone = _usablePhone();
+    if (phone == null) return;
     // Pre-fill the message body (like WhatsApp) — Android reads sms:?body=.
-    final uri = Uri(
-      scheme: 'sms',
-      path: phone,
-      queryParameters: {
-        'body':
-            'Namaste $_name 🙏\nYour khata balance is ₹${moneyWholeDown(_outstanding)}'
-                ' (Paid ₹${moneyWholeDown(_paid)}).',
-      },
-    );
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final ok = await launchUrl(Phone.sms(phone, body: _message)!,
+        mode: LaunchMode.externalApplication);
     if (!ok) _toast('Could not open SMS.');
   }
 
   Future<void> _whatsapp() async {
-    final phone = _phone.trim();
-    if (phone.isEmpty) {
-      _toast('No phone number saved.');
-      return;
-    }
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final message = Uri.encodeComponent(
-        'Namaste $_name 🙏\nYour khata balance is ₹${moneyWholeDown(_outstanding)}'
-        ' (Paid ₹${moneyWholeDown(_paid)}).');
-    final ok = await launchUrl(Uri.parse('https://wa.me/$digits?text=$message'),
+    final phone = _usablePhone();
+    if (phone == null) return;
+    final ok = await launchUrl(Phone.whatsapp(phone, text: _message)!,
         mode: LaunchMode.externalApplication);
     if (!ok) _toast('Could not open WhatsApp.');
   }

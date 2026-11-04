@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../util/phone.dart';
 import 'palette.dart';
 import 'photo_local.dart';
 import 'widgets.dart';
@@ -54,9 +55,16 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   }
 
   Future<void> _save() async {
+    final typedPhone = _phone.text.trim();
+    if (typedPhone.isNotEmpty && !Phone.isValid(typedPhone)) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text(Phone.invalidMessage)));
+      return;
+    }
     final state = context.read<AppState>();
     await state.setUserField('user_name', _name.text.trim());
-    await state.setUserField('user_phone', _phone.text.trim());
+    await state.setUserField('user_phone', typedPhone);
     await state.setUserField('user_email', _email.text.trim());
     if (mounted) {
       ScaffoldMessenger.of(context)
