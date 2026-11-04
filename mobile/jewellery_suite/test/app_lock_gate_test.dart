@@ -136,6 +136,28 @@ void main() {
     expect(find.text('deep screen'), findsNothing);
   });
 
+  testWidgets('a resume right after unlocking does not re-lock the gate',
+      (tester) async {
+    await tester.pumpWidget(app());
+    await settle(tester);
+    await tester.enterText(find.byType(TextField), '2468');
+    await tester.tap(find.text('Unlock'));
+    await settle(tester);
+    expect(find.text('open screen'), findsOneWidget);
+
+    // #066: the system fingerprint prompt backgrounds and then resumes the
+    // app. An unlocked app must stay open across that resume — re-locking here
+    // rebuilt the lock screen and re-armed its auto-prompt in a loop.
+    tester.binding
+        .handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding
+        .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await settle(tester);
+
+    expect(find.text('Jewellery Suite is locked'), findsNothing);
+    expect(find.text('open screen'), findsOneWidget);
+  });
+
   testWidgets('disabling the PIN in Settings disarms the gate', (tester) async {
     await tester.pumpWidget(app());
     await settle(tester);

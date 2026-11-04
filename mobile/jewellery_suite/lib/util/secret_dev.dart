@@ -12,4 +12,4 @@
 //
 // Set it back to `false` and check the lock on the phone before the release
 // build. No password or PIN value is stored in this file.
-const bool kDevPasswordGateDisabled = true;
+const bool kDevPasswordGateDisabled = false;
