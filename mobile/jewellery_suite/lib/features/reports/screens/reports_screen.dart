@@ -28,10 +28,6 @@ import '../../../ui/widgets.dart';
 String _m(Object? value) =>
     '₹${moneyWhole(value is num ? value : Num.toDouble(value))}';
 
-/// `1 khata` / `2 khatas` - Reports used to say "1 khatas".
-String _plural(int n, String one) =>
-    n == 1 ? '$n $one' : '$n ${one}s';
-
 /// What the shop can collect TODAY on one loan, used by Reports' overdue
 /// figure and its overdue list.
 ///
@@ -148,6 +144,66 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  /// The single export entry point: pick PDF / Excel / CSV, then Android asks
+  /// which app or device should receive it (Drive, WhatsApp, Gmail, Files …).
+  Future<void> _chooseExport() async {
+    final tab = _tab == 0 ? 'Khata' : 'Pawn';
+    final type = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Share $tab report',
+                    style: Theme.of(ctx)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            ListTile(
+              key: const ValueKey('export-pdf'),
+              leading: const Icon(Icons.picture_as_pdf_outlined, color: kRed),
+              title: const Text('PDF'),
+              subtitle: const Text('Print or send on WhatsApp'),
+              onTap: () => Navigator.pop(ctx, 'pdf'),
+            ),
+            ListTile(
+              key: const ValueKey('export-xlsx'),
+              leading:
+                  const Icon(Icons.grid_on_outlined, color: kGreen),
+              title: const Text('Excel (.xlsx)'),
+              subtitle: const Text('Open in Excel or Google Sheets'),
+              onTap: () => Navigator.pop(ctx, 'xlsx'),
+            ),
+            ListTile(
+              key: const ValueKey('export-csv'),
+              leading:
+                  const Icon(Icons.table_chart_outlined, color: kGoldDark),
+              title: const Text('CSV'),
+              subtitle: const Text('Plain data for any app or Drive'),
+              onTap: () => Navigator.pop(ctx, 'csv'),
+            ),
+            const SizedBox(height: 6),
+          ],
+        ),
+      ),
+    );
+    if (type == null || !mounted) return;
+    if (type == 'pdf') {
+      await _exportPdf();
+    } else if (type == 'xlsx') {
+      await _exportXlsx();
+    } else {
+      await _exportCsv();
+    }
+  }
+
   /// Same figures as the CSV, laid out for printing.
   Future<void> _exportPdf() async {
     final at = DateTime.now();
@@ -184,23 +240,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
         appBar: AppBar(
           title: const Text('Reports'),
           actions: [
-            IconButton(
-              key: const ValueKey('reports-xlsx'),
-              tooltip: 'Export this tab as Excel',
-              icon: const Icon(Icons.grid_on_outlined),
-              onPressed: _exportXlsx,
-            ),
-            IconButton(
-              key: const ValueKey('reports-pdf'),
-              tooltip: 'Export this tab as PDF',
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              onPressed: _exportPdf,
-            ),
+            // One button, then the file type, then Android's own share sheet —
+            // the pattern Play Store apps use. Three separate icons made the
+            // shopkeeper guess which one they wanted before they had even
+            // decided where the file should go.
             IconButton(
               key: const ValueKey('reports-export'),
-              tooltip: 'Export this tab as CSV',
+              tooltip: 'Share this report',
               icon: const Icon(Icons.ios_share),
-              onPressed: _exportCsv,
+              onPressed: _chooseExport,
             ),
           ],
           bottom: TabBar(
@@ -244,6 +292,18 @@ class _KhataReportsViewState extends State<KhataReportsView> {
   Map<String, Object?> _r = {};
   bool _loading = true;
 
+  /// The same two filters the Pawn tab has, so the two reports read alike:
+  /// a period, and which loans to count.
+  String _period = 'All';
+  String _status = 'All';
+
+  bool _periodOk(String? date, DateTime today) {
+    if (_period == 'All') return true;
+    if (date == null || date.isEmpty) return false;
+    if (_period == 'This year') return date.startsWith('${today.year}');
+    return date.startsWith(today.toIso8601String().substring(0, 7));
+  }
+
   Future<void> _load() async {
     final db = context.read<AppState>().db;
     final loans = await db.query('khatabook_loans');
@@ -265,6 +325,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     final todayRows = <Map<String, Object?>>[];
     final weekRows = <Map<String, Object?>>[];
     final monthRows = <Map<String, Object?>>[];
+    final viewCollections = <Map<String, Object?>>[];
     for (final c in collections) {
       final date = c['collection_date']?.toString() ?? '';
       final amt = Num.toDouble(c['amount']);
@@ -281,16 +342,21 @@ class _KhataReportsViewState extends State<KhataReportsView> {
         monthCol += amt;
         monthRows.add(c);
       }
+      if (_periodOk(date, today)) viewCollections.add(c);
     }
+    // Newest collection first, like the Cashbook and the Pawn list.
+    viewCollections.sort((a, b) => (b['collection_date']?.toString() ?? '')
+        .compareTo(a['collection_date']?.toString() ?? ''));
 
     double totalGiven = 0, outstanding = 0, overdueAmt = 0;
     // Interest actually collected = every rupee of interest the loans ever
     // charged, minus the interest still owed. v1.0.20: this used to be
-    // `received - given`, which is Capital Recovery wearing the wrong label —
+    // `received - given`, which was Capital Recovery wearing the wrong label —
     // it printed a NEGATIVE number whenever less had been collected than
     // lent out. It can no longer go below zero.
     double interestCharged = 0, interestOwed = 0;
-    int overdueCount = 0;
+    double interestView = 0, collectedView = 0;
+    int overdueCount = 0, activeView = 0;
     final villageMap = <String, double>{};
     final villageCount = <String, int>{};
     final customerMap = <String, double>{};
@@ -312,34 +378,50 @@ class _KhataReportsViewState extends State<KhataReportsView> {
 
     for (final l in loans) {
       totalGiven += Num.toDouble(l['principal_amount']);
-      final active = isActiveKhataStatus(l['status']);
       // Read the balance through the one canonical reader, so Reports shows
       // exactly the same figure as the khata list and the profile screen.
       final st = KhataLoanState.fromRow(l);
       final out = st.netOutstanding;
       // A loan's interest for its whole term. Interest-only loans bill it per
       // period, so their single figure is `current_interest`.
-      interestCharged += MigrationV11.isInterestOnly(l)
+      final charged = MigrationV11.isInterestOnly(l)
           ? Num.toDouble(l['current_interest'] ?? l['interest_amount'])
           : Num.toDouble(l['interest_amount']);
+      interestCharged += charged;
       interestOwed += st.interestOutstanding;
-      if (active) {
-        outstanding += out;
-        final village = l['village']?.toString() ?? 'General';
-        villageMap[village] =
-            Num.money((villageMap[village] ?? 0) + Num.toDouble(out));
-        villageCount[village] = (villageCount[village] ?? 0) + 1;
-        final customer = l['customer_name']?.toString() ?? '-';
-        customerMap[customer] =
-            Num.money((customerMap[customer] ?? 0) + Num.toDouble(out));
-        if (loanBucket(l, today) == LoanBucket.overdue) {
-          overdueCount++;
-          final due = dueNowFor(l, out);
-          overdueAmt += due;
-          // Carry the due figure under `amount` so the shared list row shows
-          // what is collectable now; the full balance stays available too.
-          overdueRows.add({...l, 'amount': due, 'outstanding': out});
-        }
+
+      // The filters act on the loans; total given / total received stay
+      // all-time so those two never move when a period is picked.
+      final loanDate = (l['start_date'] ?? l['loan_date'])?.toString();
+      if (!_periodOk(loanDate, today)) continue;
+      final active = isActiveKhataStatus(l['status']);
+      final overdue = active && loanBucket(l, today) == LoanBucket.overdue;
+      if (_status == 'Active' && !active) continue;
+      if (_status == 'Overdue' && !overdue) continue;
+
+      interestView += charged - st.interestOutstanding;
+      if (!active) continue;
+      activeView++;
+      outstanding += out;
+      final village = l['village']?.toString() ?? 'General';
+      villageMap[village] =
+          Num.money((villageMap[village] ?? 0) + Num.toDouble(out));
+      villageCount[village] = (villageCount[village] ?? 0) + 1;
+      final customer = l['customer_name']?.toString() ?? '-';
+      customerMap[customer] =
+          Num.money((customerMap[customer] ?? 0) + Num.toDouble(out));
+      if (overdue) {
+        overdueCount++;
+        final due = dueNowFor(l, out);
+        overdueAmt += due;
+        // Carry the due figure under `amount` so the shared list row shows
+        // what is collectable now; the full balance stays available too.
+        overdueRows.add({...l, 'amount': due, 'outstanding': out});
+      }
+    }
+    if (_status != 'Overdue') {
+      for (final c in viewCollections) {
+        collectedView += Num.toDouble(c['amount']);
       }
     }
 
@@ -360,9 +442,14 @@ class _KhataReportsViewState extends State<KhataReportsView> {
           'total_given': Num.money(totalGiven),
           'total_received': Num.money(totalReceived),
           'interest_earned': Num.money(interestCharged - interestOwed),
+          'interest_view': Num.money(interestView),
           'outstanding': Num.money(outstanding),
           'overdue_count': overdueCount,
           'overdue_amt': Num.money(overdueAmt),
+          'collected_view': Num.money(collectedView),
+          'active_view': activeView,
+          'customers_view': customerMap.length,
+          'collections_view': viewCollections,
           'today_rows': todayRows,
           'week_rows': weekRows,
           'month_rows': monthRows,
@@ -397,234 +484,316 @@ class _KhataReportsViewState extends State<KhataReportsView> {
     _load();
   }
 
-  void _sheet(String title, Widget body) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.75,
-        builder: (context, controller) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Text(title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
-            ),
-            Expanded(child: ListView(controller: controller, children: [body])),
-          ],
+  Widget _filterChip(String label, String current, List<String> values) {
+    Widget chip(String v) => Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: ChoiceChip(
+            label: Text(v),
+            selected: current == v,
+            selectedColor: kGold.withValues(alpha: .3),
+            labelStyle: TextStyle(
+                fontSize: 11.5,
+                fontWeight: current == v ? FontWeight.w700 : FontWeight.w500),
+            onSelected: (_) {
+              if (label == 'Period') _period = v;
+              if (label == 'Loans') _status = v;
+              setState(() => _loading = true);
+              _load();
+            },
+          ),
+        );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 58,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(label.toUpperCase(),
+                style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: mutedOf(context))),
+          ),
         ),
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [for (final v in values) chip(v)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricCard(String value, String label, {Color? color}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surfaceOf(context),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
+                  color: color ?? kInk)),
+          const SizedBox(height: 3),
+          Text(label,
+              style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
+        ],
       ),
     );
   }
 
-  Widget _moneyListRow(Map<String, Object?> row, {String? date}) {
-    return ListTile(
-      title: Text((date != null && date.isNotEmpty)
-          ? '$date  ·  ${row['customer'] ?? row['name'] ?? '-'}'
-          : (row['customer_name']?.toString() ??
-              row['customer']?.toString() ??
-              row['name']?.toString() ??
-              '-')),
-      subtitle: row['village'] != null
-          ? Text(row['village'].toString())
-          : (row['count'] != null
-              ? Text('${row['count']} active loan(s)')
-              : const SizedBox.shrink()),
-      trailing: Text('₹${moneyWhole(row['amount'] as num?)}',
-          style: const TextStyle(fontWeight: FontWeight.w700)),
+  Widget _metricGrid() {
+    return Column(children: [
+      Row(children: [
+        Expanded(
+            child: _metricCard(_m(_r['collected_view']), 'Collected in view',
+                color: kGreen)),
+        const SizedBox(width: 8),
+        Expanded(
+            child: _metricCard('${_r['active_view']}', 'Active loans in view')),
+        const SizedBox(width: 8),
+        Expanded(
+            child: _metricCard(_m(_r['outstanding']), 'Outstanding',
+                color: kGoldDark)),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(
+            child: _metricCard('${_r['overdue_count']}', 'Overdue accounts',
+                color: _r['overdue_count'] == 0 ? null : kRed)),
+        const SizedBox(width: 8),
+        Expanded(
+            child: _metricCard(_m(_r['overdue_amt']), 'Collectable now',
+                color: kRed)),
+        const SizedBox(width: 8),
+        Expanded(
+            child: _metricCard(_m(_r['interest_view']), 'Interest earned',
+                color: kGreen)),
+      ]),
+    ]);
+  }
+
+  /// One collection, laid out like a Pawn report row: date and customer on the
+  /// left, money on the right — not a table of lines.
+  Widget _collectionRow(Map<String, Object?> c) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          const Icon(Icons.south_west, size: 20, color: kGreen),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(c['customer']?.toString() ??
+                        c['customer_name']?.toString() ??
+                        '-',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: inkOf(context))),
+                Text(
+                    '${fmtDate(c['collection_date'])}'
+                    '${(c['village']?.toString() ?? '').isEmpty ? '' : '  ·  ${c['village']}'}',
+                    style: TextStyle(fontSize: 11, color: mutedOf(context))),
+              ],
+            ),
+          ),
+          Text('₹${moneyWhole(c['amount'] as num?)}',
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: kGreen)),
+        ],
+      ),
+    );
+  }
+
+  Widget _overdueRow(Map<String, Object?> l) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_outlined, size: 20, color: kRed),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l['customer_name']?.toString() ?? '-',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: inkOf(context))),
+                Text(
+                    '${l['customer_id'] ?? ''}'
+                    '${(l['village']?.toString() ?? '').isEmpty ? '' : '  ·  ${l['village']}'}',
+                    style: TextStyle(fontSize: 11, color: mutedOf(context))),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('₹${moneyWhole(l['amount'] as num?)}',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: kRed)),
+              Text('Bal ₹${moneyWhole(l['outstanding'] as num?)}',
+                  style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footer() {
+    final entries =
+        (_r[_status == 'Overdue' ? 'overdue_rows' : 'collections_view'] as List?) ??
+            const [];
+    final amount =
+        _status == 'Overdue' ? _r['overdue_amt'] : _r['collected_view'];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surfaceOf(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: lineOf(context)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+              '${entries.length} ${_status == 'Overdue' ? 'loan' : 'collection'}'
+              '${entries.length == 1 ? '' : 's'}',
+              style: TextStyle(
+                  color: inkOf(context), fontWeight: FontWeight.w700)),
+          Text('₹${moneyWhole(amount as num?)}',
+              style: TextStyle(color: mutedOf(context), fontSize: 12)),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: kGold));
-    }
-    final rows = <(IconData, String, String, VoidCallback)>[
-      (
-        Icons.today_outlined,
-        "Today's collection",
-        _m(_r['today_col']),
-        () => _sheet(
-            "Today's collection",
-            (_r['today_rows'] as List).isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No collections today.'))
-                : Column(children: [
-                    for (final c in _r['today_rows'] as List)
-                      _moneyListRow(c as Map<String, Object?>,
-                          date: fmtDate(c['collection_date'])),
-                  ])),
-      ),
-      (
-        Icons.weekend_outlined,
-        'This week (7 days)',
-        _m(_r['week_col']),
-        () => _sheet(
-            'This week collection',
-            (_r['week_rows'] as List).isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No collections this week.'))
-                : Column(children: [
-                    for (final c in _r['week_rows'] as List)
-                      _moneyListRow(c as Map<String, Object?>,
-                          date: fmtDate(c['collection_date'])),
-                  ])),
-      ),
-      (
-        Icons.date_range_outlined,
-        'This month (30 days)',
-        _m(_r['month_col']),
-        () => _sheet(
-            'This month collection',
-            (_r['month_rows'] as List).isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No collections this month.'))
-                : Column(children: [
-                    for (final c in _r['month_rows'] as List)
-                      _moneyListRow(c as Map<String, Object?>,
-                          date: fmtDate(c['collection_date'])),
-                  ])),
-      ),
-      (
-        Icons.north_east,
-        'Total given (all time)',
-        _m(_r['total_given']),
-        () => _sheet(
-            'Total given — principal of all loans',
-            const Center(
-                heightFactor: 4,
-                child: Text('Sum of all khata loan principal amounts.'))),
-      ),
-      (
-        Icons.south_west,
-        'Total received (all time)',
-        _m(_r['total_received']),
-        () => _sheet(
-            'Total received — all collections',
-            const Center(
-                heightFactor: 4,
-                child: Text('Sum of every collection recorded.'))),
-      ),
-      (
-        Icons.trending_up_outlined,
-        'Interest earned',
-        _m(_r['interest_earned']),
-        () => _sheet(
-            'Interest earned — interest collected so far',
-            const Center(
-                heightFactor: 4,
-                child: Text(
-                    'All interest the loans ever charged, minus the interest '
-                    'still owed. Never negative. This is what you have '
-                    'actually earned as interest, not money still to recover.'))),
-      ),
-      (
-        Icons.account_balance_wallet_outlined,
-        'Outstanding overall',
-        _m(_r['outstanding']),
-        () => _sheet(
-            'Outstanding overall',
-            const Center(
-                heightFactor: 4,
-                child: Text('Sum of outstanding on all active loans.'))),
-      ),
-      (
-        Icons.warning_amber_outlined,
-        'Overdue accounts',
-        '${_r['overdue_count']} · ${_m(_r['overdue_amt'])}',
-        () => _sheet(
-            'Overdue accounts',
-            (_r['overdue_rows'] as List).isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No overdue loans. 🎉'))
-                : Column(children: [
-                    for (final c in _r['overdue_rows'] as List)
-                      _moneyListRow(c as Map<String, Object?>),
-                  ])),
-      ),
-      (
-        Icons.location_on_outlined,
-        'Village-wise',
-        _plural((_r['village_rows'] as List).length, 'khata'),
-        () => _sheet(
-            'Village-wise outstanding',
-            Column(children: [
-              for (final c in _r['village_rows'] as List)
-                _moneyListRow(c as Map<String, Object?>),
-            ])),
-      ),
-      (
-        Icons.people_outline,
-        'Customer-wise',
-        '${(_r['customer_rows'] as List).length} customers',
-        () => _sheet(
-            'Customer-wise outstanding',
-            Column(children: [
-              for (final c in _r['customer_rows'] as List)
-                _moneyListRow(c as Map<String, Object?>),
-            ])),
-      ),
-      (
-        Icons.block_outlined,
-        'Bad credit / Blocked',
-        '${_r['bad_credit']} bad · ${_r['blocked']} blocked',
-        () => _sheet(
-            'Bad credit & blocked customers',
-            const Center(
-                heightFactor: 4,
-                child: Text(
-                    'Customers rated Bad appear here. Marked on the customer record.'))),
-      ),
-    ];
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(14),
-      itemCount: rows.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final (icon, label, value, onTap) = rows[index];
-        return Material(
-          color: surfaceOf(context),
-          borderRadius: BorderRadius.circular(14),
-          clipBehavior: Clip.antiAlias,
-          child: ListTile(
-            leading: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: kGold.withValues(alpha: .14),
-                shape: BoxShape.circle,
+    final overdueMode = _status == 'Overdue';
+    final entries =
+        (_r[overdueMode ? 'overdue_rows' : 'collections_view'] as List?) ??
+            const [];
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _filterChip(
+                    'Period', _period, ['All', 'This month', 'This year']),
               ),
-              child: Icon(icon, size: 19, color: kGoldDark),
-            ),
-            title: Text(label,
-                style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: inkOf(context))),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w800)),
-                const Icon(Icons.chevron_right, size: 18),
-              ],
-            ),
-            onTap: onTap,
+              _filterChip('Loans', _status, ['All', 'Active', 'Overdue']),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: kGold))
+              : RefreshIndicator(
+                  color: kGold,
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.all(14),
+                    children: [
+                      _metricGrid(),
+                      const SizedBox(height: 14),
+                      Text(
+                          (overdueMode
+                                  ? 'Overdue loans'
+                                  : 'Collections in view')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: Color(0xFF8A6D14))),
+                      const SizedBox(height: 6),
+                      if (entries.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Text(
+                                overdueMode
+                                    ? 'No overdue loans in this period. 🎉'
+                                    : 'No collections in this period.',
+                                textAlign: TextAlign.center),
+                          ),
+                        )
+                      else ...[
+                        for (final e in entries)
+                          overdueMode
+                              ? _overdueRow(e as Map<String, Object?>)
+                              : _collectionRow(e as Map<String, Object?>),
+                        const SizedBox(height: 6),
+                        _footer(),
+                      ],
+                      const SizedBox(height: 14),
+                      // The all-time figures the report has always shown stay
+                      // available without cluttering the list.
+                      Text('ALL TIME'.toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: Color(0xFF8A6D14))),
+                      const SizedBox(height: 6),
+                      _allTimeCard(),
+                    ],
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _allTimeCard() {
+    Widget line(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label,
+                  style: TextStyle(fontSize: 12, color: mutedOf(context))),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700)),
+            ],
           ),
         );
-      },
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      decoration: BoxDecoration(
+        color: surfaceOf(context),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(children: [
+        line('Total given (principal)', _m(_r['total_given'])),
+        line('Total received', _m(_r['total_received'])),
+        line('Interest earned', _m(_r['interest_earned'])),
+        line("Today's collection", _m(_r['today_col'])),
+        line('This week (7 days)', _m(_r['week_col'])),
+        line('This month (30 days)', _m(_r['month_col'])),
+        line('Bad credit / blocked',
+            '${_r['bad_credit']} / ${_r['blocked']}'),
+      ]),
     );
   }
 }
