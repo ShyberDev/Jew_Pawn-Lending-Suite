@@ -69,6 +69,12 @@ class AboutAppScreen extends StatelessWidget {
                 (bytes) => bytes <= 0 ? 'Unavailable' : _fmtBytes(bytes)),
             _rightFuture('App data (your records)', state.appDataBytes(),
                 (v) => _fmtBytes(v)),
+            _row(
+                context,
+                'Database',
+                state.db.encrypted
+                    ? 'Encrypted (SQLCipher)'
+                    : 'Not encrypted on this build'),
           ]),
           const SizedBox(height: 14),
           _card(context, [
@@ -127,6 +133,28 @@ class AboutAppScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _row(BuildContext context, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: inkOf(context))),
+          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: kGoldDark)),
+        ],
+      ),
     );
   }
 
