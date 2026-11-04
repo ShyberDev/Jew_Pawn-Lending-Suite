@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'db_crypto.dart';
 import 'local_db.dart';
 import 'migration_v20.dart';
 
@@ -218,6 +219,10 @@ class BackupService {
         final photos = includePhotos ? await photoFiles() : const <File>[];
         final dir = await backupDir();
         final target = await _uniquePath(dir, createdAt, prefix);
+        // #049: a backup of an encrypted database must name the key that can
+        // open it, or it could never be restored — not even on this phone once
+        // the app is reinstalled and the keystore key is gone.
+        final archiveKey = await DbCrypto.key();
         final manifest = <String, Object?>{
           'format': 'jewellery-suite-backup',
           'format_version': formatVersion,
@@ -225,6 +230,8 @@ class BackupService {
           'includes_photos': includePhotos,
           'photo_count': photos.length,
           'row_counts': counts,
+          'schema_version': MigrationV20.version,
+          if (archiveKey != null) 'db_key': archiveKey,
           'note': 'To restore, replace the app database file with '
               '$dbEntry from this archive.',
         };
@@ -302,6 +309,8 @@ class BackupService {
             restored: false,
             problem: 'This backup was made by a newer app version.');
       }
+      // #049: an encrypted snapshot names the key that opens it.
+      final archiveKey = manifest['db_key'] as String?;
 
       // A restore is destructive, so the current data gets its own verified
       // backup first. If that cannot be produced, nothing is replaced.
@@ -332,7 +341,8 @@ class BackupService {
       // will actually be written are the ones validated.
       Database? check;
       try {
-        check = await openDatabase(extracted.path, readOnly: true);
+        check = await LocalDb.openExternal(extracted.path,
+            readOnly: true, key: archiveKey);
         final verdictRows = await check.rawQuery('PRAGMA integrity_check');
         final verdict =
             verdictRows.isEmpty ? '' : '${verdictRows.first.values.first}';
@@ -343,9 +353,14 @@ class BackupService {
               safetyBackup: safety.info);
         }
         final versionRows = await check.rawQuery('PRAGMA user_version');
-        final version = versionRows.isEmpty
+        var version = versionRows.isEmpty
             ? 0
             : ((versionRows.first.values.first as num?)?.toInt() ?? 0);
+        // #049: an encrypted snapshot written before the fix that carries
+        // user_version has 0 there; the manifest knows the schema it came from.
+        final manifestVersion =
+            (manifest['schema_version'] as num?)?.toInt() ?? 0;
+        if (version < manifestVersion) version = manifestVersion;
         if (version > MigrationV20.version) {
           return RestoreResult(
               restored: false,
@@ -359,6 +374,21 @@ class BackupService {
             safetyBackup: safety.info);
       } finally {
         await check?.close();
+      }
+
+      // #049: a backup from another phone is encrypted with that phone's key.
+      // Re-encrypt the extracted copy with THIS phone's key before it can
+      // become the live file, so the live key never has to change.
+      final localKey = await DbCrypto.key();
+      if (archiveKey != null && localKey != null && archiveKey != localKey) {
+        final rekeyProblem =
+            await DbCrypto.rekeyFile(extracted.path, from: archiveKey, to: localKey);
+        if (rekeyProblem != null) {
+          return RestoreResult(
+              restored: false,
+              problem: rekeyProblem,
+              safetyBackup: safety.info);
+        }
       }
 
       // Stage photos beside the validated database, with a traversal guard.
@@ -432,7 +462,7 @@ class BackupService {
         if (carriedSecrets.isNotEmpty) {
           Database? restored;
           try {
-            restored = await openDatabase(livePath);
+            restored = await LocalDb.openExternal(livePath, key: localKey);
             for (final entry in carriedSecrets.entries) {
               await restored.insert(
                   'settings', {'key': entry.key, 'value': entry.value},
@@ -574,8 +604,11 @@ class BackupService {
       if (bytes == null) return 'The archived database is empty.';
       final extracted = File(p.join(work.path, 'check.db'))
         ..writeAsBytesSync(bytes, flush: true);
+      // #049: the snapshot may be encrypted with the archive's own key.
+      final archiveKey = (await readManifest(zipPath))?['db_key'] as String?;
       return await _checkDatabase(
-          extracted.path, compareWithLive ? await liveCounts() : const {});
+          extracted.path, compareWithLive ? await liveCounts() : const {},
+          key: archiveKey);
     } catch (_) {
       return 'The archived database could not be verified.';
     } finally {
@@ -649,6 +682,9 @@ class BackupService {
 
   /// A consistent copy of [source] at [dest], without modifying [source].
   Future<String?> _snapshot(String source, String dest) async {
+    // #049: VACUUM INTO can drop SQLCipher's encryption context, so an
+    // encrypted database is copied with SQLCipher's own export instead.
+    if (db.encrypted) return db.snapshotTo(dest);
     // Preferred: VACUUM INTO writes a fresh, defragmented file from a
     // read-only view. Needs SQLite 3.27+ (Android 11+); older builds reject the
     // statement, which is what the fallback below is for.
@@ -675,10 +711,11 @@ class BackupService {
 
   /// Opens [dbFile] read-only, runs SQLite's integrity check, and compares
   /// every tracked table's row count with the live database.
-  Future<String?> _checkDatabase(String dbFile, Map<String, int> live) async {
+  Future<String?> _checkDatabase(String dbFile, Map<String, int> live,
+      {String? key}) async {
     Database? copy;
     try {
-      copy = await openDatabase(dbFile, readOnly: true);
+      copy = await LocalDb.openExternal(dbFile, readOnly: true, key: key);
       final rows = await copy.rawQuery('PRAGMA integrity_check');
       final verdict = rows.isEmpty ? '' : '${rows.first.values.first}';
       if (verdict.toLowerCase() != 'ok') {

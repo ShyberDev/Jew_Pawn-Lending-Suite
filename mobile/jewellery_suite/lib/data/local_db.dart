@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import 'db_crypto.dart';
 import 'migration_v10.dart';
 import 'migration_v11.dart';
 import 'migration_v12.dart';
@@ -34,6 +35,12 @@ class LocalDb {
   /// nothing if the name ever changed).
   String? path;
 
+  /// #049 — true when the open file is SQLCipher-encrypted with this phone's
+  /// keystore key. False on web/desktop and when the keystore refused, so the
+  /// UI can say which one the shop is actually running.
+  bool _encrypted = false;
+  bool get encrypted => _encrypted;
+
   /// Opens the database. [pathOverride] exists so tests can open a scratch
   /// file instead of the real one; production never passes it.
   Future<void> init({String? pathOverride}) async {
@@ -47,12 +54,87 @@ class LocalDb {
   }
 
   Future<void> _open(String file) async {
+    // #049 — encrypt the ledger at rest on the phone. An existing plaintext
+    // file is migrated once; the original is not replaced until the encrypted
+    // copy has passed SQLite's own integrity check.
+    final key = await DbCrypto.key();
+    _encrypted = false;
+    if (key != null) {
+      var plaintext =
+          await DbCrypto.exists(file) && DbCrypto.looksPlaintext(file);
+      if (plaintext) {
+        final staging = '$file.enc';
+        final safety = '$file.plain.bak';
+        final problem = await DbCrypto.encryptFile(
+            plain: file,
+            target: staging,
+            key: key,
+            version: MigrationV20.version);
+        final verdict = problem ?? await DbCrypto.verify(staging, key);
+        if (verdict != null) {
+          debugPrint('[db] $verdict The plaintext file was kept.');
+          await DbCrypto.deleteFile(staging);
+        } else {
+          // Keep the plaintext copy until the encrypted file has actually been
+          // opened. Losing the ledger to a half-finished migration is far worse
+          // than one extra file on disk for a moment.
+          await DbCrypto.copyFile(file, safety);
+          try {
+            await DbCrypto.deleteFile(file);
+            await DbCrypto.rename(staging, file);
+            final opened = await DbCrypto.open(
+              path: file,
+              version: MigrationV20.version,
+              onCreate: _create,
+              onUpgrade: _upgrade,
+            );
+            if (!opened.$2) {
+              throw StateError('SQLCipher was not used for the new file');
+            }
+            _db = opened.$1;
+            _encrypted = true;
+            plaintext = false;
+            await DbCrypto.deleteFile(safety);
+            debugPrint('[db] plaintext database migrated to SQLCipher');
+            debugPrint('[db] open: SQLCipher encrypted, '
+                'schema v${MigrationV20.version}');
+            return;
+          } catch (error) {
+            debugPrint('[db] encrypted migration could not be opened ($error) '
+                '— restoring the plaintext file');
+            try {
+              await _db?.close();
+            } catch (_) {/* nothing to close */}
+            _db = null;
+            _encrypted = false;
+            await DbCrypto.deleteFile(file);
+            await DbCrypto.rename(safety, file);
+            plaintext = true;
+          }
+        }
+      }
+      if (!plaintext) {
+        final opened = await DbCrypto.open(
+          path: file,
+          version: MigrationV20.version,
+          onCreate: _create,
+          onUpgrade: _upgrade,
+        );
+        _db = opened.$1;
+        _encrypted = opened.$2;
+        debugPrint('[db] open: '
+            '${_encrypted ? 'SQLCipher encrypted' : 'plain SQLite'}, '
+            'schema v${MigrationV20.version}');
+        return;
+      }
+    }
     _db = await openDatabase(
       file,
       version: MigrationV20.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
+    debugPrint('[db] open: plain SQLite, schema v${MigrationV20.version}');
   }
 
   /// Closes the connection before a restore replaces the file. Screens keep
@@ -73,6 +155,16 @@ class LocalDb {
     }
     await _open(file);
   }
+
+  /// Opens a database file that is not the live connection: a backup snapshot,
+  /// an archive member, or a restored file. [key] overrides this phone's key so
+  /// a backup made elsewhere can be read before it is re-encrypted here.
+  static Future<Database> openExternal(String file,
+          {bool readOnly = false, String? key}) =>
+      DbCrypto.openExternal(file, readOnly: readOnly, key: key);
+
+  /// #049: a consistent copy of the encrypted live database, still encrypted.
+  Future<String?> snapshotTo(String dest) => DbCrypto.snapshot(db, dest: dest);
 
   Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
