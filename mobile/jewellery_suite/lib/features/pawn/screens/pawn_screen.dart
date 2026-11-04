@@ -12,6 +12,7 @@ import '../../../state/app_state.dart';
 import '../../../util/format.dart';
 import '../../../util/ids.dart';
 import '../../../util/pawn_math.dart';
+import '../../../util/phone.dart';
 import '../../../ui/customers_screen.dart';
 import '../../../ui/admin_guard.dart';
 import '../../../ui/palette.dart';
@@ -1253,41 +1254,45 @@ class _PawnScreenState extends State<PawnScreen> {
     return saved.isNotEmpty ? saved : (row['phone'] ?? '').toString().trim();
   }
 
-  Future<void> _call(Map<String, Object?> row) async {
-    final phone = _phoneOf(row).replaceAll(RegExp(r'\s'), '');
+  String _messageFor(Map<String, Object?> row) =>
+      'Namaste ${row['customer_name'] ?? ''} 🙏\n'
+      'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.';
+
+  /// The saved number when it is a usable Indian mobile, else null after a
+  /// short explanation. WhatsApp needs the 91 prefix, which [Phone] adds.
+  String? _usablePhoneOf(Map<String, Object?> row) {
+    final phone = _phoneOf(row);
     if (phone.isEmpty) {
       _toast(context, 'No phone number saved.');
-      return;
+      return null;
     }
-    final ok = await launchUrl(Uri.parse('tel:$phone'),
+    if (!Phone.isValid(phone)) {
+      _toast(context, Phone.invalidMessage);
+      return null;
+    }
+    return phone;
+  }
+
+  Future<void> _call(Map<String, Object?> row) async {
+    final phone = _usablePhoneOf(row);
+    if (phone == null) return;
+    final ok = await launchUrl(Phone.tel(phone)!,
         mode: LaunchMode.externalApplication);
     if (!ok && mounted) _toast(context, 'Could not open the dialer.');
   }
 
   Future<void> _sms(Map<String, Object?> row) async {
-    final phone = _phoneOf(row).replaceAll(RegExp(r'\s'), '');
-    if (phone.isEmpty) {
-      _toast(context, 'No phone number saved.');
-      return;
-    }
-    final uri = Uri(scheme: 'sms', path: phone, queryParameters: {
-      'body': 'Namaste ${row['customer_name'] ?? ''} 🙏\n'
-          'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.',
-    });
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final phone = _usablePhoneOf(row);
+    if (phone == null) return;
+    final ok = await launchUrl(Phone.sms(phone, body: _messageFor(row))!,
+        mode: LaunchMode.externalApplication);
     if (!ok && mounted) _toast(context, 'Could not open SMS.');
   }
 
   Future<void> _whatsapp(Map<String, Object?> row) async {
-    final digits = _phoneOf(row).replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) {
-      _toast(context, 'No phone number saved.');
-      return;
-    }
-    final text = Uri.encodeComponent(
-        'Namaste ${row['customer_name'] ?? ''} 🙏\n'
-        'Your pawn loan of ₹${moneyWhole(row['loan_amount'] as num?)} is with us.');
-    final ok = await launchUrl(Uri.parse('https://wa.me/$digits?text=$text'),
+    final phone = _usablePhoneOf(row);
+    if (phone == null) return;
+    final ok = await launchUrl(Phone.whatsapp(phone, text: _messageFor(row))!,
         mode: LaunchMode.externalApplication);
     if (!ok && mounted) _toast(context, 'Could not open WhatsApp.');
   }
@@ -3597,6 +3602,7 @@ class _PawnLoanFormState extends State<PawnLoanForm> {
                     controller: _phone,
                     keyboardType: TextInputType.phone,
                     decoration: fieldDecoration('Mobile no'),
+                    validator: Phone.validationError,
                   ),
                 ),
                 const SizedBox(width: 8),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../data/migration_v12.dart';
 import '../state/app_state.dart';
 import '../util/ids.dart';
+import '../util/phone.dart';
 import 'widgets.dart';
 
 class CustomersScreen extends StatefulWidget {
@@ -313,7 +314,9 @@ class _CustomerFormState extends State<CustomerForm> {
               TextFormField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
-                decoration: fieldDecoration('Phone'),
+                decoration: fieldDecoration('Phone',
+                    hint: '9876543210 or +91 …'),
+                validator: Phone.validationError,
               ),
               const SizedBox(height: 10),
               // Book scheme A01, A02 … Z99, then A001 … Typed ID is used
