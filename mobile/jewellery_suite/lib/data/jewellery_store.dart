@@ -1393,6 +1393,12 @@ class JewelleryStore {
     if (status == 'Delivered') {
       throw const FormatException('Use delivery to complete an order.');
     }
+    // Reopening a delivered order would let it be delivered again, which
+    // would move the stock and the money a second time.
+    if ((invoice['status']?.toString() ?? '') == 'Delivered') {
+      throw const FormatException(
+          'This order is delivered and cannot be reopened.');
+    }
     await db.upsert('jewellery_invoices', {
       ...invoice,
       'status': status,
@@ -1432,6 +1438,11 @@ class JewelleryStore {
     var orderedNet = 0.0;
     for (final item in items) {
       orderedNet += (item['net_weight'] as num?)?.toDouble() ?? 0;
+    }
+    // Delivery posts an OUT movement and possibly a payment, so a second call
+    // must be refused here rather than duplicating both.
+    if ((invoice['status']?.toString() ?? '') == 'Delivered') {
+      throw const FormatException('This order is already delivered.');
     }
     final extra = extraAmount < 0 ? 0.0 : extraAmount;
     final refund = refundAmount < 0 ? 0.0 : refundAmount;
@@ -1763,6 +1774,23 @@ class JewelleryStore {
     final refund = refundAmount < 0 ? 0.0 : refundAmount;
     if (refund > total + 0.005) {
       throw const FormatException('Refund is more than the return value.');
+    }
+    // The return form checks this too, but the store is the last line of
+    // defence: a credit note must never take back more metal than the sale.
+    final soldItems = await itemsFor(sourceInvoiceUuid);
+    var soldNet = 0.0;
+    for (final item in soldItems) {
+      soldNet += (item['net_weight'] as num?)?.toDouble() ?? 0;
+    }
+    var requestedNet = 0.0;
+    for (final item in items) {
+      requestedNet += item.netWeight;
+    }
+    final alreadyReturned = await returnedWeightForInvoice(sourceInvoiceUuid);
+    if (soldNet > 0 && alreadyReturned + requestedNet > soldNet + 0.005) {
+      final left = math.max(0.0, soldNet - alreadyReturned);
+      throw FormatException(
+          'Only ${left.toStringAsFixed(3)} g of this sale is left to return.');
     }
     final uuid = newUuid();
     final stamp = DateTime.now().toIso8601String();
