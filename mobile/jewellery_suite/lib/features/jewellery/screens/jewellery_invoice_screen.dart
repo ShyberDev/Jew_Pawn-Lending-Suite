@@ -545,8 +545,8 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
                 controller: _shared,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: fieldDecoration(
-                    'Shared expense ₹ (freight, hallmarking — split by weight)'),
+                decoration:
+                    fieldDecoration('Shared expense ₹ (split by weight)'),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 8),
