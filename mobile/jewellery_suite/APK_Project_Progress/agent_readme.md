@@ -169,7 +169,9 @@ device is full” while copying `listener.dart.dill`. Run tests with
   restyling the row, and #06J was the result. If a tile loses a badge, move it into a test in the same commit.
 - **Duplicate ledger rows**: pawn interest rows are written per period; re-running an interest payment
   twice is only guarded by the release/interest checks, not by a unique constraint.
-- **No DB encryption** (#049). The PIN and admin hashes are salted, but the SQLite file is plain.
+- **DB encryption exists but the backup carries its key** (#049/#080). The live database is SQLCipher with a keystore-held key; `backup_service.dart` also writes `db_key` into the archive manifest so a restore survives a reinstall. Anyone holding a backup therefore holds the key. Proper fix: wrap the key with a PIN-derived key and prompt at backup/restore. Recorded, not silently changed.
+- **Credentials are tracked** (#080). `APK_Project_Progress/Temp_Passwords_readme.md` is in git. Delete before handover.
+- **Platform backup was on by default** (#080, fixed v1.4.14). `allowBackup` is now `false` with Android 12+ extraction rules excluding every domain; `test/manifest_security_test.dart` guards it.
 - **Sync is untested against a live server** — the shop runs offline, so pull/push paths have unit
   coverage only.
 - **Widget tests did not cover gestures** (fixed 2026-11-01: `test/drag_to_delete_test.dart`). The

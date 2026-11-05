@@ -14,10 +14,18 @@
          reminder is deliberately inexact so it never needs SCHEDULE_EXACT_ALARM. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- #080 security: the ledger is local-only. Platform backup and
+         device-to-device transfer would copy the database off the phone (and a
+         restored copy cannot be opened anyway, because the SQLCipher key lives
+         in the keystore and never leaves the device). The shop backs up through
+         the app's own file-picker flow, which it controls. -->
     <application
         android:label="Jewellery Suite"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
