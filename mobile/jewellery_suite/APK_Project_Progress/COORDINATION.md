@@ -12,8 +12,8 @@ your claim before you start.**
 
 | Thing | State |
 |---|---|
-| Origin head | `1d63f6b` — docs(setup): add Drive OAuth, OTP gateway and Firebase guides + agent coordination |
-| Local head | `5cc6287` — same docs commit on top of freebuff's #073–#080 work; **ahead 11, behind 1** (diverged — do **not** `git reset --hard`) |
+| Origin head | `3ea0439` — docs(coordination): unblock actions (2026-11-06) |
+| Local head | docs commits sit on top of freebuff's #073–#080 work. The branch is **diverged** from origin by design until handoff — **never `git reset --hard`**. `git status -sb` is authoritative for the counts. |
 | Working tree | freebuff edits: `lib/data/backup_service.dart`, `lib/features/backup/screens/backup_screen.dart`, `pubspec.yaml` (1.4.15+67), new `test/backup_manifest_test.dart` |
 | `flutter analyze` | clean at 2026-11-05 23:40 snapshot |
 | Phone | `10.52.61.148:42895` (Wi-Fi changed from `10.235.54.202:40933`) |
