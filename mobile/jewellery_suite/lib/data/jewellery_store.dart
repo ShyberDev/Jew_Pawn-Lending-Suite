@@ -1680,6 +1680,11 @@ class JewelleryStore {
   }) async {
     final row = await db.byUuid('jewellery_worker_orders', uuid);
     if (row == null) throw const FormatException('Worker order not found.');
+    // Delivery puts the finished metal into shop stock, so delivering the same
+    // worker order twice would add the grams twice.
+    if ((row['status']?.toString() ?? '') == 'Delivered') {
+      throw const FormatException('This worker order is already delivered.');
+    }
     if (deliveredGrossWeight <= 0) {
       throw const FormatException('Enter the delivered gross weight.');
     }
