@@ -58,117 +58,114 @@ class _JewelleryCustomerLedgerScreenState
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _chooseInvoice() async {
+  /// One receipt, split by hand across this customer's open invoices.
+  ///
+  /// Each invoice gets its own amount box, so the shop decides which sale the
+  /// money belongs to; whichever box is raised above that invoice's balance
+  /// becomes a customer advance instead of being refused. `JewelleryStore`
+  /// trims every part to what the invoice still owes.
+  Future<void> _receive() async {
     if (_openInvoices.isEmpty) return;
-    if (_openInvoices.length == 1) {
-      await _collect(_openInvoices.first);
-      return;
-    }
-    final chosen = await showModalBottomSheet<Map<String, Object?>>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Which invoice is this receipt for?',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: inkOf(ctx))),
-            ),
-            for (final invoice in _openInvoices)
-              ListTile(
-                title: Text(
-                  '${invoice['doc_no']} · ${fmtDate(invoice['invoice_date'])}',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: inkOf(ctx)),
-                ),
-                subtitle: Text(
-                  'Balance ${inr(Num.toDouble(invoice['outstanding']))}',
-                  style: TextStyle(fontSize: 11, color: mutedOf(ctx)),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.pop(ctx, invoice),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (chosen != null) await _collect(chosen);
-  }
-
-  Future<void> _collect(Map<String, Object?> invoice) async {
     final state = context.read<AppState>();
-    final outstanding = (invoice['outstanding'] as num?)?.toDouble() ?? 0;
-    final ctl = TextEditingController(text: outstanding.toStringAsFixed(0));
+    final controllers = <String, TextEditingController>{
+      for (final inv in _openInvoices)
+        inv['client_uuid'].toString(): TextEditingController(
+            text: Num.toDouble(inv['outstanding']).toStringAsFixed(0)),
+    };
     var mode = 'CASH';
     try {
-      final amount = await showDialog<double>(
+      final plan = await showDialog<Map<String, double>>(
         context: context,
         builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            title: const Text('Receive payment'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: ctl,
-                    autofocus: true,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: fieldDecoration('Amount ₹'),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final m in const ['CASH', 'UPI', 'BANK'])
-                        ChoiceChip(
-                          label: Text(m),
-                          selected: mode == m,
-                          onSelected: (_) => setDialogState(() => mode = m),
-                        ),
+          builder: (ctx, setDialogState) {
+            var total = 0.0;
+            for (final c in controllers.values) {
+              total += parseMoney(c.text);
+            }
+            return AlertDialog(
+              title: const Text('Receive payment'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final inv in _openInvoices) ...[
+                      Text(
+                        '${inv['doc_no']} · balance '
+                        '${inr(Num.toDouble(inv['outstanding']))}',
+                        style: TextStyle(fontSize: 12, color: mutedOf(ctx)),
+                      ),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: controllers[inv['client_uuid'].toString()],
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: fieldDecoration('Amount ₹'),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 10),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Invoice ${invoice['doc_no']} · balance ${inr(outstanding)}',
-                    style: TextStyle(fontSize: 11, color: mutedOf(ctx)),
-                  ),
-                ],
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final m in const ['CASH', 'UPI', 'BANK'])
+                          ChoiceChip(
+                            label: Text(m),
+                            selected: mode == m,
+                            onSelected: (_) => setDialogState(() => mode = m),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Receipt ${inr(total)}. Each invoice takes at most its '
+                      'balance; anything above it stays as a customer advance.',
+                      style: TextStyle(fontSize: 11, color: mutedOf(ctx)),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel')),
-              FilledButton(
-                  onPressed: () => Navigator.pop(ctx, parseMoney(ctl.text)),
-                  child: const Text('Save')),
-            ],
-          ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel')),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, {
+                    for (final inv in _openInvoices)
+                      inv['client_uuid'].toString(): parseMoney(
+                          controllers[inv['client_uuid'].toString()]!.text),
+                  }),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         ),
       );
-      if (amount == null || amount <= 0) return;
-      await state.addJewelleryPayment(
-        invoiceUuid: invoice['client_uuid']?.toString() ?? '',
+      if (plan == null) return;
+      final manual = <String, double>{
+        for (final entry in plan.entries)
+          if (entry.value > 0) entry.key: entry.value,
+      };
+      final amount = manual.values.fold<double>(0, (sum, v) => sum + v);
+      if (amount <= 0) return;
+      final result = await state.receiveJewelleryReceipt(
         partyName: widget.customerName,
         amount: amount,
         date: DateTime.now(),
         mode: mode,
+        allocations: manual,
       );
       await _load();
-      _toast('Payment saved.');
+      _toast(result.unallocated > 0.005
+          ? 'Saved · ${inr(result.unallocated)} kept as advance.'
+          : 'Payment saved.');
     } on FormatException catch (e) {
       _toast(e.message);
     } finally {
-      ctl.dispose();
+      for (final c in controllers.values) {
+        c.dispose();
+      }
     }
   }
 
@@ -202,7 +199,7 @@ class _JewelleryCustomerLedgerScreenState
                 if (_outstanding > 0) ...[
                   const SizedBox(height: 8),
                   FilledButton.icon(
-                    onPressed: _chooseInvoice,
+                    onPressed: _receive,
                     icon: const Icon(Icons.payments_outlined, size: 18),
                     label: const Text('Receive payment'),
                   ),
