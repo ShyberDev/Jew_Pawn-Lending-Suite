@@ -9,7 +9,7 @@ import 'package:jewellery_suite/data/local_db.dart';
 import 'package:jewellery_suite/state/app_state.dart';
 import 'package:jewellery_suite/util/jewellery_math.dart';
 
-/// C13 in `Calculations_and_Test_Cases.md`: one receipt may be split across
+/// C13 in `CALCULATIONS.md`: one receipt may be split across
 /// several invoices, and anything the invoices do not need is **credit the
 /// customer holds**, never a refusal and never a hidden zero balance.
 void main() {

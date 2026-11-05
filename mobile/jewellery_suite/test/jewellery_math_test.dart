@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jewellery_suite/util/jewellery_math.dart';
 
-/// Acceptance tests from `APK_Project_Progress/Calculations_and_Test_Cases.md`.
+/// Acceptance tests from `APK_Project_Progress/CALCULATIONS.md`.
 /// Each group is named after the calculation it proves.
 void main() {
   group('C01 — gold rate', () {

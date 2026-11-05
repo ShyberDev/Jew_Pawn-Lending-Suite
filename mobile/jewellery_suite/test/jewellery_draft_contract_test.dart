@@ -8,7 +8,7 @@ import 'package:jewellery_suite/data/jewellery_store.dart';
 import 'package:jewellery_suite/data/local_db.dart';
 
 /// The three workflow boxes that used to be open in
-/// `Calculations_and_Test_Cases.md` §2:
+/// `CALCULATIONS.md` §2:
 ///
 /// * a draft purchase must post **no** stock, and confirming must post it once;
 /// * a shared expense is split by weight and stated once;

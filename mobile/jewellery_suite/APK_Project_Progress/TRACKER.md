@@ -1,0 +1,140 @@
+# Task tracker
+
+**One row per permanent item.** `README.md` is the dashboard; this file is the
+authoritative list. Phone evidence lives in `VERIFICATION.md`; dated release
+history lives in `CHANGELOG.md`.
+
+**Status legend**
+
+| Mark | Meaning |
+|---|---|
+| ✅ DONE | Written, tested, **and observed on the phone** (the observation is in `VERIFICATION.md`) |
+| 🟨 CODE DONE | Written and tested, but the phone pass is still owed |
+| 🟧 PARTIAL | Some of the item works on the phone; the rest is listed in the row |
+| ⬜ BLOCKED / PLANNED | Needs an external input, or not started |
+| 🔵 DEFERRED | Deliberately postponed |
+
+> **Rule:** never change a 🟨 to ✅ without a dated phone observation. A green
+> test suite is not a phone pass.
+
+---
+
+## 1. Foundation and audit fixes (#001–#039)
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#001** | ✅ | Pawn | New Pawn Loan → SAVE | Blank ID takes the next free book number; `id_photo_front/back` column names fixed; save wrapped in try/catch with a spinner. |
+| **#002** | ✅ | Khatabook | Customer Profile → You Gave → Add | Schema v15 adds `khatabook_given.payment_mode`; the amount is validated and failures are shown. |
+| **#003** | ✅ | Khatabook | Ledger → refinance transfer | The transfer tile says **₹33,000 refinanced** with **New loan ₹63,000 · Fresh cash ₹25,000**; same-day rows order by entry time. |
+| **#004** | ✅ | UI | Ledger balance line | `bal ₹…` → **`Bal ₹…`**. |
+| **#005** | ✅ | Cashbook | Filters | Source (All / Khatabook / Pawn / Jewellery / Manual) and payment mode filters; the tally follows both. |
+| **#006** | ✅ | Docs | Project tracking | This folder. |
+| **#020** | ✅ | Reports | Khata → Overdue accounts | Uses `dueNowForReports()` (due + arrears), not the whole outstanding; 4 tests. |
+| **#021** | ✅ | UI | Profile header, khata member header, schedule | Flexible money columns + `FittedBox`/ellipsis; widget tests at 320 dp and 2× text. |
+| **#022** | ✅ | UI | Customer Profile app bar | Call / SMS / WhatsApp / Move / Edit moved into one ⋮ menu. |
+| **#023** | ✅ | UI | Khata “No Due Date” filter | Renamed **No reminder**; the predicate was already correct. |
+| **#024** | ✅ | Money | Every money figure | True lakh/crore grouping (`₹83,33,500`, not `₹8,333,500`). |
+| **#025** | ✅ | Tests | `flutter test` | Migration teardown hang fixed; tests run with `TMPDIR=$PWD/.dart_tool/tmp`. |
+| **#026** | ✅ | UI | Settings → Dark mode (Beta) | Remaining fixed inks replaced with `surfaceOf` / `mutedOf` / `inkOf` helpers. |
+| **#027** | ✅ | Release | Release build signing | Local upload keystore + `android/key.properties` (both gitignored). |
+| **#028** | ✅ | Release | Gradle signing guard | Release tasks fail loudly if the keystore or any of the four properties is missing. |
+| **#029** | ✅ | Android | Manifest permissions | Audited; only `INTERNET` at the time. |
+| **#030** | ✅ | Cashbook | Auto-entries | Editing/deleting a Khatabook or Pawn source row updates/removes its cashbook row. |
+| **#031** | ✅ | Khatabook | Refinance | Fresh cash writes a `KHATA_REFINANCE` **OUT**; the rolled balance is a transfer, not cash. |
+| **#032** | ✅ | Backup | Remove sample data | Also deletes linked cashbook rows; real rows untouched. |
+| **#033** | ✅ | Pawn | Dashboard metal filter | `_metal` filters both the list and the summary strip. |
+| **#034** | ✅ | UI | Pawn dashboard figures | Whole-rupee money, three-decimal weights. |
+| **#035** | ✅ | Backup | Snapshot completeness | All v15 tables tracked (including `migration_log`); photo paths deduped. |
+| **#036** | ✅ | Backup | Restore | In-app restore validates the archive, writes a safety copy, replaces DB + photos, reloads state. |
+| **#037** | ✅ | Security | App start lock | Optional 4–6 digit PIN, salted hash, startup + background gate. |
+| **#038** | ✅ | Security | Admin password | Forced first-run setup, minimum 6 characters, `admin` refused, salted hash. |
+| **#039** | ✅ | About | APK size | Reads the installed package size through the `AppSize` channel. |
+
+---
+
+## 2. Accounts, cashbook, backup (#040–#049)
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#040** | ✅ | Reminders | Due / overdue notifications | Settings switch; one 9:00 summary of who is collectable; Android 13+ permission; boot receiver re-arms. Phone-verified v1.2.0. |
+| **#041** | ✅ | Reports | Export + charts | CSV → PDF → Excel, one Share sheet, six-month sales/purchases chart. Phone-verified v1.2.8 / v1.3.1 / v1.3.2. |
+| **#042** | 🔵 | Security | HTTPS for server sync | Deferred until the server has TLS; certificate pinning later. |
+| **#043** | ✅ | Jewellery | Full buy/sell/stock/valuation module | Schema v18–v20; sales/orders, purchases, credit book, payables, workers, returns, old metal, reports. Core phone-verified v1.3.0. |
+| **#044** | ✅ | Cashbook | Manual row edit | Edit icon reopens the sheet pre-filled and saves over the same row; module rows are refused. Phone-verified v1.1.9. |
+| **#045** | ✅ | Cashbook | Date-range view | Day / This month / All time / Range; the tally follows the filter. |
+| **#046** | ✅ | Customer Profile | Payment mode on You Gave rows | The ledger note ends with the stored mode. Phone-verified v1.1.9. |
+| **#047** | ✅ | Pawn | Metal / status / due-date filter | Due-date range uses the actual due date, falling back to the promised date; list and summary share the predicate. Phone-verified v1.4.4. |
+| **#048** | ✅ | Backup | Automatic daily backup | One verified copy per day, newest 7 kept, manual copies never pruned. Phone-verified v1.2.6. |
+| **#049** | ✅ | Security | Encrypted local DB | SQLCipher with a keystore-held key; plaintext migrated once; schema version carried across; backup/restore round-trip verified v1.4.4. |
+
+---
+
+## 3. Pawn UI, passwords, OTP (#050–#065)
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#050** | ✅ | UI | Collection reminder | Removed the duplicate **Calendar…** chip; four quick choices + **Pick date**. |
+| **#051** | ✅ | Pawn | Loan rows | Photo, name + village, ID / loan date / item / amount; falls back to the customer’s village. |
+| **#052** | ✅ | Pawn | Customer Pawn Profile | Consolidated expandable details, six-field loan section, full-screen photo viewer, reordered actions. |
+| **#053** | ✅ | Pawn | Villages filter | Filter row is Active · Released · Villages ▾; **All villages** lives inside the menu. |
+| **#054** | ✅ | Login | Offline login | A fresh install with an existing local ledger no longer demands a server login. |
+| **#055** | ✅ | Home | Customers Book | Drawer tile and screen title both say **Customers Book**. |
+| **#056** | ✅ | Settings | Ask password for delete / release | Removed the duplicate switch from Settings; it lives only in Password Settings. |
+| **#057** | ✅ | Login | One shop account | Gmail or mobile + salted password hash; password or one-time code; stays signed in until Logout. |
+| **#058** | ✅ | Passwords | Forgot password for every secret | Admin, login and PIN/MPIN each have **Forgot …?** → 6-digit code → new secret. |
+| **#059** | ✅ | Security | Password Settings | Biometric & screen lock moved into Password Settings; Daily MPIN; per-secret enable switches. |
+| **#060** | ✅ | Pawn | Loan tiles | Two-row layout: photo + name + amount, then ID badge, village, date, item; sync cloud restored. |
+| **#061** | ✅ | Pawn | Tile caller menu | ⋮ / long-press → Call · SMS · WhatsApp · Move · Edit. |
+| **#062** | ✅ | Pawn | Custom categories | Categories ▾ seeded with Forgot_Slip_List and Pawn_Removed; add, rename, multi-move. |
+| **#063** | ✅ | Pawn | Filters / search | Tap a selected chip to clear; search matches name, book ID, amount, phone or village; date range. Phone-verified v1.2.2. |
+| **#064** | ✅ | Database | Schema v16 | `pawn_loans.category` + `pawn_categories`; backups track the table; restore keeps account + lock settings. Phone-verified v1.2.3. |
+| **#065** | 🟧 | OTP | Real SMS / Gmail codes | Gateway URL + channel; POST `{to, channel, purpose, code, message}`; 2xx = sent; on-screen fallback. Card phone-checked v1.2.3. **Mock send still owed**; setup guide in `docs/SETUP_OTP_GATEWAY.md`. |
+
+---
+
+## 4. Security, dialler, reports, sync (#066–#072)
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#066** | ✅ | Security | Fingerprint / face unlock | `local_auth` + `FlutterFragmentActivity`; fails closed; PIN always available. Phone-verified v1.3.5. |
+| **#067** | ✅ | Pawn | Tile spacing | Removed the wide name/ID/menu gap; row 1 is photo + name + amount; row 2 is the gold ID badge, village, date, item. |
+| **#068** | ✅ | Pawn | Tile actions | All five caller actions appear; KYC & details stay inside the pawn profile. Phone-verified. |
+| **#069** | ✅ | Pawn | Loan details | Promised due date, actual due date, and outstanding tied to the actual date. |
+| **#070** | ✅ | Customers | Indian mobile numbers | One rule: 10 digits or `+91` + 10 digits; `tel:`/`sms:`/`wa.me` always carry `+91`. Phone-verified v1.4.4. |
+| **#071** | ✅ | Reports | Khata in the Pawn layout | Period / Loans filters, six metric cards, collections list, All-time card, one Share → PDF / Excel / CSV. Phone-verified v1.4.4. |
+| **#072** | ⬜ | Sync | Google Drive backup + multi-device sync | Designed; blocked on the **Web client ID** from Google Cloud. Setup: `docs/SETUP_GOOGLE_DRIVE_OAUTH.md`; design: `docs/GOOGLE_DRIVE_SYNC.md`. |
+
+---
+
+## 5. Latest rounds (#073–#081)
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#073** | ✅ | UI | Dark-mode ink debt | Every leftover fixed near-black label uses `inkOf(context)`; light mode unchanged. Phone-verified v1.4.5. |
+| **#074** | 🟨 | Jewellery | Workflow checklist | `receiveCustomerPayment` splits a receipt across invoices (manual or oldest-first), excess becomes an advance; saved-rate chart + WIP rows. Tests green. **Phone pass owed.** |
+| **#075** | 🟨 | Jewellery | Drafts, shared expenses, late fees | Schema v21; draft purchase posts nothing until **Confirm purchase**; shared expense splits by net weight; late fee raises only the balance. **Phone pass owed** for the fee dialog. |
+| **#076** | ✅ | Jewellery | Late fee / draft money defects | Payments use `total + late_fee_total − paid`; drafts excluded from every aggregate; fee row keys on `debit > 0`. Phone-verified v1.4.9 / v1.4.10. |
+| **#077** | 🟨 | Jewellery | Advance-only customers | Credit Book appends advance parties with no invoice; tile reads **Advance ₹X held · no invoice**. Tests green. **Phone pass owed.** |
+| **#078** | 🟨 | Jewellery | Double delivery / over-return | Delivered orders cannot be delivered or reopened; returns cannot exceed the remaining weight. Tests green. **Phone pass owed.** |
+| **#079** | 🟨 | Jewellery | Worker order delivered twice | A second delivery is refused before any stock or payment write. Tests green. **Phone pass owed.** |
+| **#080** | 🟨 | Android | Platform backup / archive key / credentials | `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules` exclude everything; manifest test. Archive `db_key` is now **opt-in** via **Include database key** (off by default) and covered by `test/backup_manifest_test.dart`; tracked credentials moved to a gitignored local file. **Open:** shop passphrase/rotation decision; phone pass owed for the new switch. |
+| **#081** | ⬜ | Tooling | Firebase crash reports + test distribution | Crashlytics + App Distribution only; no Firestore/Storage for ledger data. Blocked on a Firebase project. Setup: `docs/SETUP_FIREBASE.md`. |
+
+---
+
+## 6. Internal codes (#06A–#06J)
+
+These were the shop’s short-lived codes for the pawn-UI round. They are kept so
+old notes and commit messages still resolve.
+
+| # | Status | Area | Item | Outcome |
+|---|---|---|---|---|
+| **#06A** | ✅ | Pawn | Move to another pawn profile | The move asks its own password (defaults to the admin secret, swappable in Password Settings), then moves one or many loans. Phone-verified v1.2.5. |
+| **#06B** | ✅ | Pawn | Categories | Seeded defaults; **Add Custom**; rename keeps loans attached. Phone-verified v1.2.3. |
+| **#06D** | ✅ | Pawn / Khata | Drag-to-delete bin | Root cause was the gesture arena: the inner long-press won, so the drag never started. The bin now deletes; covered by two tests. |
+| **#06E** | ✅ | Security | Delete / Release prompt | Asks the MPIN first, falls back to the admin password when no MPIN is set. Phone-verified. |
+| **#06F** | ✅ | Passwords | Password Settings copy | The card now describes the MPIN step, not the old admin-password step. Phone-verified. |
+| **#06G** | ✅ | Pawn | Amount-range filter | From/To dialog, open-ended either side, Clear. Phone-verified v1.1.7. |
+| **#06H** | ✅ | Pawn | KYC return to loan form | Returning from **+ KYC** fills the visible customer name, so SAVE succeeds. Phone-verified v1.1.7. |
+| **#06I** | ✅ | Pawn | Release button label | The release confirmation says **Release**, not **Delete**. Phone-verified v1.1.7. |
+| **#06J** | ✅ | Pawn | Sync cloud + ⋮ icon | Gold `cloud_upload` badge and a visible caller icon on every tile. Phone-verified v1.1.8. |

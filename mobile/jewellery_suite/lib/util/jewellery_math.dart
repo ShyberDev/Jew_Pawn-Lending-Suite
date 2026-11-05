@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 // THE single place where jewellery money and weight are calculated.
 //
-// The rules come from `APK_Project_Progress/Calculations_and_Test_Cases.md`
-// (C01–C14) and `Jewellery_Module_Specification.md`:
+// The rules come from `APK_Project_Progress/CALCULATIONS.md`
+// (C01–C14) and `SPEC_JEWELLERY.md`:
 //
 // * Metal value uses the **pure-metal rate** and the item's purity:
 //   `weight × purity% ÷ 100 × pureRate`.
