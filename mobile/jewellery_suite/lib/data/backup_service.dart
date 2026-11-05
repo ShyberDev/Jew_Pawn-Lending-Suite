@@ -186,12 +186,41 @@ class BackupService {
     }
   }
 
+  /// The manifest written into every archive.
+  ///
+  /// [key] is only present when the caller explicitly asked for the database
+  /// key to travel with the backup. Without it the archive is useless to a
+  /// thief and still restorable on the phone that made it, because the live
+  /// SQLCipher key never leaves the keystore.
+  static Map<String, Object?> buildManifest({
+    required DateTime createdAt,
+    required bool includePhotos,
+    required int photoCount,
+    required Map<String, int> rowCounts,
+    required int schemaVersion,
+    String? key,
+  }) =>
+      <String, Object?>{
+        'format': 'jewellery-suite-backup',
+        'format_version': formatVersion,
+        'created_at': createdAt.toIso8601String(),
+        'includes_photos': includePhotos,
+        'photo_count': photoCount,
+        'row_counts': rowCounts,
+        'schema_version': schemaVersion,
+        'includes_key': key != null,
+        if (key != null) 'db_key': key,
+        'note': 'To restore, replace the app database file with '
+            '$dbEntry from this archive.',
+      };
+
   /// Creates a backup and verifies it.
   ///
   /// [prefix] names the file (`auto_jewellery_suite_…` for the daily automatic
   /// copy, #048), so pruning never has to guess which archives it may delete.
   Future<BackupResult> createBackup({
     bool includePhotos = true,
+    bool includeKey = false,
     String prefix = 'jewellery_suite',
   }) async {
     final createdAt = DateTime.now();
@@ -220,22 +249,18 @@ class BackupService {
         final photos = includePhotos ? await photoFiles() : const <File>[];
         final dir = await backupDir();
         final target = await _uniquePath(dir, createdAt, prefix);
-        // #049: a backup of an encrypted database must name the key that can
-        // open it, or it could never be restored — not even on this phone once
-        // the app is reinstalled and the keystore key is gone.
-        final archiveKey = await DbCrypto.key();
-        final manifest = <String, Object?>{
-          'format': 'jewellery-suite-backup',
-          'format_version': formatVersion,
-          'created_at': createdAt.toIso8601String(),
-          'includes_photos': includePhotos,
-          'photo_count': photos.length,
-          'row_counts': counts,
-          'schema_version': MigrationV21.version,
-          if (archiveKey != null) 'db_key': archiveKey,
-          'note': 'To restore, replace the app database file with '
-              '$dbEntry from this archive.',
-        };
+        // #080/#081: naming the key inside the archive makes every backup
+        // decryptable by whoever holds the file, so it is opt-in. Same-phone
+        // restores use the keystore key and need nothing in the manifest.
+        final archiveKey = includeKey ? await DbCrypto.key() : null;
+        final manifest = buildManifest(
+          createdAt: createdAt,
+          includePhotos: includePhotos,
+          photoCount: photos.length,
+          rowCounts: counts,
+          schemaVersion: MigrationV21.version,
+          key: archiveKey,
+        );
 
         final encoder = ZipFileEncoder();
         try {
@@ -371,7 +396,11 @@ class BackupService {
       } catch (_) {
         return RestoreResult(
             restored: false,
-            problem: 'The backup database could not be opened.',
+            problem: archiveKey == null
+                ? 'This backup does not carry its database key. Restore it '
+                    'on the phone that made it, or create a backup with '
+                    '“Include database key” to move to a new phone.'
+                : 'The backup database could not be opened.',
             safetyBackup: safety.info);
       } finally {
         await check?.close();

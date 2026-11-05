@@ -35,6 +35,9 @@ class _BackupScreenState extends State<BackupScreen> {
 
   bool _busy = false;
   bool _withPhotos = true;
+  // Off by default: a backup that carries its own key can be opened by anyone
+  // who gets the file (#080). Same-phone restores use the keystore key.
+  bool _withKey = false;
   List<BackupInfo> _files = const [];
   SampleDataReport? _report;
 
@@ -69,7 +72,8 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _create() async {
     if (_busy) return;
     setState(() => _busy = true);
-    final result = await _backups!.createBackup(includePhotos: _withPhotos);
+    final result = await _backups!
+        .createBackup(includePhotos: _withPhotos, includeKey: _withKey);
     await _reload();
     if (!mounted) return;
     setState(() => _busy = false);
@@ -374,6 +378,18 @@ class _BackupScreenState extends State<BackupScreen> {
                 value: _withPhotos,
                 onChanged: (v) => setState(() => _withPhotos = v),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Include database key',
+                    style: TextStyle(fontSize: 13.5)),
+                subtitle: Text(
+                    'Only needed to restore on a new phone. Anyone who has this '
+                    'file could then open it.',
+                    style: TextStyle(fontSize: 11, color: mutedOf(context))),
+                value: _withKey,
+                onChanged: (v) => setState(() => _withKey = v),
+              ),
               FilledButton.icon(
                 onPressed: _busy ? null : _create,
                 icon: _busy
@@ -505,8 +521,8 @@ class _BackupScreenState extends State<BackupScreen> {
                 value: 'restore',
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.settings_backup_restore,
-                      color: kGoldDark),
+                  leading:
+                      Icon(Icons.settings_backup_restore, color: kGoldDark),
                   title: Text('Restore this backup'),
                 ),
               ),
