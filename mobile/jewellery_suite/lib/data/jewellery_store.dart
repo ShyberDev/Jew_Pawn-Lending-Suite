@@ -686,7 +686,11 @@ class JewelleryStore {
     if (name.isEmpty) return const [];
     final invoices = await db.query(
       'jewellery_invoices',
-      where: "doc_type = ? AND LOWER(TRIM(party_name)) = LOWER(TRIM(?))",
+      // A draft or cancelled purchase is not a debt of the shop, so it must not
+      // appear in the supplier ledger that the payables total is built from.
+      where: "doc_type = ? "
+          "AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft') "
+          "AND LOWER(TRIM(party_name)) = LOWER(TRIM(?))",
       whereArgs: [purchaseDoc, name],
       orderBy: 'invoice_date ASC, updated_at ASC',
     );
@@ -1422,6 +1426,7 @@ class JewelleryStore {
     }
     final stamp = DateTime.now().toIso8601String();
     final total = (invoice['total'] as num?)?.toDouble() ?? 0;
+    final fees = (invoice['late_fee_total'] as num?)?.toDouble() ?? 0;
     final finalTotal = math.max(0.0, total + extra - refund);
     final currentPaid = (invoice['amount_paid'] as num?)?.toDouble() ?? 0;
     var paid = currentPaid;
@@ -1454,7 +1459,7 @@ class JewelleryStore {
       'refund_amount': refund,
       'total': finalTotal,
       'amount_paid': paid,
-      'outstanding': math.max(0.0, finalTotal - paid),
+      'outstanding': math.max(0.0, finalTotal + fees - paid),
       'notes': notes.trim().isEmpty
           ? invoice['notes']
           : '${invoice['notes'] ?? ''}\n$notes'.trim(),
@@ -1912,11 +1917,14 @@ class JewelleryStore {
     });
     final paid = await db.sum('jewellery_payments', 'amount',
         where: 'invoice_uuid = ?', whereArgs: [invoiceUuid]);
+    // Late fees are part of what the customer owes, so a payment must not
+    // recompute the balance from the item total alone and wipe the fees out.
     final total = (invoice['total'] as num?)?.toDouble() ?? 0;
+    final fees = (invoice['late_fee_total'] as num?)?.toDouble() ?? 0;
     await db.upsert('jewellery_invoices', {
       ...invoice,
       'amount_paid': paid,
-      'outstanding': math.max(0.0, total - paid),
+      'outstanding': math.max(0.0, total + fees - paid),
       'dirty': 1,
       'updated_at': stamp,
     });
@@ -2008,10 +2016,13 @@ class JewelleryStore {
       final total = (invoice['total'] as num?)?.toDouble() ?? 0;
       final paid = await db.sum('jewellery_payments', 'amount',
           where: 'invoice_uuid = ?', whereArgs: [entry.key]);
+      // The balance includes manual late fees; deriving it from the item total
+      // would silently drop them as soon as a receipt is recorded.
+      final fees = (invoice['late_fee_total'] as num?)?.toDouble() ?? 0;
       await db.upsert('jewellery_invoices', {
         ...invoice,
         'amount_paid': paid,
-        'outstanding': math.max(0.0, total - paid),
+        'outstanding': math.max(0.0, total + fees - paid),
         'dirty': 1,
         'updated_at': stamp,
       });
@@ -2257,12 +2268,16 @@ class JewelleryStore {
     final salesRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS c
       FROM jewellery_invoices
-      WHERE doc_type = ? AND status <> 'Cancelled'${between('invoice_date')}
+      WHERE doc_type = ?
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
+        ${between('invoice_date')}
     ''', [saleDoc, ...args()]);
     final purchaseRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS c
       FROM jewellery_invoices
-      WHERE doc_type = ? AND status <> 'Cancelled'${between('invoice_date')}
+      WHERE doc_type = ?
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
+        ${between('invoice_date')}
     ''', [purchaseDoc, ...args()]);
     final collectionRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(p.amount), 0) AS total
@@ -2287,12 +2302,14 @@ class JewelleryStore {
     final outstandingSalesRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(outstanding), 0) AS total
       FROM jewellery_invoices
-      WHERE doc_type = ? AND status <> 'Cancelled'
+      WHERE doc_type = ?
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
     ''', [saleDoc]);
     final outstandingPurchaseRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(outstanding), 0) AS total
       FROM jewellery_invoices
-      WHERE doc_type = ? AND status <> 'Cancelled'
+      WHERE doc_type = ?
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
     ''', [purchaseDoc]);
 
     var oldGold = 0.0;
@@ -2400,10 +2417,14 @@ class JewelleryStore {
         int openInvoices,
       })> summary({DateTime? today}) async {
     final day = _day(today ?? DateTime.now());
+    // A draft is not a purchase and a cancelled document is not a sale, so
+    // neither may appear in today's totals or the shop's open balance.
+    const live = "COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')";
     final sales = await db.sum('jewellery_invoices', 'total',
-        where: 'doc_type = ? AND invoice_date = ?', whereArgs: [saleDoc, day]);
+        where: 'doc_type = ? AND invoice_date = ? AND $live',
+        whereArgs: [saleDoc, day]);
     final purchases = await db.sum('jewellery_invoices', 'total',
-        where: 'doc_type = ? AND invoice_date = ?',
+        where: 'doc_type = ? AND invoice_date = ? AND $live',
         whereArgs: [purchaseDoc, day]);
     final collectedRows = await db.db.rawQuery('''
       SELECT COALESCE(SUM(p.amount), 0) AS total
@@ -2418,10 +2439,11 @@ class JewelleryStore {
     ''');
     final returnCredit = (returnRows.first['credit'] as num?)?.toDouble() ?? 0;
     final outstandingRaw = await db.sum('jewellery_invoices', 'outstanding',
-        where: 'doc_type IN (?, ?)', whereArgs: [saleDoc, purchaseDoc]);
+        where: 'doc_type IN (?, ?) AND $live',
+        whereArgs: [saleDoc, purchaseDoc]);
     final outstanding = math.max(0.0, outstandingRaw - returnCredit);
     final open = await db.count('jewellery_invoices',
-        where: 'doc_type IN (?, ?) AND outstanding > 0',
+        where: 'doc_type IN (?, ?) AND outstanding > 0 AND $live',
         whereArgs: [saleDoc, purchaseDoc]);
     return (
       salesToday: sales,

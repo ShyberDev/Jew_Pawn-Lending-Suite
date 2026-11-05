@@ -202,4 +202,54 @@ void main() {
       expect(await db.db.query('jewellery_charges'), isEmpty);
     });
   });
+
+  group('late fee after a payment', () {
+    test('a receipt no longer wipes the fee off the balance', () async {
+      final uuid = await store.saveInvoice(
+        docType: JewelleryStore.saleDoc,
+        partyName: 'Shyam',
+        date: DateTime(2026, 11, 1),
+        metal: JewelleryStore.gold,
+        items: [rawItem()],
+      );
+      await store.addLateFee(
+          invoiceUuid: uuid, amount: 500, date: DateTime(2026, 11, 2));
+      final total = ((await store.invoice(uuid))!['total'] as num).toDouble();
+
+      await store.addPayment(
+          invoiceUuid: uuid, amount: 1000, date: DateTime(2026, 11, 3));
+      final afterPayment = (await store.invoice(uuid))!;
+      expect((afterPayment['late_fee_total'] as num).toDouble(),
+          closeTo(500, 0.01));
+      expect((afterPayment['outstanding'] as num).toDouble(),
+          closeTo(total + 500 - 1000, 0.01),
+          reason: 'the fee is still owed after the customer pays');
+
+      await store.receiveCustomerPayment(
+          partyName: 'Shyam', amount: 500, date: DateTime(2026, 11, 4));
+      final afterSpread = (await store.invoice(uuid))!;
+      expect((afterSpread['outstanding'] as num).toDouble(),
+          closeTo(total + 500 - 1500, 0.01),
+          reason: 'the receipt allocator must also respect the fee');
+    });
+
+    test('the supplier ledger ignores draft and cancelled purchases', () async {
+      final uuid = await store.saveInvoice(
+        docType: JewelleryStore.purchaseDoc,
+        partyName: 'Ravi Bullion',
+        date: DateTime(2026, 11, 5),
+        metal: JewelleryStore.gold,
+        items: [rawItem()],
+        status: JewelleryStore.draftStatus,
+      );
+      expect(await store.ledgerForSupplier('Ravi Bullion'), isEmpty,
+          reason: 'a draft purchase is not a debt yet');
+
+      await store.confirmInvoice(uuid);
+      expect(await store.ledgerForSupplier('Ravi Bullion'), hasLength(1));
+
+      await store.deleteInvoice(uuid);
+      expect(await store.ledgerForSupplier('Ravi Bullion'), isEmpty);
+    });
+  });
 }

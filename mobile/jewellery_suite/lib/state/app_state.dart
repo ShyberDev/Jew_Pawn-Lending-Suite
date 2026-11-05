@@ -801,6 +801,9 @@ class AppState extends ChangeNotifier {
     );
     final purchase = docType == JewelleryStore.purchaseDoc;
     final order = docType == JewelleryStore.orderDoc;
+    // A draft records no money, so it must not leave a cashbook row behind
+    // either — the store has already forced its paid amount to zero.
+    final draft = status == JewelleryStore.draftStatus;
     await _syncCashbookEntry(
       category: purchase
           ? 'JEWELLERY_PURCHASE'
@@ -809,7 +812,7 @@ class AppState extends ChangeNotifier {
               : 'JEWELLERY_SALE',
       referenceId: uuid,
       entryType: purchase ? 'OUT' : 'IN',
-      amount: amountPaid,
+      amount: draft ? 0 : amountPaid,
       date: _isoDay(date),
       paymentMode: paymentMode.toUpperCase(),
       partyName: partyName,
