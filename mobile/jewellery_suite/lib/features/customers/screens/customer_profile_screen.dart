@@ -2189,7 +2189,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                               fontWeight: FontWeight.w600,
                               color: (isRefinance || isMarker || isTransfer)
                                   ? Colors.white.withValues(alpha: .9)
-                                  : kInk.withValues(alpha: .7))),
+                                  : inkOf(context).withValues(alpha: .7))),
                     ),
                   ],
                 ),
