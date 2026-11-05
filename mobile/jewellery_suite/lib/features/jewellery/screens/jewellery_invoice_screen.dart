@@ -276,6 +276,16 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
       _toast(Phone.invalidMessage);
       return;
     }
+    // A draft deliberately records no money. Say so before the typed amount is
+    // thrown away, instead of saving a draft the shop thinks was part-paid.
+    if (draft && _d(_paid) > 0) {
+      final ok = await confirmDialog(
+          context,
+          'A draft records no payment, so "Paid now" will not be saved.\n'
+          'Confirm it later and add the payment then.',
+          title: 'Save as draft');
+      if (!ok || !mounted) return;
+    }
     setState(() => _saving = true);
     try {
       await state.saveJewelleryInvoice(

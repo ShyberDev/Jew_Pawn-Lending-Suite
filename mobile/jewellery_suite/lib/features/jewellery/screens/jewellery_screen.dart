@@ -638,6 +638,8 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
     final isPurchase =
         (invoice['doc_type']?.toString() ?? '') == JewelleryStore.purchaseDoc;
     final status = JewelleryStore.recoveryFor(invoice);
+    final isDraft =
+        (invoice['status']?.toString() ?? '') == JewelleryStore.draftStatus;
     final outstanding = (invoice['outstanding'] as num?)?.toDouble() ?? 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
@@ -659,7 +661,10 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
         subtitle: Text(
           '${fmtDate(invoice['invoice_date'])} · '
           '${isPurchase ? 'Purchase' : 'Sale'} · ${invoice['metal'] ?? ''}'
-          '${outstanding > 0 ? ' · Bal ${inr(outstanding)}' : ' · Settled'}',
+          // A draft must not read like a real purchase: it holds no stock and
+          // is not a payable yet, so the row says so instead of showing a
+          // balance the shop may think it owes.
+          '${isDraft ? ' · DRAFT · stock pending' : (outstanding > 0 ? ' · Bal ${inr(outstanding)}' : ' · Settled')}',
           style: TextStyle(fontSize: 11, color: mutedOf(context)),
         ),
         trailing: Text(inr(Num.toDouble(invoice['total'])),
