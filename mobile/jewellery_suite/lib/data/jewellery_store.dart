@@ -578,10 +578,13 @@ class JewelleryStore {
       GROUP BY LOWER(TRIM(party))
     ''');
     final advances = <String, double>{};
+    final advanceNames = <String, String>{};
     for (final r in advanceRows) {
-      final key = (r['name']?.toString() ?? '').trim().toLowerCase();
+      final name = (r['name']?.toString() ?? '').trim();
+      final key = name.toLowerCase();
       if (key.isNotEmpty) {
         advances[key] = (r['credit'] as num?)?.toDouble() ?? 0;
+        advanceNames[key] = name;
       }
     }
     final needle = search.trim().toLowerCase();
@@ -605,6 +608,24 @@ class JewelleryStore {
                 (returned[key] ?? 0) -
                 advance),
         lastDate: r['last_date']?.toString() ?? '',
+      ));
+    }
+    // A customer who paid in advance and has no live invoice (never bought, or
+    // every invoice was deleted) has no row in the query above, so their money
+    // would sit in the advances table with nobody to open the ledger from.
+    final seen = {for (final c in out) c.name.trim().toLowerCase()};
+    for (final entry in advances.entries) {
+      if (entry.value <= 0.005 || seen.contains(entry.key)) continue;
+      final name = advanceNames[entry.key] ?? entry.key;
+      if (needle.isNotEmpty && !name.toLowerCase().contains(needle)) continue;
+      out.add(JewelleryCreditCustomer(
+        name: name,
+        invoiceCount: 0,
+        billed: 0,
+        received: entry.value,
+        returned: 0,
+        outstanding: 0,
+        lastDate: '',
       ));
     }
     return out;

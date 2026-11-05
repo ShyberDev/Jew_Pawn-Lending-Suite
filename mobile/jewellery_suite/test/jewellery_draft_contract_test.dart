@@ -233,6 +233,19 @@ void main() {
           reason: 'the receipt allocator must also respect the fee');
     });
 
+    test('an advance-only customer still appears in the credit book', () async {
+      final receipt = await store.receiveCustomerPayment(
+          partyName: 'Advance Only', amount: 5000, date: DateTime(2026, 11, 5));
+      expect(receipt.unallocated, closeTo(5000, 0.01));
+
+      final book = await store.creditCustomers();
+      final row = book.firstWhere((c) => c.name == 'Advance Only');
+      expect(row.invoiceCount, 0);
+      expect(row.outstanding, 0);
+      expect(row.received, closeTo(5000, 0.01),
+          reason: 'money held as an advance must not be invisible');
+    });
+
     test('the supplier ledger ignores draft and cancelled purchases', () async {
       final uuid = await store.saveInvoice(
         docType: JewelleryStore.purchaseDoc,

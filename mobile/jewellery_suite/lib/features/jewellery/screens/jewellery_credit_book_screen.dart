@@ -191,6 +191,9 @@ class _JewelleryCreditBookScreenState extends State<JewelleryCreditBookScreen> {
 
   Widget _customerTile(JewelleryCreditCustomer customer) {
     final due = customer.outstanding > 0;
+    // An advance with no live invoice still belongs to the customer, so the
+    // tile shows the money held instead of "0 invoices · last —".
+    final advanceOnly = customer.invoiceCount == 0 && customer.received > 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
@@ -211,20 +214,22 @@ class _JewelleryCreditBookScreenState extends State<JewelleryCreditBookScreen> {
                 fontWeight: FontWeight.w700,
                 color: inkOf(context))),
         subtitle: Text(
-          '${customer.invoiceCount} invoice${customer.invoiceCount == 1 ? '' : 's'}'
-          ' · last ${customer.lastDate.isEmpty ? '—' : fmtDate(customer.lastDate)}',
+          advanceOnly
+              ? 'Advance ${inr(customer.received)} held · no invoice'
+              : '${customer.invoiceCount} invoice${customer.invoiceCount == 1 ? '' : 's'}'
+                  ' · last ${customer.lastDate.isEmpty ? '—' : fmtDate(customer.lastDate)}',
           style: TextStyle(fontSize: 11, color: mutedOf(context)),
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(inr(customer.outstanding),
+            Text(inr(advanceOnly ? customer.received : customer.outstanding),
                 style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                     color: due ? kRed : kGreen)),
-            Text(due ? 'due' : 'settled',
+            Text(due ? 'due' : (advanceOnly ? 'advance' : 'settled'),
                 style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
           ],
         ),
