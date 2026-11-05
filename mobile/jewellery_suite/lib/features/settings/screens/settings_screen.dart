@@ -429,7 +429,7 @@ class _QrCodesScreenState extends State<QrCodesScreen> {
                         decoration: BoxDecoration(
                           color: i == _index
                               ? kGoldDark
-                              : kInk.withValues(alpha: .25),
+                              : inkOf(context).withValues(alpha: .25),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),

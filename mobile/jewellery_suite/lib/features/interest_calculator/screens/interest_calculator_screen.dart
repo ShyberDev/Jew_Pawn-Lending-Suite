@@ -115,7 +115,7 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
                     labelStyle: TextStyle(
                         fontSize: 12,
                         fontWeight: !_compound ? FontWeight.w700 : FontWeight.w500,
-                        color: !_compound ? kGoldDark : kInk),
+                        color: !_compound ? kGoldDark : inkOf(context)),
                     onSelected: (_) => setState(() => _compound = false),
                   ),
                 ),
@@ -128,7 +128,7 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
                     labelStyle: TextStyle(
                         fontSize: 12,
                         fontWeight: _compound ? FontWeight.w700 : FontWeight.w500,
-                        color: _compound ? kGoldDark : kInk),
+                        color: _compound ? kGoldDark : inkOf(context)),
                     onSelected: (_) => setState(() => _compound = true),
                   ),
                 ),
@@ -265,7 +265,7 @@ class _InterestCalculatorScreenState extends State<InterestCalculatorScreen> {
             style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: color ?? kInk)),
+                color: color ?? inkOf(context))),
       ],
     );
   }

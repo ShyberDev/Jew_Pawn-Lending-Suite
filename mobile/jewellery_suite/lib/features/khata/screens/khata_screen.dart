@@ -1457,7 +1457,8 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
           _dividerV(),
           Expanded(
             child:
-                _stat('Outstanding', '₹${moneyWholeDown(outstanding)}', kInk),
+                _stat('Outstanding', '₹${moneyWholeDown(outstanding)}',
+                    inkOf(context)),
           ),
           _dividerV(),
           Expanded(
@@ -1514,9 +1515,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                     fontSize: 12,
                     fontWeight:
                         _filter == value ? FontWeight.w700 : FontWeight.w500,
-                    color: _filter == value
-                        ? kGoldDark
-                        : kInk.withValues(alpha: .7)),
+                    color: _filter == value ? kGoldDark : inkOf(context)),
                 onSelected: (_) => setState(() => _filter = value),
               ),
               const SizedBox(width: 8),
@@ -1654,7 +1653,7 @@ class _KhataCustomersScreenState extends State<KhataCustomersScreen> {
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             color: r.activeLoans == 0
-                                ? kInk.withValues(alpha: .4)
+                                ? inkOf(context).withValues(alpha: .4)
                                 : chip.fg)),
                   ),
                 ],

@@ -254,7 +254,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           bottom: TabBar(
             onTap: (i) => setState(() => _tab = i),
             indicatorColor: kGold,
-            labelColor: kInk,
+            labelColor: inkOf(context),
             unselectedLabelColor: Color(0xFF8A8A80),
             labelStyle: TextStyle(fontWeight: FontWeight.w700),
             tabs: [
@@ -541,7 +541,7 @@ class _KhataReportsViewState extends State<KhataReportsView> {
               style: TextStyle(
                   fontSize: 16.5,
                   fontWeight: FontWeight.w800,
-                  color: color ?? kInk)),
+                  color: color ?? inkOf(context))),
           const SizedBox(height: 3),
           Text(label,
               style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
@@ -1032,7 +1032,7 @@ class _PawnReportsViewState extends State<PawnReportsView> {
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: color ?? kInk)),
+                  color: color ?? inkOf(context))),
           const SizedBox(height: 3),
           Text(label,
               style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
