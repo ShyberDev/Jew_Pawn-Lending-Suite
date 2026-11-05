@@ -306,12 +306,16 @@ class _JewelleryCustomerLedgerScreenState
                           color: inkOf(context)),
                     ),
                   ),
+                  // A late fee is a debit that is not a sale, so keying the
+                  // display off `isSale` printed it as "-₹0" and hid the fee.
                   Text(
-                    entry.isSale ? inr(entry.debit) : '-${inr(entry.credit)}',
+                    entry.debit > 0
+                        ? inr(entry.debit)
+                        : '-${inr(entry.credit)}',
                     style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
-                        color: entry.isSale ? kRed : kGreen),
+                        color: entry.debit > 0 ? kRed : kGreen),
                   ),
                 ],
               ),
