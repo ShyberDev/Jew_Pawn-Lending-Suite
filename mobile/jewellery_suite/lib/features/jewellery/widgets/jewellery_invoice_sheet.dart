@@ -120,6 +120,82 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
     }
   }
 
+  /// A manual late fee (spec §7). It is filed as its own charge: the invoice's
+  /// item total and recorded cost are untouched, the customer's balance rises
+  /// and the ledger shows the fee as a separate debit. No cash moves.
+  Future<void> _addLateFee() async {
+    final invoice = _invoice;
+    if (invoice == null) return;
+    final state = context.read<AppState>();
+    final amountCtl = TextEditingController();
+    final noteCtl = TextEditingController();
+    try {
+      final amount = await showDialog<double>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Late fee'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amountCtl,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: fieldDecoration('Late fee ₹'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: noteCtl,
+                decoration: fieldDecoration('Note (optional)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, parseMoney(amountCtl.text)),
+                child: const Text('Add')),
+          ],
+        ),
+      );
+      if (amount == null || amount <= 0) return;
+      await state.addJewelleryLateFee(
+        invoiceUuid: widget.invoiceUuid,
+        amount: amount,
+        date: DateTime.now(),
+        note: noteCtl.text.trim(),
+      );
+      await _load();
+      widget.onChanged?.call();
+    } on FormatException catch (e) {
+      _toast(e.message);
+    } finally {
+      amountCtl.dispose();
+      noteCtl.dispose();
+    }
+  }
+
+  /// Turns a draft into a real document. The stock movement happens in the
+  /// store, once, guarded by the status so a double tap cannot receive twice.
+  Future<void> _confirmDraft() async {
+    final ok = await confirmDialog(
+        context, 'Confirm this purchase? Its stock is received now.',
+        title: 'Confirm purchase');
+    if (!ok || !mounted) return;
+    final state = context.read<AppState>();
+    try {
+      await state.confirmJewelleryInvoice(widget.invoiceUuid);
+      await _load();
+      widget.onChanged?.call();
+      _toast('Confirmed. Stock received once.');
+    } on FormatException catch (e) {
+      _toast(e.message);
+    }
+  }
+
   Future<void> _openReturn() async {
     final saved = await Navigator.push<bool>(
       context,
@@ -151,6 +227,9 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
   Widget build(BuildContext context) {
     final invoice = _invoice;
     final outstanding = (invoice?['outstanding'] as num?)?.toDouble() ?? 0;
+    final status = invoice?['status']?.toString() ?? 'Active';
+    final isDraft = status == JewelleryStore.draftStatus;
+    final lateFees = (invoice?['late_fee_total'] as num?)?.toDouble() ?? 0;
     final deliveredNet = Num.toDouble(invoice?['delivered_net_weight'] ?? 0);
     final orderedNet = _items.fold<double>(
         0, (sum, item) => sum + Num.toDouble(item['net_weight']));
@@ -219,7 +298,16 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
                         bold: true),
                     _kv(_isPurchase ? 'Paid' : 'Received',
                         inr(Num.toDouble(invoice['amount_paid']))),
+                    if (lateFees > 0) _kv('Late fee', inr(lateFees)),
                     _kv('Balance', inr(outstanding), bold: true),
+                    if (isDraft)
+                      Text(
+                        'Draft · stock is not received until you confirm.',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: mutedOf(context)),
+                      ),
                     if (_returnedCredit > 0)
                       _kv('Return credit', inr(_returnedCredit)),
                     if (_payments.isNotEmpty) ...[
@@ -248,27 +336,50 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
                         ),
                       ),
                     if (!_isPurchase && !_isOrder) const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _addPayment,
-                            icon: const Icon(Icons.payments_outlined, size: 18),
-                            label: Text(_isPurchase
-                                ? 'Pay supplier'
-                                : (_isOrder
-                                    ? 'Receive payment'
-                                    : 'Add payment')),
+                    if (isDraft)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _confirmDraft,
+                          icon:
+                              const Icon(Icons.inventory_2_outlined, size: 18),
+                          label: const Text('Confirm purchase · receive stock'),
+                        ),
+                      ),
+                    if (!_isPurchase && !_isOrder && !isDraft) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _addLateFee,
+                          icon: const Icon(Icons.timer_outlined, size: 18),
+                          label: const Text('Add late fee'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (!isDraft)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _addPayment,
+                              icon:
+                                  const Icon(Icons.payments_outlined, size: 18),
+                              label: Text(_isPurchase
+                                  ? 'Pay supplier'
+                                  : (_isOrder
+                                      ? 'Receive payment'
+                                      : 'Add payment')),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: _delete,
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Delete document',
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _delete,
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: 'Delete document',
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),

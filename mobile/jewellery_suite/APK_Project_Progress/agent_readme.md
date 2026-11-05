@@ -9,7 +9,10 @@ shop already made.
 - **Platform:** Flutter (Android APK), local SQLite, no server required.
 - **Branch for APK work:** `Apk_Develop_Branch_01_11` (created 01/11/2026).
 - **Tracker:** `APK_Project_Progress/README.md` — permanent task numbers `#001`…`#06F`.
-- **Last written:** 2026-11-02 (latest: **#041** CSV report export shipped and phone-verified on
+- **Last written:** 2026-11-05 (latest: **#075** closed the last three workflow-checklist boxes —
+  draft purchases, shared expenses, manual late fees — on v1.4.7; before it **#074** audited the whole
+  checklist and wired the allocation engine that had tests but no caller, and **#073** closed the
+  dark-mode ink debt. Before that, **#041** CSV report export shipped and phone-verified on
   v1.2.8 (its first build v1.2.7 crashed on the tap — §4); before that **#048** automatic daily backup
   shipped and phone-verified on v1.2.6; before that §4 #06A was closed — the move asks its own password, Password Settings has the card, and the password prompts are text prompts again; §5 item 14 records how the digits-only prompt hid for so long).
 
@@ -45,6 +48,7 @@ shop already made.
 | Pawn filters + search (#063) | ✅ phone-verified 2026-11-01 (v1.2.2 / versionCode 38) | Chip tap-to-clear, name / ID / amount search and the loan-date range all behave as specified on the phone; the summary strip follows the filters (₹0/₹0/₹0 when nothing matches). |
 | Dark-mode pawn chips readable (#06L) | ✅ phone-verified 2026-11-01 (v1.2.2) | Unselected chip/pill labels used hard-coded `kInk` (near-black at 70 %) so **Released / Gold / Silver / Mixed** were black-on-black in dark mode. Now `inkOf(context)` — readable in both themes. |
 | Dark-mode ink debt closed (#073) | ✅ phone-verified 2026-11-05 (v1.4.5) | The rest of that same pattern — Khata chips + summary card, Reports tabs, interest-calculator chips, Settings pager dots and customer-profile ledger stamps — now uses `inkOf(context)`; read in dark mode on the phone and returned to light afterwards. `test/dark_mode_ink_test.dart` (4 cases). The **Outstanding ₹0** statistic was missed by the first build and found on the phone. |
+| Jewellery workflow checklist closed (#074/#075) | 🟨 code + tests, form phone-checked 2026-11-05 (v1.4.7) | Every §2 box in `Calculations_and_Test_Cases.md` is now satisfied. #074 wired `allocatePayment` (receipts split across invoices, excess kept as customer credit), added the saved-rate graph and the WIP rows. #075 added schema **v21** (`shared_expense`, `late_fee_total`, `jewellery_charges`): a draft purchase posts nothing until **Confirm purchase** (idempotent), a shared expense splits by net weight, and a late fee raises only the balance. `test/jewellery_receipt_test.dart` (6) + `test/jewellery_draft_contract_test.dart` (7); suite **502 passing**. Seen on the phone: schema v21 migrated in place and **SAVE AS DRAFT** on the purchase form. Still owed a data-bearing phone pass: confirm→stock, the shared-expense split and the late-fee dialog. |
 | App shell + password launch gates (#06K) | ✅ phone-verified 2026-11-01 (v1.2.1 / versionCode 37) | Cold start went straight to **Home** — no PIN, no admin-password form, no login — with the dark theme and the ledger intact. `lib/app.dart` restored from `0ae051f`; gates skipped by `kDevPasswordGateDisabled` in `lib/util/secret_dev.dart` (set it `false` for release). See §4 #06K. |
 | Dev credentials written down | ✅ `APK_Project_Progress/Temp_Passwords_readme.md` | Account password reset through the Forgot-password OTP flow so any agent can sign in; delete before handover. |
 | Password centre, Forgot-password OTP (#058/#059/#065) | 🟨 #065 card phone-checked 2026-11-02 | The **One-time code delivery** card saved `https://shop.local/otp` + **SMS** (*“Codes will be sent by SMS.”*) and **Remove gateway** restored the offline fallback (*“Gateway removed — codes are shown on this phone.”*). A real send still needs the shop's gateway URL. |

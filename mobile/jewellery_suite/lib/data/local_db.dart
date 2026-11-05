@@ -16,6 +16,7 @@ import 'migration_v17.dart';
 import 'migration_v18.dart';
 import 'migration_v19.dart';
 import 'migration_v20.dart';
+import 'migration_v21.dart';
 import 'migration_v9.dart';
 
 /// Local, offline-first store. Every entity carries a `client_uuid` so it can be
@@ -69,7 +70,7 @@ class LocalDb {
             plain: file,
             target: staging,
             key: key,
-            version: MigrationV20.version);
+            version: MigrationV21.version);
         final verdict = problem ?? await DbCrypto.verify(staging, key);
         if (verdict != null) {
           debugPrint('[db] $verdict The plaintext file was kept.');
@@ -84,7 +85,7 @@ class LocalDb {
             await DbCrypto.rename(staging, file);
             final opened = await DbCrypto.open(
               path: file,
-              version: MigrationV20.version,
+              version: MigrationV21.version,
               onCreate: _create,
               onUpgrade: _upgrade,
             );
@@ -97,7 +98,7 @@ class LocalDb {
             await DbCrypto.deleteFile(safety);
             debugPrint('[db] plaintext database migrated to SQLCipher');
             debugPrint('[db] open: SQLCipher encrypted, '
-                'schema v${MigrationV20.version}');
+                'schema v${MigrationV21.version}');
             return;
           } catch (error) {
             debugPrint('[db] encrypted migration could not be opened ($error) '
@@ -116,7 +117,7 @@ class LocalDb {
       if (!plaintext) {
         final opened = await DbCrypto.open(
           path: file,
-          version: MigrationV20.version,
+          version: MigrationV21.version,
           onCreate: _create,
           onUpgrade: _upgrade,
         );
@@ -124,17 +125,17 @@ class LocalDb {
         _encrypted = opened.$2;
         debugPrint('[db] open: '
             '${_encrypted ? 'SQLCipher encrypted' : 'plain SQLite'}, '
-            'schema v${MigrationV20.version}');
+            'schema v${MigrationV21.version}');
         return;
       }
     }
     _db = await openDatabase(
       file,
-      version: MigrationV20.version,
+      version: MigrationV21.version,
       onCreate: _create,
       onUpgrade: _upgrade,
     );
-    debugPrint('[db] open: plain SQLite, schema v${MigrationV20.version}');
+    debugPrint('[db] open: plain SQLite, schema v${MigrationV21.version}');
   }
 
   /// Closes the connection before a restore replaces the file. Screens keep
@@ -361,6 +362,11 @@ class LocalDb {
       // fine metal content. See migration_v20.dart.
       await MigrationV20.addSchema(db);
     }
+    if (oldVersion < 21) {
+      // v21: draft purchases, shared expenses and manual late fees. See
+      // migration_v21.dart.
+      await MigrationV21.addSchema(db);
+    }
   }
 
   Future<void> _create(Database db, int version) async {
@@ -547,6 +553,8 @@ class LocalDb {
     await MigrationV19.addSchema(db);
     // v20: retail sale pricing fields.
     await MigrationV20.addSchema(db);
+    // v21: shared expense, late-fee total and the charges table.
+    await MigrationV21.addSchema(db);
   }
 
   // ---------------------------------------------------------------- settings

@@ -14,15 +14,19 @@ stock, stock valuation, customer orders/delivery, worker ledgers/orders,
 linked returns, supplier payables, document search/filter and on-screen
 reports with a package-free six-month chart.
 
-**Checklist audit (2026-11-05):** every box in §2 was checked against the
-code and the suite. **34 boxes now pass by automated test**, 10 pass by code
-and earlier phone checks, and **2 remain open** (`Draft does not change stock`
-and `Test item-specific and shared expenses`); the late-fee box is partial
-because nothing auto-generates a fee but there is no jewellery fee entry yet.
-Two real gaps found by the audit were built in this round and covered by
-`test/jewellery_receipt_test.dart`: a receipt can now be split across invoices
-with the excess kept as customer credit, and Reports gained a saved-rate graph
-plus a WIP line. Each box below says which check proves it.
+**Checklist audit (2026-11-05, updated same day):** every box in §2 was
+checked against the code and the suite, then the three that failed were built.
+**37 boxes now pass by automated test** and the remaining 10 pass by code or an
+earlier phone pass; **no box is left open**.
+
+Round one closed the allocation gap (`test/jewellery_receipt_test.dart`): a
+receipt splits across invoices with the excess kept as customer credit, and
+Reports gained a saved-rate graph plus a WIP line. Round two closed the last
+three (`test/jewellery_draft_contract_test.dart`): a purchase saves as a
+**draft that posts no stock** and is confirmed exactly once, a **shared
+expense** is split by weight and stated once (schema v21), and a **manual late
+fee** is a separate charge that never rewrites the sale value. Each box below
+says which check proves it.
 
 ## 1. Worked calculation tests
 
@@ -184,18 +188,22 @@ the device in an earlier pass; **[ ]** = still open.
     the ledger. Same test file.
 -   [x] test — Old-metal voucher/credit/stock receipt counted once
     (`jewellery_store_test.dart`, credit-book case).
--   [ ] partial — Late fee is manual only. Nothing in the jewellery module
-generates a fee automatically, but there is also **no jewellery fee entry**
-    yet; the manual late-fee path exists only in Khatabook.
+-   [x] test — Late fee is manual only. **Built 2026-11-05 (schema v21):**
+    a sale's document sheet has **Add late fee**, which files a charge row and
+    raises the balance; the invoice's item total and recorded cost are never
+    rewritten, so reports still show what was actually sold. Nothing is ever
+    generated automatically. `test/jewellery_draft_contract_test.dart`.
 -   [x] test — Full and partial returns preserve the original invoice
     (`jewellery_operations_test.dart`, over-return guard included).
 
 ### Purchases
 
--   [ ] **OPEN — Draft does not change stock.** There is no draft state: a
-    saved purchase posts its `PURCHASE_IN` movement immediately. Needs a
-    `Draft` status that skips stock plus a **Confirm** action that posts it
-    once. Do not ship a half-draft (stock must never move twice).
+-   [x] test — Draft does not change stock. **Built 2026-11-05:** the purchase
+    form has **SAVE AS DRAFT**; a draft stores the document and its lines but
+    posts no stock, no payment and no old-metal stock. The document sheet then
+    offers **Confirm purchase · receive stock**, and `confirmInvoice` refuses
+    a second confirm (and clears any leftover movement first), so stock can
+    never post twice. `test/jewellery_draft_contract_test.dart`.
 -   [x] test — Confirmed receipt changes stock once
     (`jewellery_store_test.dart`, purchase case).
 -   [x] test — Percentage and fixed-weight making separately (C02, C03, plus
@@ -203,10 +211,12 @@ generates a fee automatically, but there is also **no jewellery fee entry**
 -   [x] test — Prevent both making methods on one item: `makingMode` is a
     single enum, so a line cannot carry two modes (`a line has exactly one
     making mode`).
--   [ ] **OPEN — Shared expenses.** Item-specific additional cost works
-    (stored per line). `JewelleryMath.allocateSharedExpense` allocates a
-    shared amount by weight and is unit-tested, but **no invoice field or
-    screen** feeds it yet.
+-   [x] test — Item-specific and shared expenses. Item additional cost is
+    stored per line. **Built 2026-11-05 (schema v21):** the form takes one
+    **shared expense** for the document, `saveInvoice` splits it across the
+    lines by net weight through `allocateSharedExpense`, stores each line's
+    share in its additional cost and the total once on the invoice. The
+    invoice total is still the sum of its lines. Same test file.
 
 ### Worker/manufacturing
 

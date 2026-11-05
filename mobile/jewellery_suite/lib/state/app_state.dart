@@ -722,6 +722,30 @@ class AppState extends ChangeNotifier {
   /// The jewellery document store (rates, invoices, payments, stock).
   JewelleryStore get jewelleryStore => JewelleryStore(db);
 
+  /// Posts a draft purchase/sale: the stock movement happens here and only
+  /// here, so a draft changes no stock and a confirm can never post twice.
+  Future<void> confirmJewelleryInvoice(String uuid) async {
+    await jewelleryStore.confirmInvoice(uuid);
+    notifyListeners();
+  }
+
+  /// One manual late fee on a jewellery sale. It raises the customer's
+  /// outstanding and appears in the ledger; no cash moves yet.
+  Future<void> addJewelleryLateFee({
+    required String invoiceUuid,
+    required double amount,
+    required DateTime date,
+    String note = '',
+  }) async {
+    await jewelleryStore.addLateFee(
+      invoiceUuid: invoiceUuid,
+      amount: amount,
+      date: date,
+      note: note,
+    );
+    notifyListeners();
+  }
+
   Future<void> saveJewelleryRate(String metal, double rate,
       {DateTime? date}) async {
     await jewelleryStore.saveRate(metal, rate, date: date);
@@ -751,6 +775,8 @@ class AppState extends ChangeNotifier {
     String address = '',
     String photoPath = '',
     String slipPhotoPath = '',
+    String? status,
+    double sharedExpense = 0,
   }) async {
     final uuid = await jewelleryStore.saveInvoice(
       docType: docType,
@@ -769,7 +795,9 @@ class AppState extends ChangeNotifier {
       address: address,
       photoPath: photoPath,
       slipPhotoPath: slipPhotoPath,
-      status: docType == JewelleryStore.orderDoc ? 'Pending' : 'Active',
+      status:
+          status ?? (docType == JewelleryStore.orderDoc ? 'Pending' : 'Active'),
+      sharedExpense: sharedExpense,
     );
     final purchase = docType == JewelleryStore.purchaseDoc;
     final order = docType == JewelleryStore.orderDoc;
