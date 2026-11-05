@@ -70,6 +70,7 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
   final _address = TextEditingController();
   final _discount = TextEditingController();
   final _paid = TextEditingController();
+  final _shared = TextEditingController();
   final _notes = TextEditingController();
   final _oldWeight = TextEditingController();
   final _oldPurity = TextEditingController(text: '92');
@@ -103,6 +104,7 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
       _address,
       _discount,
       _paid,
+      _shared,
       _notes,
       _oldWeight,
       _oldPurity,
@@ -208,9 +210,10 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
     return (equivalent: v.equivalentWeight, value: v.suggestedValue);
   }
 
-  double get _rawPayable => (_lineTotal - _d(_discount) - _old.value)
-      .clamp(0, double.infinity)
-      .toDouble();
+  double get _rawPayable =>
+      (_lineTotal + _d(_shared) - _d(_discount) - _old.value)
+          .clamp(0, double.infinity)
+          .toDouble();
   int get _roundedPayable => JewelleryMath.roundRupee(_rawPayable);
 
   Future<void> _pickDate() async {
@@ -233,7 +236,7 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
     if (picked != null) setState(() => _promisedDate = picked);
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool draft = false}) async {
     final state = context.read<AppState>();
     if (_party.text.trim().isEmpty) {
       _toast('Enter the ${_isPurchase ? 'supplier' : 'customer'} name.');
@@ -303,7 +306,9 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
             ),
         ],
         discount: _d(_discount),
-        amountPaid: _d(_paid),
+        amountPaid: draft ? 0 : _d(_paid),
+        sharedExpense: _d(_shared),
+        status: draft ? JewelleryStore.draftStatus : null,
         paymentMode: _mode,
         oldMetal: _oldMetal
             ? OldMetalInput(
@@ -345,7 +350,8 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
     final balance = (_roundedPayable - paid).clamp(0, double.infinity);
     // Old metal is an asset exchange, not a discount, so it is left out of the
     // profit preview. The invoice discount does reduce the shop's revenue.
-    final estimatedProfit = _lineTotal - _d(_discount) - _totalCost;
+    final estimatedProfit =
+        _lineTotal - _d(_discount) - _totalCost - _d(_shared);
 
     return Scaffold(
       appBar: AppBar(
@@ -369,8 +375,8 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
                 TextField(
                   controller: _mobile,
                   keyboardType: TextInputType.phone,
-                  decoration: fieldDecoration('Mobile',
-                      hint: '9876543210 or +91 …'),
+                  decoration:
+                      fieldDecoration('Mobile', hint: '9876543210 or +91 …'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -536,6 +542,15 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
               ),
               const SizedBox(height: 8),
               TextField(
+                controller: _shared,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: fieldDecoration(
+                    'Shared expense ₹ (freight, hallmarking — split by weight)'),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              TextField(
                 controller: _notes,
                 decoration: fieldDecoration('Notes (optional)'),
               ),
@@ -557,6 +572,7 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
                   ],
                   if (_d(_discount) > 0)
                     _row('Invoice discount', '-${inr(_d(_discount))}'),
+                  if (_d(_shared) > 0) _row('Shared expense', inr(_d(_shared))),
                   if (old.value > 0)
                     _row('Old-metal credit', '-${inr(old.value)}'),
                   _row(
@@ -591,6 +607,14 @@ class _JewelleryInvoiceScreenState extends State<JewelleryInvoiceScreen> {
                 ? 'SAVE PURCHASE'
                 : (_isOrder ? 'SAVE ORDER' : 'SAVE SALE')),
           ),
+          if (_isPurchase) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : () => _save(draft: true),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('SAVE AS DRAFT'),
+            ),
+          ],
         ],
       ),
     );

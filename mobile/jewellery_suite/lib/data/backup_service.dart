@@ -9,7 +9,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'db_crypto.dart';
 import 'local_db.dart';
-import 'migration_v20.dart';
+import 'migration_v21.dart';
 
 /// One backup file on disk.
 class BackupInfo {
@@ -144,6 +144,7 @@ class BackupService {
     'jewellery_worker_txns',
     'jewellery_returns',
     'jewellery_return_items',
+    'jewellery_charges',
     'cashbook_entries',
     'customer_id_pool',
     'history_log',
@@ -230,7 +231,7 @@ class BackupService {
           'includes_photos': includePhotos,
           'photo_count': photos.length,
           'row_counts': counts,
-          'schema_version': MigrationV20.version,
+          'schema_version': MigrationV21.version,
           if (archiveKey != null) 'db_key': archiveKey,
           'note': 'To restore, replace the app database file with '
               '$dbEntry from this archive.',
@@ -361,7 +362,7 @@ class BackupService {
         final manifestVersion =
             (manifest['schema_version'] as num?)?.toInt() ?? 0;
         if (version < manifestVersion) version = manifestVersion;
-        if (version > MigrationV20.version) {
+        if (version > MigrationV21.version) {
           return RestoreResult(
               restored: false,
               problem: 'The backup database is newer than this app.',
@@ -381,8 +382,8 @@ class BackupService {
       // become the live file, so the live key never has to change.
       final localKey = await DbCrypto.key();
       if (archiveKey != null && localKey != null && archiveKey != localKey) {
-        final rekeyProblem =
-            await DbCrypto.rekeyFile(extracted.path, from: archiveKey, to: localKey);
+        final rekeyProblem = await DbCrypto.rekeyFile(extracted.path,
+            from: archiveKey, to: localKey);
         if (rekeyProblem != null) {
           return RestoreResult(
               restored: false,

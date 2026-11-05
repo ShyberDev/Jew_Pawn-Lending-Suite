@@ -313,6 +313,12 @@ class JewelleryStore {
   static const purchaseDoc = 'PURCHASE';
   static const orderDoc = 'ORDER';
 
+  /// A purchase saved as a draft. It stores the document and its lines but
+  /// posts **nothing**: no payment, no old-metal stock and no stock movement
+  /// until [confirmInvoice] runs. Confirm is idempotent, so stock can never be
+  /// received twice.
+  static const draftStatus = 'Draft';
+
   static const stockRaw = 'RAW';
   static const stockFinished = 'FINISHED';
   static const stockOld = 'OLD';
@@ -626,7 +632,7 @@ class JewelleryStore {
              MAX(invoice_date) AS last_date
       FROM jewellery_invoices
       WHERE doc_type = ?
-        AND COALESCE(status, 'Active') <> 'Cancelled'
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
         AND party_name IS NOT NULL AND TRIM(party_name) <> ''
       GROUP BY LOWER(TRIM(party_name))
       ORDER BY outstanding DESC, last_date DESC, name COLLATE NOCASE
@@ -664,7 +670,7 @@ class JewelleryStore {
     return db.query(
       'jewellery_invoices',
       where: "doc_type = ? AND outstanding > 0 "
-          "AND COALESCE(status, 'Active') <> 'Cancelled' "
+          "AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft') "
           "AND LOWER(TRIM(party_name)) = LOWER(TRIM(?))",
       whereArgs: [purchaseDoc, partyName.trim()],
       orderBy: 'invoice_date ASC, updated_at ASC',
@@ -827,6 +833,14 @@ class JewelleryStore {
       whereArgs: [name],
       orderBy: 'pay_date ASC, updated_at ASC',
     );
+    // Manual late fees are charges, not part of the sale value: the invoice
+    // total keeps the item prices, so the fee is staged as its own debit.
+    final charges = await db.query(
+      'jewellery_charges',
+      where: 'LOWER(TRIM(party)) = LOWER(TRIM(?))',
+      whereArgs: [name],
+      orderBy: 'charge_date ASC, updated_at ASC',
+    );
 
     final staged = <({
       String date,
@@ -893,6 +907,29 @@ class JewelleryStore {
           invoiceUuid: '',
           oldMetalValue: 0,
           note: p['notes']?.toString() ?? '',
+          balance: 0,
+        ),
+      ));
+    }
+    for (final c in charges) {
+      final date = c['charge_date']?.toString() ?? '';
+      final amount = (c['amount'] as num?)?.toDouble() ?? 0;
+      if (amount <= 0.005) continue;
+      staged.add((
+        date: date,
+        order: 2,
+        stamp: c['updated_at']?.toString() ?? '',
+        entry: JewelleryLedgerEntry(
+          date: date,
+          type: 'LATE_FEE',
+          description: 'Late fee',
+          reference: '',
+          mode: '',
+          debit: amount,
+          credit: 0,
+          invoiceUuid: c['invoice_uuid']?.toString() ?? '',
+          oldMetalValue: 0,
+          note: c['note']?.toString() ?? '',
           balance: 0,
         ),
       ));
@@ -978,6 +1015,7 @@ class JewelleryStore {
     String photoPath = '',
     String slipPhotoPath = '',
     String status = 'Active',
+    double sharedExpense = 0,
   }) async {
     final name = partyName.trim();
     if (name.isEmpty) throw const FormatException('Enter a name.');
@@ -998,7 +1036,27 @@ class JewelleryStore {
     final now = DateTime.now();
     final stamp = now.toIso8601String();
     final docNo = await nextDocNo(docType, date);
-    final computed = [for (final item in items) item.computed];
+    // A shared expense (freight, hallmarking, stones for the lot) is split by
+    // net weight, so each line carries its own share and the total is still
+    // the sum of the lines. C08 in the calculations document.
+    final safeShared = math.max(0.0, sharedExpense);
+    final shares = JewelleryMath.allocateSharedExpense(
+        safeShared, [for (final item in items) item.netWeight]);
+    final computed = [
+      for (var i = 0; i < items.length; i++)
+        JewelleryMath.line(
+          weight: items[i].netWeight,
+          purityPct: items[i].purity,
+          pureRate: items[i].rate,
+          makingMode: items[i].makingMode,
+          makingValue: items[i].makingValue,
+          additionalCost: items[i].additionalCost + shares[i],
+          discount: items[i].discount,
+          billingBasis: items[i].billingBasis,
+          wastagePct: items[i].wastagePct,
+          makingCharge: items[i].makingCharge,
+        ),
+    ];
 
     var lineTotal = 0.0;
     var additional = 0.0;
@@ -1035,6 +1093,10 @@ class JewelleryStore {
       throw const FormatException('Payment is more than the payable amount.');
     }
     final outstanding = math.max(0.0, rounded - paid);
+    // A draft records the document and its lines but posts nothing at all.
+    final isDraft = status == draftStatus;
+    final paidNow = isDraft ? 0.0 : paid;
+    final dueNow = isDraft ? rounded : outstanding;
 
     await db.upsert('jewellery_invoices', {
       'client_uuid': uuid,
@@ -1050,9 +1112,10 @@ class JewelleryStore {
       'old_metal_value': oldValue,
       'round_off': roundOff,
       'total': rounded,
-      'amount_paid': paid,
-      'outstanding': outstanding,
+      'amount_paid': paidNow,
+      'outstanding': dueNow,
       'cost_total': costTotal > 0 ? costTotal : cost,
+      'shared_expense': safeShared,
       'status': status,
       'notes': notes,
       'promised_date': promisedDate == null ? null : _day(promisedDate),
@@ -1095,13 +1158,13 @@ class JewelleryStore {
       });
     }
 
-    if (paid > 0) {
+    if (paidNow > 0) {
       await db.upsert('jewellery_payments', {
         'client_uuid': newUuid(),
         'invoice_uuid': uuid,
         'party': partyName,
         'pay_date': _day(date),
-        'amount': paid,
+        'amount': paidNow,
         'payment_mode': paymentMode.toUpperCase(),
         'reference_no': '',
         'notes': docType == saleDoc ? 'Sale receipt' : 'Purchase payment',
@@ -1110,7 +1173,7 @@ class JewelleryStore {
       });
     }
 
-    if (oldMetal != null && oldMetal.grossWeight > 0) {
+    if (!isDraft && oldMetal != null && oldMetal.grossWeight > 0) {
       await db.upsert('jewellery_old_metal', {
         'client_uuid': newUuid(),
         'invoice_uuid': uuid,
@@ -1142,34 +1205,117 @@ class JewelleryStore {
       );
     }
 
-    for (final item in items) {
-      if (docType == saleDoc) {
-        await _moveStock(
-          metal: item.metal,
-          date: date,
-          type: 'SALE_OUT',
-          kind: stockFinished,
-          weight: -item.netWeight,
-          purity: item.purity,
-          sourceUuid: uuid,
-          sourceType: docType,
-          notes: 'Sold on $docNo',
-        );
-      } else if (docType == purchaseDoc) {
-        await _moveStock(
-          metal: item.metal,
-          date: date,
-          type: 'PURCHASE_IN',
-          kind: stockRaw,
-          weight: item.netWeight,
-          purity: item.purity,
-          sourceUuid: uuid,
-          sourceType: docType,
-          notes: 'Purchased on $docNo',
-        );
+    if (!isDraft) {
+      for (final item in items) {
+        if (docType == saleDoc) {
+          await _moveStock(
+            metal: item.metal,
+            date: date,
+            type: 'SALE_OUT',
+            kind: stockFinished,
+            weight: -item.netWeight,
+            purity: item.purity,
+            sourceUuid: uuid,
+            sourceType: docType,
+            notes: 'Sold on $docNo',
+          );
+        } else if (docType == purchaseDoc) {
+          await _moveStock(
+            metal: item.metal,
+            date: date,
+            type: 'PURCHASE_IN',
+            kind: stockRaw,
+            weight: item.netWeight,
+            purity: item.purity,
+            sourceUuid: uuid,
+            sourceType: docType,
+            notes: 'Purchased on $docNo',
+          );
+        }
       }
     }
 
+    return uuid;
+  }
+
+  /// Posts a draft document: stock is received/sold **once** and the document
+  /// becomes Active. Re-confirming is refused, and any leftover movement from a
+  /// half-finished confirm is removed first so stock cannot double-post.
+  Future<void> confirmInvoice(String uuid) async {
+    final invoice = await db.byUuid('jewellery_invoices', uuid);
+    if (invoice == null) throw const FormatException('Document not found.');
+    final status = invoice['status']?.toString() ?? 'Active';
+    if (status != draftStatus) {
+      throw const FormatException('This document is not a draft.');
+    }
+    final docType = invoice['doc_type']?.toString() ?? '';
+    final date = DateTime.parse(invoice['invoice_date']?.toString() ?? '');
+    final docNo = invoice['doc_no']?.toString() ?? '';
+    final metal = invoice['metal']?.toString() ?? gold;
+    final items = await itemsFor(uuid);
+    await db
+        .deleteWhere('jewellery_stock_movements', 'source_uuid = ?', [uuid]);
+    for (final item in items) {
+      final weight = (item['net_weight'] as num?)?.toDouble() ?? 0;
+      final purity = (item['purity'] as num?)?.toDouble() ?? 0;
+      if (weight <= 0) continue;
+      await _moveStock(
+        metal: item['metal']?.toString() ?? metal,
+        date: date,
+        type: docType == saleDoc ? 'SALE_OUT' : 'PURCHASE_IN',
+        kind: docType == saleDoc ? stockFinished : stockRaw,
+        weight: docType == saleDoc ? -weight : weight,
+        purity: purity,
+        sourceUuid: uuid,
+        sourceType: docType,
+        notes: docType == saleDoc ? 'Sold on $docNo' : 'Purchased on $docNo',
+      );
+    }
+    await db.upsert('jewellery_invoices', {
+      ...invoice,
+      'status': 'Active',
+      'dirty': 1,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// One manual late fee against a sale (spec §7).
+  ///
+  /// It is a separate charge row: the invoice's item total and its recorded
+  /// cost are never rewritten, the customer's outstanding rises by the fee and
+  /// the ledger shows it as its own debit. Nothing is generated automatically.
+  Future<String> addLateFee({
+    required String invoiceUuid,
+    required double amount,
+    required DateTime date,
+    String note = '',
+  }) async {
+    if (amount <= 0) {
+      throw const FormatException('Late fee must be above zero.');
+    }
+    final invoice = await db.byUuid('jewellery_invoices', invoiceUuid);
+    if (invoice == null) throw const FormatException('Document not found.');
+    final uuid = newUuid();
+    final stamp = DateTime.now().toIso8601String();
+    await db.upsert('jewellery_charges', {
+      'client_uuid': uuid,
+      'invoice_uuid': invoiceUuid,
+      'party': invoice['party_name'] ?? invoice['party'] ?? '',
+      'charge_date': _day(date),
+      'amount': amount,
+      'note': note.trim(),
+      'dirty': 1,
+      'updated_at': stamp,
+    });
+    final fees = (invoice['late_fee_total'] as num?)?.toDouble() ?? 0;
+    final outstanding = (invoice['outstanding'] as num?)?.toDouble() ?? 0;
+    await db.upsert('jewellery_invoices', {
+      ...invoice,
+      'late_fee_total': fees + amount,
+      'outstanding': outstanding + amount,
+      'dirty': 1,
+      'updated_at': stamp,
+    });
     return uuid;
   }
 
@@ -1808,8 +1954,7 @@ class JewelleryStore {
     for (final inv in open) {
       final uuid = inv['client_uuid']?.toString() ?? '';
       if (uuid.isEmpty) continue;
-      owes[uuid] =
-          math.max(0, (inv['outstanding'] as num?)?.toDouble() ?? 0);
+      owes[uuid] = math.max(0, (inv['outstanding'] as num?)?.toDouble() ?? 0);
     }
 
     final plan = <String, double>{};
@@ -1857,8 +2002,7 @@ class JewelleryStore {
         'dirty': 1,
         'updated_at': stamp,
       });
-      payments.add(
-          (uuid: uuid, amount: entry.value, invoiceUuid: entry.key));
+      payments.add((uuid: uuid, amount: entry.value, invoiceUuid: entry.key));
       final invoice = await db.byUuid('jewellery_invoices', entry.key);
       if (invoice == null) continue;
       final total = (invoice['total'] as num?)?.toDouble() ?? 0;
@@ -1888,8 +2032,7 @@ class JewelleryStore {
         'dirty': 1,
         'updated_at': stamp,
       });
-      payments
-          .add((uuid: uuid, amount: unallocated, invoiceUuid: ''));
+      payments.add((uuid: uuid, amount: unallocated, invoiceUuid: ''));
     }
     return (allocated: plan, unallocated: unallocated, payments: payments);
   }
@@ -1920,6 +2063,7 @@ class JewelleryStore {
     await db.deleteWhere('jewellery_invoice_items', 'invoice_uuid = ?', [uuid]);
     await db.deleteWhere('jewellery_payments', 'invoice_uuid = ?', [uuid]);
     await db.deleteWhere('jewellery_old_metal', 'invoice_uuid = ?', [uuid]);
+    await db.deleteWhere('jewellery_charges', 'invoice_uuid = ?', [uuid]);
     await db
         .deleteWhere('jewellery_stock_movements', 'source_uuid = ?', [uuid]);
     await db.deleteWhere('jewellery_invoices', 'client_uuid = ?', [uuid]);
@@ -2044,7 +2188,7 @@ class JewelleryStore {
                AS purchases
       FROM jewellery_invoices
       WHERE doc_type IN (?, ?)
-        AND COALESCE(status, 'Active') <> 'Cancelled'
+        AND COALESCE(status, 'Active') NOT IN ('Cancelled', 'Draft')
         AND invoice_date >= ?
       GROUP BY ym
       ORDER BY ym
