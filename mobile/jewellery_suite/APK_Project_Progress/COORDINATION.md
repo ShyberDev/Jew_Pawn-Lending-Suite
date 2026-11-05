@@ -12,8 +12,8 @@ your claim before you start.**
 
 | Thing | State |
 |---|---|
-| Origin head | `270ada7` — docs(release): verify the downloaded v1.4.4 asset on the phone |
-| Local head | `646d44b` — #080, **10 commits ahead of origin** (freebuff's #073–#080 work) |
+| Origin head | `1d63f6b` — docs(setup): add Drive OAuth, OTP gateway and Firebase guides + agent coordination |
+| Local head | `5cc6287` — same docs commit on top of freebuff's #073–#080 work; **ahead 11, behind 1** (diverged — do **not** `git reset --hard`) |
 | Working tree | freebuff edits: `lib/data/backup_service.dart`, `lib/features/backup/screens/backup_screen.dart`, `pubspec.yaml` (1.4.15+67), new `test/backup_manifest_test.dart` |
 | `flutter analyze` | clean at 2026-11-05 23:40 snapshot |
 | Phone | `10.52.61.148:42895` (Wi-Fi changed from `10.235.54.202:40933`) |
@@ -86,6 +86,18 @@ NEXT: ...
 | #078 | create order → deliver → reopen → deliver refused; over-return refused |
 | #079 | worker order delivered twice refused |
 | #080 | manifest flags re-checked in the built APK; archive-key/credentials items still open |
+
+## Unblock actions (shop / owner)
+
+| Item | What is needed | Who | Time |
+|---|---|---|---|
+| #072 Drive | Google Cloud project → Drive API → OAuth consent (External/Testing, `drive.appdata` + `email`) → **Android** client with package `com.shyberdev.jewellery_suite` + release SHA-1 → **Web** client ID | shop's Google account | ~20 min |
+| #065 OTP | Either an Apps Script `/exec` URL (Gmail) or a Worker + SMS-provider URL, plus a shared secret | shop | ~15 min (Gmail) |
+| #081 Firebase | Firebase project + Android app (`com.shyberdev.jewellery_suite`) → `google-services.json` | shop's Google account | ~10 min |
+
+Full steps: `docs/SETUP_GOOGLE_DRIVE_OAUTH.md`, `docs/SETUP_OTP_GATEWAY.md`,
+`docs/SETUP_FIREBASE.md`. **Do not paste secrets into this file or any tracked
+file** — hand them over privately.
 
 ## Release state
 
