@@ -3,6 +3,8 @@
 Use these as acceptance tests against the existing APK. They describe
 expected behaviour; they do not claim the APK passes.
 
+**Snapshot, not live status:** the current suite count and phone state are in `README.md` / `TRACKER.md`. The counts below are the 2026-11-03/05 audit snapshot.
+
 **Implementation status (2026-11-03):** C01–C15 are executable rules in
 `lib/util/jewellery_math.dart`, with **42 passing cases** in
 `test/jewellery_math_test.dart`. The schema/store layer is covered by

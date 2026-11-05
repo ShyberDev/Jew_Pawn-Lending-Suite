@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local-only project notes and staged APKs
+APK_Project_Progress/.secrets.local.md
+APK_Project_Progress/.tmp_apk/

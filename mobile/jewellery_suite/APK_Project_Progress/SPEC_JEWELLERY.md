@@ -66,7 +66,7 @@ calculations, and reports.
 ``` text
 APK_Project_Progress/
 └── Jewellery_Module/
-    ├── Jewellery_Module_Specification.md
+    ├── SPEC_JEWELLERY.md
     ├── Calculations_and_Doubts_and_Questions.md
     ├── 01_Sales/
     │   ├── Sales_Gold.md
@@ -334,26 +334,26 @@ its reversal entries are applied.
     (list + ledger + pay-supplier), stock valuation in Reports, document
     search/type/metal/payment-status filters, a package-free six-month
     sales/purchases chart, and the pawn due-date filter (#047).
--   **Not built / blocked:** PDF/Excel export (packages unavailable
-    offline), encrypted DB, biometric unlock, and a real SMS/e-mail OTP
-    gateway. Reports are on-screen + CSV (main Reports) only.
+-   **Built since this spec:** PDF/Excel export (#041), the SQLCipher
+    encrypted DB (#049), biometric unlock (#066), and the OTP gateway card
+    (#065, real send still pending). Current status is in `TRACKER.md`.
 -   **Known v1 limitation:** the Credit Book groups by customer name
     (case-insensitive), not by a customer-table link, so two customers with
     the same name merge.
 
-## 9. Implemented in the 2026-11-03 batch (schema v20)
+## 9. Implementation map
 
-| Layer | File | What it does |
+The module is built; the authoritative item status is `TRACKER.md`. The main
+files:
+
+| Layer | File | Role |
 |---|---|---|
-| Calculations | `lib/util/jewellery_math.dart` | Raw purchase pricing (`weight × purity% × rate`), KDM retail pricing (`(net + wastage%) × rate + flat making`), non-KDM retail pricing (`net × rate + flat making`), actual fine metal, percentage/fixed-weight/flat purchase making, sales discount, worker return suggestion, old metal, shared-expense allocation, whole-rupee rounding, recovery colour, outstanding, worker cash↔metal conversion, payment allocation, estimated vs final profit, return netting. `test/jewellery_math_test.dart` — **42 cases, C01–C15**. |
-| Schema | `lib/data/migration_v18.dart`, `v19.dart`, `v20.dart` | v18: rates, invoices/items, payments, old metal, stock movements. v19: order delivery fields, worker transactions/orders, linked returns. v20: `billing_basis`, `wastage_pct`, `making_charge`, `fine_weight`; old rows default to `raw`. All tracked by backups. |
-| Store | `lib/data/jewellery_store.dart` | Rates per day, `SAL-/PUR-/ORD-YYYYMMDD-####` numbering, retail vs raw line totals, one old-metal deduction and stored round-off, payment re-derivation, delete cascade, stock totals/movements and fine-gram **stock valuation** at the latest saved rate, document search/type/metal/payment-status filters, customer credit positions and ledgers, **supplier payables and purchase ledgers**, old-metal register, orders/status/delivery, worker cash/gold ledgers and worker orders, linked returns with over-return guard, report totals, monthly chart series and profit. `test/jewellery_store_test.dart` (22) + `test/jewellery_credit_book_test.dart` (8) + `test/jewellery_supplier_test.dart` (6) + `test/jewellery_operations_test.dart` (15). |
-| Cashbook | `lib/state/app_state.dart` | Sale receipt → `JEWELLERY_SALE` IN; purchase payment → `JEWELLERY_PURCHASE` OUT; order advance → `JEWELLERY_ORDER` IN; later receipt → `JEWELLERY_COLLECT` IN; return refund → OUT; worker cash follows its sign. Deleting a document removes its cash entries and stock together. |
-| Screens | `lib/features/jewellery/screens/` | Dashboard with **Customer Credit Book, Supplier Payables**, Orders, Workers, Old Metal, Returns and Reports tiles plus search/filter chips; **separate sale/order and purchase forms** (KDM/Non-KDM, wastage, flat making, actual purity, cost-to-shop); supplier payable list/ledger with pay-supplier; old-metal register; order list/detail with status + delivery; worker list/ledger/transaction/order; returns list/form; Reports with stock valuation and a package-free six-month bar chart; shared invoice detail sheet with retail/raw breakdowns. Reached from **Home → Jewellery**. |
+| Calculations | `lib/util/jewellery_math.dart` | KDM / non-KDM pricing, purity, making, old metal, allocation, profit |
+| Schema | `lib/data/migration_v18.dart` … `v21.dart` | Rates, invoices, payments, orders, workers, returns, drafts, fees |
+| Store | `lib/data/jewellery_store.dart` | Documents, stock, credit book, payables, workers, reports |
+| Cashbook | `lib/state/app_state.dart` | Sale **IN**, purchase **OUT**, order advance **IN**, refund **OUT** |
+| Screens | `lib/features/jewellery/screens/` | Dashboard, forms, ledgers, reports |
 
-**Still open for the phone pass:** create a KDM sale (₹1,66,000), a non-KDM
-sale (₹1,51,000 at 60/80/85% actual purity), an order and delivery, a worker
-cash/gold movement, a linked return, check that purchase cash is OUT/red
-while customer receipts are IN/green, open **Supplier Payables** and pay a
-purchase, check **stock valuation** against saved rates, exercise the
-document search/type/metal/status filters, and view the six-month chart.
+**Phone passes still owed:** #074 (receipt split + rate chart), #075 (late-fee
+dialog), #077 (advance-only customer), #078 (double delivery / over-return),
+#079 (worker double delivery). See `VERIFICATION.md`.

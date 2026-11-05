@@ -8,7 +8,7 @@
 
 **Tech Stack:** Flutter, Provider, sqflite, existing `JewelleryMath` formulas.
 
-**Spec:** `APK_Project_Progress/Jewellery_Module_Specification.md`, `APK_Project_Progress/Calculations_and_Test_Cases.md`.
+**Spec:** `APK_Project_Progress/SPEC_JEWELLERY.md`, `APK_Project_Progress/CALCULATIONS.md`.
 
 ## Global Constraints
 
