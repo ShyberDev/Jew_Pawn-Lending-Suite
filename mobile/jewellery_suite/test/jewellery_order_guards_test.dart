@@ -96,6 +96,34 @@ void main() {
     });
   });
 
+  group('worker order delivery', () {
+    test('a delivered worker order cannot be delivered twice', () async {
+      final uuid = await store.saveWorkerOrder(
+        workerName: 'Ramu',
+        date: DateTime(2026, 11, 1),
+        orderedWeight: 10,
+      );
+      await store.deliverWorkerOrder(
+          uuid: uuid, date: DateTime(2026, 11, 5), deliveredGrossWeight: 10);
+
+      final rows = await db.db.query('jewellery_stock_movements',
+          where: 'movement_type = ?', whereArgs: ['WORKER_ORDER_IN']);
+      final once = rows.fold<double>(
+          0, (sum, r) => sum + ((r['weight'] as num?)?.toDouble() ?? 0));
+      expect(once, closeTo(10, 0.001));
+
+      await expectLater(
+        store.deliverWorkerOrder(
+            uuid: uuid, date: DateTime(2026, 11, 6), deliveredGrossWeight: 10),
+        throwsA(isA<FormatException>()),
+      );
+      final after = await db.db.query('jewellery_stock_movements',
+          where: 'movement_type = ?', whereArgs: ['WORKER_ORDER_IN']);
+      expect(after, hasLength(1),
+          reason: 'the finished metal must land in stock exactly once');
+    });
+  });
+
   group('return guard', () {
     Future<String> sale() => store.saveInvoice(
           docType: JewelleryStore.saleDoc,
