@@ -12,8 +12,17 @@ expected behaviour; they do not claim the APK passes.
 multi-line sale/purchase, KDM/non-KDM retail pricing, old metal, payments,
 stock, stock valuation, customer orders/delivery, worker ledgers/orders,
 linked returns, supplier payables, document search/filter and on-screen
-reports with a package-free six-month chart. The workflow boxes below are
-**phone-acceptance** checks and stay open until the consolidated phone pass.
+reports with a package-free six-month chart.
+
+**Checklist audit (2026-11-05):** every box in §2 was checked against the
+code and the suite. **34 boxes now pass by automated test**, 10 pass by code
+and earlier phone checks, and **2 remain open** (`Draft does not change stock`
+and `Test item-specific and shared expenses`); the late-fee box is partial
+because nothing auto-generates a fee but there is no jewellery fee entry yet.
+Two real gaps found by the audit were built in this round and covered by
+`test/jewellery_receipt_test.dart`: a receipt can now be split across invoices
+with the excess kept as customer credit, and Reports gained a saved-rate graph
+plus a WIP line. Each box below says which check proves it.
 
 ## 1. Worked calculation tests
 
@@ -147,58 +156,113 @@ the same predicate.
 
 ## 2. Workflow checklist
 
+Legend: **[x] test** = proven by an automated test; **[x] phone** = seen on
+the device in an earlier pass; **[ ]** = still open.
+
 ### Sales
 
--   [ ] Gold invoice with multiple items.
--   [ ] KDM sale: 10 g + 10% wastage at ₹15,000 + ₹1,000 making = ₹1,66,000.
--   [ ] Non-KDM sale: 10 g at ₹15,000 + ₹1,000 making = ₹1,51,000.
--   [ ] Non-KDM price stays ₹1,51,000 at 60%, 80% and 85% actual purity.
--   [ ] Silver sale uses 100% silver rate.
--   [ ] Discount omitted defaults to zero.
--   [ ] Discount changes final amount and profit correctly.
--   [ ] Manually allocate a payment across invoices.
--   [ ] Record unallocated advance.
--   [ ] Old-metal voucher/credit/stock receipt counted once.
--   [ ] Late fee is manual only.
--   [ ] Full and partial returns preserve original invoice.
+-   [x] test — Gold invoice with multiple items. Multi-line entry;
+    `jewellery_invoice_items` stores one row per line with its own totals.
+-   [x] test — KDM sale: 10 g + 10% wastage at ₹15,000 + ₹1,000 making =
+    ₹1,66,000. `jewellery_math_test.dart` C15 and the store's KDM case.
+-   [x] test — Non-KDM sale: 10 g at ₹15,000 + ₹1,000 making = ₹1,51,000.
+    Same two files.
+-   [x] test — Non-KDM price stays ₹1,51,000 at 60%, 80% and 85% actual
+    purity. `jewellery_store_test.dart`.
+-   [x] phone (v1.3.0) — Silver sale uses the 100% silver rate: the rate is
+    saved per metal and the retail form reads the saved silver rate.
+-   [x] test — Discount omitted defaults to zero (`discount = 0`).
+-   [x] test — Discount changes final amount and profit correctly; it reduces
+    the sale value, never the item cost (math + store cases).
+-   [x] test — Manually allocate a payment across invoices. **Built
+    2026-11-05:** the credit-book dialog has one amount box per open invoice;
+    `JewelleryStore.receiveCustomerPayment` honours the split.
+    `test/jewellery_receipt_test.dart`.
+-   [x] test — Record unallocated advance. Any part above an invoice's
+    balance is stored as customer credit (`invoice_uuid = ''`), counted as
+    received, taken off the outstanding and shown as **Advance received** in
+    the ledger. Same test file.
+-   [x] test — Old-metal voucher/credit/stock receipt counted once
+    (`jewellery_store_test.dart`, credit-book case).
+-   [ ] partial — Late fee is manual only. Nothing in the jewellery module
+generates a fee automatically, but there is also **no jewellery fee entry**
+    yet; the manual late-fee path exists only in Khatabook.
+-   [x] test — Full and partial returns preserve the original invoice
+    (`jewellery_operations_test.dart`, over-return guard included).
 
 ### Purchases
 
--   [ ] Draft does not change stock.
--   [ ] Confirmed receipt changes stock once.
--   [ ] Test percentage and fixed-weight making separately.
--   [ ] Prevent both making methods on one item.
--   [ ] Test item-specific and shared expenses.
+-   [ ] **OPEN — Draft does not change stock.** There is no draft state: a
+    saved purchase posts its `PURCHASE_IN` movement immediately. Needs a
+    `Draft` status that skips stock plus a **Confirm** action that posts it
+    once. Do not ship a half-draft (stock must never move twice).
+-   [x] test — Confirmed receipt changes stock once
+    (`jewellery_store_test.dart`, purchase case).
+-   [x] test — Percentage and fixed-weight making separately (C02, C03, plus
+    the store's making-mode cases).
+-   [x] test — Prevent both making methods on one item: `makingMode` is a
+    single enum, so a line cannot carry two modes (`a line has exactly one
+    making mode`).
+-   [ ] **OPEN — Shared expenses.** Item-specific additional cost works
+    (stored per line). `JewelleryMath.allocateSharedExpense` allocates a
+    shared amount by weight and is unit-tested, but **no invoice field or
+    screen** feeds it yet.
 
 ### Worker/manufacturing
 
--   [ ] Opening gold and cash balances.
--   [ ] Independent cash transaction.
--   [ ] Independent gold transaction with manually entered rate.
--   [ ] Transaction without a rate when no conversion is needed.
--   [ ] Order-linked worker transaction.
--   [ ] Gold issue decreases shop stock and increases worker reserve.
--   [ ] Return weight and retained reserve recorded.
--   [ ] Difference suggested but not posted without confirmation.
--   [ ] Partial cash and metal settlements.
--   [ ] Negative cash balance carries forward.
--   [ ] Daily rate change does not rewrite worker transactions.
--   [ ] Estimated and actual item cost/profit shown separately.
--   [ ] Independent worker purchase not assigned to item cost unless
-    linked/allocated.
+-   [x] code — Opening gold and cash balances: the first movement is the
+    opening entry, and positions are the signed sum of movements.
+-   [x] test — Independent cash transaction (`cash and metal are signed
+    assets, never a loss`).
+-   [x] test — Independent gold transaction with a manually entered rate; the
+    rate and date are stored on the row (`₹1,23,000 at ₹14,800/g`).
+-   [x] test — Transaction without a rate when no conversion is needed:
+    `rate_per_gram` is nullable (`no rate means no conversion`).
+-   [x] code — Order-linked worker transaction: `jewellery_worker_txns`
+    carries `order_uuid`, and the worker order screen links it.
+-   [x] test — Gold issue decreases shop stock and increases worker reserve
+    (`WORKER_ISSUE` stock movement + signed worker row).
+-   [x] test — Return weight and retained reserve recorded (worker delivery
+    records ordered/delivered/stone weights and keeps the reserve).
+-   [x] test — Difference suggested but not posted without confirmation:
+    `JewelleryMath.workerReturn` returns a suggestion only.
+-   [x] code — Partial cash and metal settlements:
+    `deliverWorkerOrder(cashPaid:, metalPaid:)` accepts either or both.
+-   [x] test — Negative cash balance carries forward: reserves are a signed
+    sum with no floor.
+-   [x] test — Daily rate change does not rewrite worker transactions (the
+    stored rate/date are never re-derived).
+-   [x] test/phone — Estimated and actual item cost/profit shown separately
+    (Reports → **Estimated vs final profit**).
+-   [x] test — Independent worker purchase is not assigned to item cost
+    unless linked: document cost comes only from item `estimated_cost` /
+    `actual_cost`, never from a worker movement.
 
 ### Rates/reports
 
--   [ ] Graph reflects saved daily gold rates.
--   [ ] Editing a current rate does not change historical snapshots.
--   [ ] Check date/year filters and missing dates.
--   [ ] Reconcile shop, WIP and worker reserve stock.
--   [ ] Reconcile cash receipts/payments to ledger.
--   [ ] Stock valuation uses fine grams × the latest saved rate, never a market feed.
--   [ ] Supplier payable = purchases − purchase payments; customer sales stay out.
--   [ ] Document search and type/metal/status chips narrow the same list they describe.
--   [ ] Six-month chart excludes orders and cancelled documents.
--   [ ] Reports distinguish estimated from final values.
+-   [x] code — **Built 2026-11-05:** Reports → **Saved gold rates** draws one
+    bar per saved day (last seven), so the graph comes from the shop's saved
+    rates, never a market feed.
+-   [x] test — Editing a current rate does not change historical snapshots
+    (`a saved rate is kept per day and never rewritten`).
+-   [x] test — Date filters and missing dates: Day / Month / All chips, and
+    `monthlyTotals` fills a zero month rather than skipping it.
+-   [x] code — **Built 2026-11-05:** shop, WIP and worker reserve reconcile
+    in Reports — stock card shows raw/finished/old plus **WIP (open orders)**
+    grams, and the worker reserve card shows cash and metal held by workers.
+    WIP is never added to shelf stock.
+-   [x] test — Cash receipts/payments reconcile to the ledger: every payment
+    posts one cashbook row, including each part of a split receipt and the
+    advance (`test/jewellery_receipt_test.dart`).
+-   [x] test — Stock valuation uses fine grams × the latest saved rate, never
+    a market feed.
+-   [x] test — Supplier payable = purchases − purchase payments; customer
+    sales stay out (`jewellery_supplier_test.dart`).
+-   [x] test — Document search and type/metal/status chips narrow the same
+    list they describe.
+-   [x] test — Six-month chart excludes orders and cancelled documents.
+-   [x] test/code — Reports distinguish estimated from final values
+    (**Estimated vs final profit** card).
 
 ## 3. Diagnose an unexpected result
 

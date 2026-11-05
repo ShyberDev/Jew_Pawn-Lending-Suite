@@ -561,29 +561,47 @@ class JewelleryStore {
         returned[key] = (r['credit'] as num?)?.toDouble() ?? 0;
       }
     }
+    // Receipts that were more than the open invoices become customer credit.
+    // They belong to the customer, not to an invoice, so they are summed by
+    // party name and shown as `received` (and taken off the outstanding).
+    final advanceRows = await db.db.rawQuery('''
+      SELECT MIN(TRIM(party)) AS name,
+             COALESCE(SUM(amount), 0) AS credit
+      FROM jewellery_payments
+      WHERE invoice_uuid IS NULL OR TRIM(invoice_uuid) = ''
+      GROUP BY LOWER(TRIM(party))
+    ''');
+    final advances = <String, double>{};
+    for (final r in advanceRows) {
+      final key = (r['name']?.toString() ?? '').trim().toLowerCase();
+      if (key.isNotEmpty) {
+        advances[key] = (r['credit'] as num?)?.toDouble() ?? 0;
+      }
+    }
     final needle = search.trim().toLowerCase();
-    return [
-      for (final r in rows)
-        if (needle.isEmpty ||
-            (r['name']?.toString().toLowerCase().contains(needle) ?? false))
-          JewelleryCreditCustomer(
-            name: r['name']?.toString() ?? '',
-            invoiceCount: (r['invoice_count'] as num?)?.toInt() ?? 0,
-            billed: (r['billed'] as num?)?.toDouble() ?? 0,
-            received: (r['received'] as num?)?.toDouble() ?? 0,
-            returned:
-                returned[(r['name']?.toString() ?? '').trim().toLowerCase()] ??
-                    0,
-            outstanding: math.max(
-                0,
-                ((r['outstanding'] as num?)?.toDouble() ?? 0) -
-                    (returned[(r['name']?.toString() ?? '')
-                            .trim()
-                            .toLowerCase()] ??
-                        0)),
-            lastDate: r['last_date']?.toString() ?? '',
-          ),
-    ];
+    final out = <JewelleryCreditCustomer>[];
+    for (final r in rows) {
+      final name = r['name']?.toString() ?? '';
+      if (needle.isNotEmpty && !name.toLowerCase().contains(needle)) {
+        continue;
+      }
+      final key = name.trim().toLowerCase();
+      final advance = advances[key] ?? 0;
+      out.add(JewelleryCreditCustomer(
+        name: name,
+        invoiceCount: (r['invoice_count'] as num?)?.toInt() ?? 0,
+        billed: (r['billed'] as num?)?.toDouble() ?? 0,
+        received: ((r['received'] as num?)?.toDouble() ?? 0) + advance,
+        returned: returned[key] ?? 0,
+        outstanding: math.max(
+            0,
+            ((r['outstanding'] as num?)?.toDouble() ?? 0) -
+                (returned[key] ?? 0) -
+                advance),
+        lastDate: r['last_date']?.toString() ?? '',
+      ));
+    }
+    return out;
   }
 
   /// Totals for the dashboard's Credit Book entry, net of returns.
@@ -800,6 +818,15 @@ class JewelleryStore {
       whereArgs: [name],
       orderBy: 'return_date ASC, updated_at ASC',
     );
+    // A receipt larger than the open invoices is kept as customer credit; the
+    // JOIN above cannot see it (it has no invoice), so it is read separately.
+    final advances = await db.query(
+      'jewellery_payments',
+      where: "(invoice_uuid IS NULL OR TRIM(invoice_uuid) = '') "
+          'AND LOWER(TRIM(party)) = LOWER(TRIM(?))',
+      whereArgs: [name],
+      orderBy: 'pay_date ASC, updated_at ASC',
+    );
 
     final staged = <({
       String date,
@@ -843,6 +870,27 @@ class JewelleryStore {
           debit: 0,
           credit: (p['amount'] as num?)?.toDouble() ?? 0,
           invoiceUuid: p['invoice_uuid']?.toString() ?? '',
+          oldMetalValue: 0,
+          note: p['notes']?.toString() ?? '',
+          balance: 0,
+        ),
+      ));
+    }
+    for (final p in advances) {
+      final date = p['pay_date']?.toString() ?? '';
+      staged.add((
+        date: date,
+        order: 1,
+        stamp: p['updated_at']?.toString() ?? '',
+        entry: JewelleryLedgerEntry(
+          date: date,
+          type: 'ADVANCE',
+          description: 'Advance received',
+          reference: '',
+          mode: p['payment_mode']?.toString() ?? '',
+          debit: 0,
+          credit: (p['amount'] as num?)?.toDouble() ?? 0,
+          invoiceUuid: '',
           oldMetalValue: 0,
           note: p['notes']?.toString() ?? '',
           balance: 0,
@@ -1729,6 +1777,123 @@ class JewelleryStore {
     return uuid;
   }
 
+  /// Records one customer receipt and spreads it over that customer's open
+  /// sale invoices (C13).
+  ///
+  /// [allocations] is a manual split (invoice uuid → amount); when it is empty
+  /// the receipt is spread oldest-first. Each invoice takes at most what it
+  /// still owes, and anything left over is stored as an **unallocated advance**
+  /// on the customer — the spec asks for overpayment to be visible credit, not
+  /// a refusal and not a hidden zero balance.
+  Future<
+      ({
+        Map<String, double> allocated,
+        double unallocated,
+        List<({String uuid, double amount, String invoiceUuid})> payments,
+      })> receiveCustomerPayment({
+    required String partyName,
+    required double amount,
+    required DateTime date,
+    String mode = 'CASH',
+    String reference = '',
+    String notes = '',
+    Map<String, double> allocations = const {},
+  }) async {
+    final name = partyName.trim();
+    if (name.isEmpty) throw const FormatException('Enter a customer name.');
+    if (amount <= 0) throw const FormatException('Amount must be above zero.');
+
+    final open = await openInvoicesForCustomer(name);
+    final owes = <String, double>{};
+    for (final inv in open) {
+      final uuid = inv['client_uuid']?.toString() ?? '';
+      if (uuid.isEmpty) continue;
+      owes[uuid] =
+          math.max(0, (inv['outstanding'] as num?)?.toDouble() ?? 0);
+    }
+
+    final plan = <String, double>{};
+    var remaining = amount;
+    if (allocations.isNotEmpty) {
+      for (final entry in allocations.entries) {
+        if (remaining <= 0.005) break;
+        final take = math.min(
+            math.min(entry.value < 0 ? 0.0 : entry.value, owes[entry.key] ?? 0),
+            remaining);
+        if (take <= 0.005) continue;
+        plan[entry.key] = take;
+        remaining -= take;
+      }
+    } else {
+      final uuids = [
+        for (final inv in open)
+          if (owes.containsKey(inv['client_uuid']?.toString() ?? ''))
+            inv['client_uuid']!.toString(),
+      ];
+      final spread = JewelleryMath.allocatePayment(
+          amount, [for (final u in uuids) owes[u] ?? 0]);
+      for (var i = 0; i < uuids.length; i++) {
+        final take = spread.allocations[i];
+        if (take <= 0.005) continue;
+        plan[uuids[i]] = take;
+        remaining -= take;
+      }
+    }
+    final unallocated = math.max(0.0, remaining);
+
+    final stamp = DateTime.now().toIso8601String();
+    final payments = <({String uuid, double amount, String invoiceUuid})>[];
+    for (final entry in plan.entries) {
+      final uuid = newUuid();
+      await db.upsert('jewellery_payments', {
+        'client_uuid': uuid,
+        'invoice_uuid': entry.key,
+        'party': name,
+        'pay_date': _day(date),
+        'amount': entry.value,
+        'payment_mode': mode.toUpperCase(),
+        'reference_no': reference,
+        'notes': notes,
+        'dirty': 1,
+        'updated_at': stamp,
+      });
+      payments.add(
+          (uuid: uuid, amount: entry.value, invoiceUuid: entry.key));
+      final invoice = await db.byUuid('jewellery_invoices', entry.key);
+      if (invoice == null) continue;
+      final total = (invoice['total'] as num?)?.toDouble() ?? 0;
+      final paid = await db.sum('jewellery_payments', 'amount',
+          where: 'invoice_uuid = ?', whereArgs: [entry.key]);
+      await db.upsert('jewellery_invoices', {
+        ...invoice,
+        'amount_paid': paid,
+        'outstanding': math.max(0.0, total - paid),
+        'dirty': 1,
+        'updated_at': stamp,
+      });
+    }
+    if (unallocated > 0.005) {
+      final uuid = newUuid();
+      await db.upsert('jewellery_payments', {
+        'client_uuid': uuid,
+        'invoice_uuid': '',
+        'party': name,
+        'pay_date': _day(date),
+        'amount': unallocated,
+        'payment_mode': mode.toUpperCase(),
+        'reference_no': reference,
+        'notes': notes.trim().isEmpty
+            ? 'Customer advance'
+            : 'Customer advance — ${notes.trim()}',
+        'dirty': 1,
+        'updated_at': stamp,
+      });
+      payments
+          .add((uuid: uuid, amount: unallocated, invoiceUuid: ''));
+    }
+    return (allocated: plan, unallocated: unallocated, payments: payments);
+  }
+
   /// Deletes a document and everything it created. Returns the references the
   /// caller must remove from the cashbook before/after calling this.
   Future<List<String>> deleteInvoice(String uuid) async {
@@ -1776,6 +1941,29 @@ class JewelleryStore {
       final metal = (r['metal']?.toString() ?? '').toUpperCase();
       if (kind.isEmpty || metal.isEmpty) continue;
       out['${metal}_$kind'] = (r['w'] as num?)?.toDouble() ?? 0;
+    }
+    return out;
+  }
+
+  /// Ordered net grams still in production — orders that are Pending or Ready.
+  ///
+  /// This is **work in progress**, not shop stock: the metal is neither in the
+  /// shop's finished shelf nor received from the worker yet, so reports show it
+  /// separately instead of double-counting it.
+  Future<Map<String, double>> wipWeight() async {
+    final rows = await db.db.rawQuery('''
+      SELECT i.metal AS metal, COALESCE(SUM(it.net_weight), 0) AS grams
+      FROM jewellery_invoices i
+      JOIN jewellery_invoice_items it ON it.invoice_uuid = i.client_uuid
+      WHERE i.doc_type = ?
+        AND COALESCE(i.status, 'Pending') IN ('Pending', 'Ready')
+      GROUP BY i.metal
+    ''', [orderDoc]);
+    final out = <String, double>{};
+    for (final r in rows) {
+      final metal = (r['metal']?.toString() ?? '').toUpperCase();
+      if (metal.isEmpty) continue;
+      out[metal] = (r['grams'] as num?)?.toDouble() ?? 0;
     }
     return out;
   }

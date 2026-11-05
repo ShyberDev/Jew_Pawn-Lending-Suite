@@ -44,6 +44,8 @@ class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
   List<JewelleryMonthTotal> _monthly = const [];
   Map<String, int> _orders = const {};
   List<JewelleryWorkerPosition> _workers = const [];
+  List<Map<String, Object?>> _rates = const [];
+  Map<String, double> _wip = const {};
   bool _loading = true;
 
   @override
@@ -71,6 +73,8 @@ class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
     final monthly = await store.monthlyTotals();
     final orders = await store.orderStatusSummary();
     final workers = await store.workerPositions();
+    final rates = await store.rateHistory(JewelleryStore.gold, limit: 7);
+    final wip = await store.wipWeight();
     if (!mounted) return;
     setState(() {
       _totals = totals;
@@ -80,6 +84,8 @@ class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
       _monthly = monthly;
       _orders = orders;
       _workers = workers;
+      _rates = rates;
+      _wip = wip;
       _loading = false;
     });
   }
@@ -183,6 +189,38 @@ class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
                       '${Num.round3(_weight(JewelleryStore.gold, JewelleryStore.stockOld)).toStringAsFixed(3)} g'),
                   _row('Old silver',
                       '${Num.round3(_weight(JewelleryStore.silver, JewelleryStore.stockOld)).toStringAsFixed(3)} g'),
+                  const Divider(height: 16),
+                  _row('WIP · gold (open orders)',
+                      '${Num.round3(_wip[JewelleryStore.gold] ?? 0).toStringAsFixed(3)} g'),
+                  _row('WIP · silver (open orders)',
+                      '${Num.round3(_wip[JewelleryStore.silver] ?? 0).toStringAsFixed(3)} g'),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Work in progress is metal promised on Pending / Ready '
+                    'orders. It is not on the finished shelf and not yet '
+                    'received from a worker, so it is shown separately and '
+                    'never added to the stock totals above. Metal issued to '
+                    'workers is the reserve below.',
+                    style: TextStyle(fontSize: 11, color: mutedOf(context)),
+                  ),
+                ]),
+                _card('Saved gold rates', [
+                  if (_rates.isEmpty)
+                    Text('No saved rates yet — save one on the Jewellery '
+                            'dashboard.',
+                        style: TextStyle(
+                            fontSize: 12, color: mutedOf(context)))
+                  else
+                    _RateBars(
+                      rates: [for (final r in _rates.reversed) r],
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'One bar per saved day, pure-gold rate. Invoices keep the '
+                    'rate they were saved with, so editing today\'s rate never '
+                    'rewrites history.',
+                    style: TextStyle(fontSize: 11, color: mutedOf(context)),
+                  ),
                 ]),
                 _card('Stock valuation', [
                   _row(
@@ -321,6 +359,76 @@ class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
                   color: color ?? inkOf(context))),
         ],
       ),
+    );
+  }
+}
+
+/// Saved pure-gold rates, oldest first. Each bar is one saved day; the label
+/// is the day and the value sits above the bar, so the chart reads without a
+/// tooltip. No market feed is involved — these are the shop's own saved rates.
+class _RateBars extends StatelessWidget {
+  const _RateBars({required this.rates});
+
+  final List<Map<String, Object?>> rates;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rates.isEmpty) return const SizedBox.shrink();
+    final values = [
+      for (final r in rates) Num.toDouble(r['pure_rate']),
+    ];
+    final peak = values.fold<double>(0, (m, v) => math.max(m, v));
+    final low = values.fold<double>(
+        peak, (m, v) => v > 0 && v < m ? v : m);
+    // A flat history would divide by zero; a small floor keeps every bar visible.
+    final floor = low > 0 ? low * 0.9 : 0.0;
+    final span = math.max(1.0, peak - floor);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 110,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < rates.length; i++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(moneyWhole(values[i]),
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: inkOf(context))),
+                        const SizedBox(height: 2),
+                        Container(
+                          height: math.max(4.0, 80 * (values[i] - floor) / span),
+                          decoration: BoxDecoration(
+                            color: kGoldDark,
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(3)),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          (rates[i]['rate_date']?.toString() ?? '')
+                              .split('-')
+                              .skip(1)
+                              .join('/'),
+                          style:
+                              TextStyle(fontSize: 9, color: mutedOf(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

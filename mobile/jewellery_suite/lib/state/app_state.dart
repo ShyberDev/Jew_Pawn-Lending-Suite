@@ -845,6 +845,45 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// One customer receipt, spread across that customer's open sales invoices.
+  ///
+  /// The store decides the split (manual amounts, else oldest-first) and keeps
+  /// any excess as an advance. Every part posts its own IN row under
+  /// `JEWELLERY_COLLECT`, so the cashbook adds up to exactly what was received
+  /// — including the part kept as advance.
+  Future<({Map<String, double> allocated, double unallocated})>
+      receiveJewelleryReceipt({
+    required String partyName,
+    required double amount,
+    required DateTime date,
+    String mode = 'CASH',
+    Map<String, double> allocations = const {},
+  }) async {
+    final result = await jewelleryStore.receiveCustomerPayment(
+      partyName: partyName,
+      amount: amount,
+      date: date,
+      mode: mode,
+      allocations: allocations,
+    );
+    for (final part in result.payments) {
+      await _syncCashbookEntry(
+        category: 'JEWELLERY_COLLECT',
+        referenceId: part.uuid,
+        entryType: 'IN',
+        amount: part.amount,
+        date: _isoDay(date),
+        paymentMode: mode.toUpperCase(),
+        partyName: partyName,
+        notes: part.invoiceUuid.isEmpty
+            ? 'Jewellery customer advance'
+            : 'Jewellery receipt',
+      );
+    }
+    notifyListeners();
+    return (allocated: result.allocated, unallocated: result.unallocated);
+  }
+
   /// Completes an order and mirrors the extra collection/refund.
   Future<void> deliverJewelleryOrder({
     required String orderUuid,
