@@ -113,6 +113,29 @@ Rules for this repo: one topic per commit, never commit
 `APK_Project_Progress/VERIFICATION.md` and `TRACKER.md` with the message
 `docs(verification): pass #0xx on the phone`. That is a complete, useful commit.
 
+### B1a. Your first commit, start to finish (10 minutes)
+
+A safe first change: add one row to the log in section E of this file.
+
+1. Open this file in the editor and add a row under the table in section E, e.g.
+   `| 07-11-26 | Phone pass #080 | need a second phone | Shop + agent |`.
+2. `git status` — the file appears under **Changes not staged for commit**.
+   Nothing is saved yet; the edit still exists only on your disk.
+3. `git diff` — read your own change. A mistyped row shows up here before anyone
+   else sees it.
+4. `git add APK_Project_Progress/Manual-Handle-by-Person-Possible.md` — stages
+   **one file**, not the whole project.
+5. `git status` — the same file now appears under **Changes to be committed**.
+6. `git commit -m "docs: note what is blocked on a second phone"` — the message
+   says what changed and why, never "update" or "changes".
+7. `git log --oneline -3` — your commit is the top line, with a short hash. That
+   hash is how you and the agent refer to it later.
+8. Changed your mind before step 6? `git checkout -- <file>` throws that edit
+   away. After step 6, don't rewrite history — make a second, correcting commit.
+
+That is the whole loop: **edit → status → diff → add → commit → log**. Nothing
+leaves the computer until somebody runs `git push`, and that is asked for first.
+
 ### B2. Build and test
 
 ```bash
@@ -151,6 +174,21 @@ table shape (`| #0xx | ✅ | … |`) and one row per item.
 
 The agent's rule of thumb is the mirror of this file: it does **not** rotate
 credentials, `push`, or delete documents without asking.
+
+---
+
+## C1. Tasks waiting for a person right now (2026-11-07)
+
+| Task | What is needed | Guide |
+|---|---|---|
+| **#080 cross-phone restore** | A second Android phone: install the same APK, back up here with **Include database key** + a passphrase, restore there. A wrong passphrase must be refused. | A5 above |
+| **#065 real OTP gateway** | The gateway URL and shared secret from the SMS/e-mail provider | `docs/SETUP_OTP_GATEWAY.md` |
+| **#072 Drive backup** | A **Web client ID** from Google Cloud console | `docs/SETUP_GOOGLE_DRIVE_OAUTH.md` |
+| **#081 Firebase** | A Firebase project and its `google-services.json` | `docs/SETUP_FIREBASE.md` |
+
+Nothing in `TRACKER.md` is 🟨 right now — every jewellery item has been seen on
+the phone. Check the legend at the top of the tracker before assuming a pass is
+still owed.
 
 ---
 
