@@ -554,6 +554,16 @@ class AppState extends ChangeNotifier {
     await refreshCounts();
   }
 
+  /// Sync needs a server session. This app is normally used offline, where
+  /// [api] is null, so the screens can say that plainly instead of reporting a
+  /// failed sync that never had a server to reach (#082).
+  bool get canSync => api != null;
+
+  /// Shown when sync is asked for in offline mode.
+  static const String offlineSyncNotice =
+      'Offline mode — sync needs a server login. Every change is already saved '
+      'on this phone.';
+
   Future<SyncSummary> sync() async {
     final client = api;
     if (client == null) throw ApiException('Not logged in');

@@ -308,6 +308,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: state.syncing
               ? null
               : () async {
+                  if (!state.canSync) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text(AppState.offlineSyncNotice)));
+                    return;
+                  }
                   try {
                     final summary = await state.sync();
                     if (!mounted) return;
@@ -458,9 +463,11 @@ class _HomeScreenState extends State<HomeScreen> {
           'Normal & compound interest, date range',
           () => _open(const InterestCalculatorScreen())),
       (Icons.sync, 'Sync',
-          state.pending > 0
-              ? '${state.pending} change(s) waiting'
-              : 'All changes synced',
+          !state.canSync
+              ? 'Offline — changes stay on this phone'
+              : (state.pending > 0
+                  ? '${state.pending} change(s) waiting'
+                  : 'All changes synced'),
           () => _open(const SyncScreen())),
     ];
     return Column(

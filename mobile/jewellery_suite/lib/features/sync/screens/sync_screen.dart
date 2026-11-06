@@ -30,6 +30,14 @@ class _SyncScreenState extends State<SyncScreen> {
 
   Future<void> _sync() async {
     final state = context.read<AppState>();
+    // Offline mode has no server session at all; calling sync() would throw
+    // "Not logged in", which reads like a fault instead of the normal state.
+    if (!state.canSync) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppState.offlineSyncNotice)));
+      return;
+    }
     try {
       final summary = await state.sync();
       if (!mounted) return;
@@ -53,6 +61,7 @@ class _SyncScreenState extends State<SyncScreen> {
         children: [
           SectionCard(title: 'Connection', children: [
             _kv('Server', state.serverUrl),
+            if (!state.canSync) _kv('Mode', 'Offline — no server login'),
             _kv('User', state.user),
             _kv('Pending changes', '${state.pending}'),
             if (state.lastSync != null)

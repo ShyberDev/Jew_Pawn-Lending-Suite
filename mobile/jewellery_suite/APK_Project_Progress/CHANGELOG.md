@@ -6,6 +6,25 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #082 offline Sync message (v1.4.17 / 2069)
+
+- **The bug:** this shop runs offline, where `AppState.api` is null. The home
+  Sync button and Sync → **Sync now** both surfaced the raw exception, so an
+  offline shop was told *“Sync failed: Not logged in”* while the badge said two
+  changes were waiting — a failure where there was only a normal state.
+- **The fix:** `AppState.canSync` reports whether a server session exists, and a
+  shared `offlineSyncNotice` explains the situation. Both entry points check it
+  before calling `sync()`, the drawer tile reads **Offline — changes stay on
+  this phone**, and the Sync card shows **Mode: Offline — no server login**. The
+  guard changes no data path: a sync with no client still throws, so nothing
+  pretends to have synced.
+- **Checks:** `flutter analyze` → **No issues found**; full suite **520 passing,
+  exit 0** (new `test/sync_offline_test.dart`, 2 cases); APK
+  `mobile/jewellery_suite_v1.4.17-arm64-v8a.apk`, **45,727,292** bytes, SHA-256
+  `11104475e279eb1a5e0fc3f4ae48ca692cc66cd0f6e5917e97925bcf9dc0af1e`,
+  installed in place over 2068 with data kept; the new snackbar was read on the
+  phone.
+
 ### 2026-11-06 — #078 double delivery and over-return phone-verified (v1.4.16)
 
 - Delivered **ORD-20261106-0001** once (8.000 g gross, no stone, difference

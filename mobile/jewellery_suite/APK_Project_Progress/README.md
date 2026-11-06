@@ -11,14 +11,14 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.16 / versionCode 2068** on `10.52.61.103:32935` |
+| Installed test build | **1.4.17 / versionCode 2069** on `10.52.61.103:32935` |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
 | Tests | **518 passing**; `flutter analyze` clean |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
-> The installed 1.4.16 is a **development** build. The last build verified against
+> The installed 1.4.17 is a **development** build. The last build verified against
 > the published release asset is v1.4.4.
 
 ---

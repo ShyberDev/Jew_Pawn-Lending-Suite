@@ -25,6 +25,18 @@ the last **published** build is **v1.4.4 / 2056**.
 
 ---
 
+## 2026-11-06 — v1.4.17 (2069) — #082 offline sync message
+
+- Built and installed over 2068 with data kept (`[db] open: SQLCipher
+  encrypted, schema v21`).
+- Tapping the home **Sync** action (the badge said *2 change(s) waiting*) showed
+  **“Offline mode — sync needs a server login. Every change is already saved on
+  this phone.”** instead of the old *“Sync failed: Not logged in”*.
+- The drawer **Sync** tile now reads **Offline — changes stay on this phone**, and
+  the Sync screen's Connection card adds **Mode: Offline — no server login**.
+- Covered by `test/sync_offline_test.dart` (the state refuses a real sync with no
+  client; the screen shows the offline notice and never says “Sync failed”).
+
 ## 2026-11-06 — v1.4.16 (2068) — #078 double delivery and over-return
 
 - **Delivered once:** Orders → **ORD-20261106-0001** → **DELIVER ORDER** with
