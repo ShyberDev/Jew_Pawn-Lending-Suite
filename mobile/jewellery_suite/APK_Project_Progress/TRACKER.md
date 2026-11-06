@@ -88,7 +88,7 @@ history lives in `CHANGELOG.md`.
 | **#062** | ✅ | Pawn | Custom categories | Categories ▾ seeded with Forgot_Slip_List and Pawn_Removed; add, rename, multi-move. |
 | **#063** | ✅ | Pawn | Filters / search | Tap a selected chip to clear; search matches name, book ID, amount, phone or village; date range. Phone-verified v1.2.2. |
 | **#064** | ✅ | Database | Schema v16 | `pawn_loans.category` + `pawn_categories`; backups track the table; restore keeps account + lock settings. Phone-verified v1.2.3. |
-| **#065** | 🟧 | OTP | Real SMS / Gmail codes | Gateway URL + channel; POST `{to, channel, purpose, code, message}`; 2xx = sent; on-screen fallback. Card phone-checked v1.2.3. **Mock send still owed**; setup guide in `docs/SETUP_OTP_GATEWAY.md`. |
+| **#065** | 🟧 | OTP | Real SMS / Gmail codes | Gateway URL + channel; POST `{to, channel, purpose, code, message}`; 2xx = sent; on-screen fallback. **Mock send phone-verified 2026-11-06** (payload received, fallback shown after Remove gateway). **Real gateway still blocked** on the shop URL + shared secret; setup guide in `docs/SETUP_OTP_GATEWAY.md`. |
 
 ---
 

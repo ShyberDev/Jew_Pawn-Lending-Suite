@@ -25,6 +25,21 @@ the last **published** build is **v1.4.4 / 2056**.
 
 ---
 
+## 2026-11-06 — v1.4.15 (2067) — #065 mock gateway send + offline fallback
+
+- Saved `http://10.52.61.21:8765/otp` as the **E-mail** gateway; the card
+  confirmed *“Codes will be sent by e-mail.”*
+- **Forgot admin password → Send code:** the phone showed **Code sent** (*“A
+  6-digit code was sent to benwolf449@gmail.com. It is valid for 10 minutes.”*)
+  and the mock received
+  `{"to":"benwolf449@gmail.com","channel":"email","purpose":"admin_reset","code":"413578","message":"Jewellery Suite code 413578 — valid 10 minutes. …"}`.
+  The dialog was cancelled, so the admin password was not changed.
+- **Remove gateway:** the toast read *“Gateway removed — codes are shown on this
+  phone.”* A second send showed **Offline code (valid 10 minutes) 390506** with
+  the explanation that no gateway is configured.
+- The mock was stopped afterwards and the phone’s gateway left unconfigured.
+  **Still owed:** a real SMS/e-mail gateway URL and shared secret from the shop.
+
 ## 2026-11-05 — v1.4.14 / v1.4.15 (2066 / 2067) — #080 manifest + crash sweep
 
 - **#080:** the built APK’s manifest was inspected with `aapt2 dump xmltree`:
@@ -207,7 +222,6 @@ the last **published** build is **v1.4.4 / 2056**.
 
 | Item | What to drive on the phone |
 |---|---|
-| #065 | Mock gateway send: save `http://<laptop>:8765/otp`, E-mail, **Send code**, check the POST, then **Remove gateway** and confirm the on-screen fallback |
 | #074 | One receipt split across two invoices; the saved-rate chart and WIP rows |
 | #075 | A real sale with a **late fee**; the shared-expense split |
 | #077 | An advance-only customer visible in the Credit Book |

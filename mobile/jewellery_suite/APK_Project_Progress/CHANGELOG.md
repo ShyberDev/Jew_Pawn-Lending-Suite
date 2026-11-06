@@ -6,6 +6,12 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #065 mock gateway send verified on the phone
+
+- Saved a local mock (`http://10.52.61.21:8765/otp`) as the E-mail gateway, then used **Forgot admin password → Send code**. The phone showed **Code sent**, and the mock received the full contract payload (`to`, `channel`, `purpose`, `code`, `message`) with a 6-digit code. The reset dialog was cancelled, so no secret changed.
+- **Remove gateway** restored the offline path: the toast read *“Gateway removed — codes are shown on this phone”*, and the next send displayed **Offline code (valid 10 minutes)** with the code on-screen.
+- **Still owed:** the shop’s real SMS/e-mail gateway URL and shared secret. The mock is not part of the app.
+
 ### 2026-11-06 — #080 archive key is opt-in; tracker folder rebuilt
 
 - **The archive key no longer travels by default.** `BackupService.buildManifest` only writes `db_key` when the caller passes one, and `createBackup` defaults `includeKey` to `false`. The Backup & data screen gained an **Include database key** switch (off by default) with the warning that anyone holding the file could open it. A restore without a key now says plainly that the archive was made without the database key instead of failing obscurely. Same-phone restores keep working because the SQLCipher key stays in the Android keystore.
