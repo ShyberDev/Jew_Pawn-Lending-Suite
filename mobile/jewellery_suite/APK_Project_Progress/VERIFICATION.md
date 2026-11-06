@@ -8,9 +8,9 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-06):** `10.52.61.103:32935`, build **1.4.16 /
-versionCode 2068**, `SQLCipher encrypted, schema v21`. This is freebuff’s build;
-the last **published** build is **v1.4.4 / 2056**.
+**Current state (2026-11-07):** `10.52.61.103:32935`, build **1.4.19 /
+versionCode 2071**, `SQLCipher encrypted, schema v21`. The last **published**
+build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
 
@@ -24,6 +24,30 @@ the last **published** build is **v1.4.4 / 2056**.
 ```
 
 ---
+
+## 2026-11-07 — v1.4.18 / v1.4.19 (2070–2071) — #083 worker reserve and order delete
+
+- **The reserve now follows the job.** On 1.4.17 the delivered 5 g worker order
+  (from the #079 pass) still showed **5.000 g Metal reserve**. On 1.4.18, with no
+  data change at all, the same worker read **0.000 g** on the dashboard tile
+  (**1 worker · 0.000 g**), **0.000 g Metal / 0.000 g Fine gold** on the worker
+  and **settled** instead of an amount — the delivery gave the metal back.
+- **A delivered order can be deleted.** The order row in 1.4.19 carries a trash
+  control (also long press): after **Delete work order** → OK the row disappeared
+  and the reserve went back to **5.000 g**, then deleting the **Issued 5.000 g**
+  movement left **No workers yet** and the dashboard at **0.000 g Raw gold** and
+  **Purchases today ₹0**.
+- **Test data removed:** `PUR-20261106-0001` (Shared Test Supplier, ₹2,65,360)
+  deleted through the document sheet; **Test Worker** removed as above. One
+  **₹300** advance for **Advance Test** could not be removed — a jewellery receipt
+  has no delete path outside its invoice and that invoice was already deleted, so
+  it stays as the advance-only row #077 describes.
+- **Credentials:** the PIN and admin password were replaced on the phone. The old
+  PIN answered **“Wrong PIN. Try again.”** on the lock screen and the new one
+  unlocked; the old admin password no longer reaches the *New admin password*
+  step while the new one does. Current values and a **do-not-rotate** rule are in
+  `PASSWORDS.md`.
+- Logcat: no FATAL EXCEPTION.
 
 ## 2026-11-06 — v1.4.17 (2069) — #075 shared expense split
 

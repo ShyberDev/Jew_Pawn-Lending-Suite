@@ -1066,6 +1066,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteJewelleryWorkerOrder(String uuid) async {
+    await jewelleryStore.deleteWorkerOrder(uuid);
+    notifyListeners();
+  }
+
   /// Deletes a jewellery document, its payments, old-metal voucher and stock
   /// movements, and every cash entry those rows created.
   Future<void> deleteJewelleryInvoice(String uuid) async {

@@ -11,12 +11,12 @@
 |---|---|
 | Test phone | Redmi Note 8 Pro (`infinity_begonia`), Android wireless debugging |
 | Address | **`10.52.61.103:32935`** — changes every session |
-| Installed build | **1.4.17 / versionCode 2069**, release-signed, arm64 |
+| Installed build | **1.4.19 / versionCode 2071**, release-signed, arm64 |
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 521 passing, `flutter analyze` clean at the last check |
-| Open question | A delivered worker order leaves the issued metal on the worker's reserve (#079 pass, `VERIFICATION.md`) |
+| Tests / analyzer | 524 passing, `flutter analyze` clean at the last check |
+| Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
 
 The address is not stable. Discover it with `adb mdns services`, then:
 
@@ -31,24 +31,25 @@ Do not trust a written-down port. The phone has moved mid-session more than once
 
 ## 2. Secrets
 
-**The real values are in `APK_Project_Progress/.secrets.local.md`**, which is
-gitignored and must never be committed. This file deliberately contains no
-passwords or PINs.
+**Every credential is in `APK_Project_Progress/PASSWORDS.md`.** Read it to unlock
+the app or to answer a password prompt during a pass.
+
+> **Do not rotate, reset or "test" these values.** Agents kept changing the admin
+> password and the PIN to check them, which wasted the shop's time and credits and
+> left the phone in a different state each session. The shop asked, twice, for one
+> file that any model can read instead. That file is `PASSWORDS.md`.
 
 | Secret | Where it is set |
 |---|---|
 | Screen-lock PIN / MPIN | Password Settings → Biometric & screen lock |
 | Shop account (Gmail / mobile) + password | Login screen, or Password Settings → Account & login |
-| Admin password | Password Settings → Admin password |
+| Admin password | Password Settings → Change password |
 | Pawn-move password | Password Settings → Pawn-move password (unset → falls back to admin) |
 | OTP gateway | Password Settings → One-time code delivery |
 
-**Security debt (#080):** these values were previously tracked in
-`Temp_Passwords_readme.md` in a **public** repository. The file has been removed
-from the current tree and moved to the local secrets file, but it remains in git
-history. The shop has declared them **throwaway test values** (2026-11-06), so
-rotation is deferred, not cancelled: **rotate the admin password and the PIN
-before any public handover.**
+The values that leaked from `Temp_Passwords_readme.md` still sit in public git
+history, but they no longer open the app: the PIN and admin password were replaced
+on 2026-11-07 and the old ones are listed in `PASSWORDS.md` so nobody retries them.
 The keystore password lives in `android/key.properties` (gitignored) — back it up;
 losing it means Play cannot accept an update.
 

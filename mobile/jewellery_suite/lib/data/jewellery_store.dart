@@ -1531,7 +1531,9 @@ class JewelleryStore {
   }
 
   /// Cash and metal held by each worker. Positive cash = shop paid the worker;
-  /// positive gold = shop issued metal.
+  /// positive gold = shop issued metal. A delivered order gives its metal back,
+  /// so the delivered net weight is subtracted — otherwise a finished job would
+  /// sit on the reserve for ever.
   Future<List<JewelleryWorkerPosition>> workerPositions() async {
     final names = await workerNames();
     final out = <JewelleryWorkerPosition>[];
@@ -1546,11 +1548,24 @@ class JewelleryStore {
         WHERE LOWER(TRIM(worker_name)) = LOWER(TRIM(?))
       ''', [name]);
       final r = rows.isEmpty ? null : rows.first;
+      // Delivery puts the finished weight into shop stock, so the same grams
+      // have to leave the reserve. The weight lives on the order, so no extra
+      // movement is written and deleting the order reverses this for free.
+      final back = await db.db.rawQuery('''
+        SELECT COALESCE(SUM(delivered_net_weight), 0) AS g
+        FROM jewellery_worker_orders
+        WHERE LOWER(TRIM(worker_name)) = LOWER(TRIM(?))
+          AND status = 'Delivered'
+      ''', [name]);
+      final returned =
+          (back.isEmpty ? null : back.first['g'] as num?)?.toDouble() ?? 0;
+      // Delivered metal is booked into stock at 100%, so its fine weight is the
+      // net weight and both figures fall by the same grams.
       out.add(JewelleryWorkerPosition(
         name: name,
         cashReserve: (r?['cash'] as num?)?.toDouble() ?? 0,
-        goldReserve: (r?['gold'] as num?)?.toDouble() ?? 0,
-        fineGoldReserve: (r?['fine'] as num?)?.toDouble() ?? 0,
+        goldReserve: ((r?['gold'] as num?)?.toDouble() ?? 0) - returned,
+        fineGoldReserve: ((r?['fine'] as num?)?.toDouble() ?? 0) - returned,
         lastDate: r?['last_date']?.toString() ?? '',
         txnCount: (r?['c'] as num?)?.toInt() ?? 0,
       ));
@@ -1620,6 +1635,15 @@ class JewelleryStore {
       );
     }
     return uuid;
+  }
+
+  /// Removes a worker order and the stock movement its delivery posted, so a
+  /// deleted order cannot leave finished metal behind. The reserve reads the
+  /// delivered weights from the order itself, so the metal goes back on the
+  /// reserve without touching any other row.
+  Future<void> deleteWorkerOrder(String uuid) async {
+    await db.deleteWhere('jewellery_stock_movements', 'source_uuid = ?', [uuid]);
+    await db.deleteWhere('jewellery_worker_orders', 'client_uuid = ?', [uuid]);
   }
 
   Future<List<Map<String, Object?>>> workerOrders({String workerName = ''}) =>

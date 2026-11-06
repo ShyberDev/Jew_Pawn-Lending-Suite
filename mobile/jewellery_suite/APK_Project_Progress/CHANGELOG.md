@@ -6,6 +6,28 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-07 — #083 worker reserve follows delivery; delivered orders can be deleted (v1.4.18–1.4.19)
+
+- **The bug:** `workerPositions()` summed worker movements only. Delivery posts
+  the finished weight into stock but writes no worker movement, so a completed job
+  left the issued metal on the reserve for ever — the #079 pass showed 5.000 g
+  still held after a 5.000 g delivery.
+- **The fix:** the reserve subtracts the delivered net weight of delivered orders.
+  The weight already lives on the order, so no extra movement is written and
+  deleting the order reverses it. Delivered metal is booked into stock at 100%, so
+  the fine reserve falls by the same grams.
+- **A short delivery keeps the shortfall** on the reserve (5 g issued, 4 g net
+  delivered → 1 g still held), which is what the shop is owed or lost.
+- **New:** `deleteWorkerOrder` removes the order with its `WORKER_ORDER_IN` stock
+  movement, and the order row gained a trash control with a confirm dialog.
+- Tests: 3 new cases in `test/jewellery_operations_test.dart` (reserve on
+  delivery, short delivery, delete undoes stock). Suite **524 passing**.
+- **Clean-up:** the test purchase and the Test Worker were removed from the phone;
+  a ₹300 advance cannot be deleted because receipts have no delete path outside
+  their invoice.
+- **Credentials:** PIN and admin password rotated once, then documented in
+  `PASSWORDS.md` with a standing rule that agents must not rotate them.
+
 ### 2026-11-06 — #075 shared-expense split phone-verified (v1.4.17)
 
 - One purchase, two gold lines (10.000 g and 30.000 g) and one **Shared expense

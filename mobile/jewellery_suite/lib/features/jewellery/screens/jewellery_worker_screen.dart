@@ -91,6 +91,17 @@ class _JewelleryWorkerScreenState extends State<JewelleryWorkerScreen> {
     await _load();
   }
 
+  Future<void> _deleteOrder(Map<String, Object?> order) async {
+    final ok = await confirmDialog(
+        context, 'Delete this work order and the stock its delivery posted?',
+        title: 'Delete work order');
+    if (!ok || !mounted) return;
+    await context.read<AppState>().deleteJewelleryWorkerOrder(
+          order['client_uuid']?.toString() ?? '',
+        );
+    await _load();
+  }
+
   Future<void> _deliverOrder(Map<String, Object?> order) async {
     final ordered = Num.toDouble(order['ordered_weight']);
     final gross = TextEditingController(
@@ -338,6 +349,7 @@ class _JewelleryWorkerScreenState extends State<JewelleryWorkerScreen> {
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         onTap: delivered ? null : () => _deliverOrder(order),
+        onLongPress: () => _deleteOrder(order),
         leading: Icon(
           delivered ? Icons.check_circle_outline : Icons.pending_outlined,
           color: delivered ? kGreen : kGoldDark,
@@ -354,11 +366,21 @@ class _JewelleryWorkerScreenState extends State<JewelleryWorkerScreen> {
           '${delivered ? ' · delivered ${Num.round3(Num.toDouble(order['delivered_net_weight'])).toStringAsFixed(3)} g' : ''}',
           style: TextStyle(fontSize: 11, color: mutedOf(context)),
         ),
-        trailing: Text(status,
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: delivered ? kGreen : kGoldDark)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(status,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: delivered ? kGreen : kGoldDark)),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.delete_outline, size: 18),
+              onPressed: () => _deleteOrder(order),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -11,11 +11,12 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.17 / versionCode 2069** on `10.52.61.103:32935` |
+| Installed test build | **1.4.19 / versionCode 2071** on `10.52.61.103:32935` |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
-| Tests | **518 passing**; `flutter analyze` clean |
+| Tests | **524 passing**; `flutter analyze` clean |
+| Unlocking the app | **`PASSWORDS.md`** — the PIN and admin password, and a standing rule not to rotate them |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
 > The installed 1.4.17 is a **development** build. The last build verified against
@@ -47,8 +48,9 @@ what was built, what was seen on the phone, and what is still owed.
    One question came out of the #079 pass and needs the shop's answer: a
    delivered worker order leaves the issued metal on the worker's reserve
    (`VERIFICATION.md`).
-2. **#080 remaining** — rotate the PIN/admin password that were tracked in
-   public git; try a restore on a phone with a different keystore.
+2. **#080 remaining** — try a restore on a phone with a different keystore. Do
+   **not** rotate the PIN or admin password again: they are documented in
+   `PASSWORDS.md` and rotating them is what wasted the shop's time.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
    shared secret, replace the mock; the contract is already verified.
 4. **#072 Drive** — once the shop supplies the **Web client ID**, add

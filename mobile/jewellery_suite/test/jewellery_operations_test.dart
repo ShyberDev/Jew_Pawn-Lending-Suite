@@ -252,6 +252,93 @@ void main() {
       expect(await store.workerTransactions('Ramesh'), hasLength(4));
     });
 
+    test('a delivered order takes its metal off the reserve', () async {
+      await store.saveWorkerTransaction(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        type: 'GOLD',
+        goldWeight: 5,
+        purity: 100,
+      );
+      final order = await store.saveWorkerOrder(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        orderedWeight: 5,
+      );
+      expect((await store.workerPositions()).single.goldReserve,
+          closeTo(5, 0.0005));
+
+      await store.deliverWorkerOrder(
+        uuid: order,
+        date: DateTime(2026, 11, 6),
+        deliveredGrossWeight: 5,
+      );
+
+      final after = (await store.workerPositions()).single;
+      expect(after.goldReserve, closeTo(0, 0.0005));
+      expect(after.fineGoldReserve, closeTo(0, 0.0005));
+      // The metal is not lost: it is now finished stock.
+      expect((await store.stockTotals())['GOLD_FINISHED'], closeTo(5, 0.0005));
+    });
+
+    test('a short delivery leaves the shortfall on the reserve', () async {
+      await store.saveWorkerTransaction(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        type: 'GOLD',
+        goldWeight: 5,
+        purity: 100,
+      );
+      final order = await store.saveWorkerOrder(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        orderedWeight: 5,
+      );
+
+      // One gram of stone is not metal, so it does not come back as gold.
+      await store.deliverWorkerOrder(
+        uuid: order,
+        date: DateTime(2026, 11, 6),
+        deliveredGrossWeight: 5,
+        stoneWeight: 1,
+      );
+
+      expect((await store.workerPositions()).single.goldReserve,
+          closeTo(1, 0.0005));
+    });
+
+    test('deleting a delivered order undoes its stock and reserve', () async {
+      await store.saveWorkerTransaction(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        type: 'GOLD',
+        goldWeight: 5,
+        purity: 100,
+      );
+      final order = await store.saveWorkerOrder(
+        workerName: 'Ramesh',
+        date: DateTime(2026, 11, 6),
+        orderedWeight: 5,
+      );
+      await store.deliverWorkerOrder(
+        uuid: order,
+        date: DateTime(2026, 11, 6),
+        deliveredGrossWeight: 5,
+      );
+      expect((await store.workerPositions()).single.goldReserve,
+          closeTo(0, 0.0005));
+
+      // Without this the finished metal would stay in stock with nothing to
+      // explain it, which is the whole reason the order must be removable.
+      await store.deleteWorkerOrder(order);
+
+      expect(await store.workerOrders(workerName: 'Ramesh'), isEmpty);
+      expect((await store.workerPositions()).single.goldReserve,
+          closeTo(5, 0.0005));
+      expect((await store.stockTotals())['GOLD_FINISHED'], isNull);
+      expect((await store.stockTotals())['GOLD_RAW'], closeTo(-5, 0.0005));
+    });
+
     test('deleting a movement reverses its stock effect', () async {
       final uuid = await store.saveWorkerTransaction(
         workerName: 'Ramesh',
