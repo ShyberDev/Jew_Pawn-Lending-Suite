@@ -15,7 +15,7 @@ what was built, what was seen on the phone, and what is still owed.
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
-| Tests | **514 passing**; `flutter analyze` clean |
+| Tests | **518 passing**; `flutter analyze` clean |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
 > The installed 1.4.15 is a **development** build. The last build verified against
@@ -65,7 +65,7 @@ what was built, what was seen on the phone, and what is still owed.
 | **#072** Drive | Google Cloud **Web client ID** (Android client + release SHA-1 already documented) | shop |
 | **#081** Firebase | A Firebase project and `google-services.json` | shop |
 | **#042** HTTPS | A server with TLS before certificate pinning | later |
-| **#080** archive key | A design decision on the shop passphrase | us |
+| **#080** archive key | Phone pass for the passphrase-protected backup/restore; rotate the PIN/admin password | us |
 
 Steps for each are in the linked setup guides. Do not paste secrets into a
 tracked file.

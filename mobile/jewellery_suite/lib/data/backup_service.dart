@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'backup_key_wrap.dart';
 import 'db_crypto.dart';
 import 'local_db.dart';
 import 'migration_v21.dart';
@@ -189,9 +190,11 @@ class BackupService {
   /// The manifest written into every archive.
   ///
   /// [key] is only present when the caller explicitly asked for the database
-  /// key to travel with the backup. Without it the archive is useless to a
-  /// thief and still restorable on the phone that made it, because the live
-  /// SQLCipher key never leaves the keystore.
+  /// key to travel with the backup. It is never written in clear text: the
+  /// caller must also pass [keyPassphrase], and the key is wrapped with
+  /// [BackupKeyWrap]. Without a key the archive is useless to a thief and still
+  /// restorable on the phone that made it, because the live SQLCipher key never
+  /// leaves the keystore.
   static Map<String, Object?> buildManifest({
     required DateTime createdAt,
     required bool includePhotos,
@@ -199,20 +202,34 @@ class BackupService {
     required Map<String, int> rowCounts,
     required int schemaVersion,
     String? key,
-  }) =>
-      <String, Object?>{
-        'format': 'jewellery-suite-backup',
-        'format_version': formatVersion,
-        'created_at': createdAt.toIso8601String(),
-        'includes_photos': includePhotos,
-        'photo_count': photoCount,
-        'row_counts': rowCounts,
-        'schema_version': schemaVersion,
-        'includes_key': key != null,
-        if (key != null) 'db_key': key,
-        'note': 'To restore, replace the app database file with '
-            '$dbEntry from this archive.',
-      };
+    String? keyPassphrase,
+    int keyIterations = BackupKeyWrap.defaultIterations,
+  }) {
+    if (key != null && (keyPassphrase == null || keyPassphrase.trim().isEmpty)) {
+      throw ArgumentError(
+          'A passphrase is required to include the database key.');
+    }
+    final wrapped = key == null
+        ? null
+        : BackupKeyWrap.wrap(
+            key: key,
+            passphrase: keyPassphrase!,
+            iterations: keyIterations,
+          );
+    return <String, Object?>{
+      'format': 'jewellery-suite-backup',
+      'format_version': formatVersion,
+      'created_at': createdAt.toIso8601String(),
+      'includes_photos': includePhotos,
+      'photo_count': photoCount,
+      'row_counts': rowCounts,
+      'schema_version': schemaVersion,
+      'includes_key': key != null,
+      if (wrapped != null) ...wrapped,
+      'note': 'To restore, replace the app database file with '
+          '$dbEntry from this archive.',
+    };
+  }
 
   /// Creates a backup and verifies it.
   ///
@@ -221,6 +238,7 @@ class BackupService {
   Future<BackupResult> createBackup({
     bool includePhotos = true,
     bool includeKey = false,
+    String? keyPassphrase,
     String prefix = 'jewellery_suite',
   }) async {
     final createdAt = DateTime.now();
@@ -230,6 +248,11 @@ class BackupService {
       final source = db.path;
       if (source == null || !await File(source).exists()) {
         return _failed('The database file could not be found.', counts);
+      }
+      if (includeKey &&
+          (keyPassphrase == null || keyPassphrase.trim().isEmpty)) {
+        return _failed(
+            'Set a passphrase before including the database key.', counts);
       }
 
       final work = await Directory.systemTemp.createTemp('js_backup_');
@@ -249,9 +272,9 @@ class BackupService {
         final photos = includePhotos ? await photoFiles() : const <File>[];
         final dir = await backupDir();
         final target = await _uniquePath(dir, createdAt, prefix);
-        // #080/#081: naming the key inside the archive makes every backup
-        // decryptable by whoever holds the file, so it is opt-in. Same-phone
-        // restores use the keystore key and need nothing in the manifest.
+        // #080: the key never travels in clear text. When the shop asks to
+        // include it, it is wrapped with a passphrase they type; same-phone
+        // restores still use the keystore key and need nothing in the manifest.
         final archiveKey = includeKey ? await DbCrypto.key() : null;
         final manifest = buildManifest(
           createdAt: createdAt,
@@ -260,6 +283,7 @@ class BackupService {
           rowCounts: counts,
           schemaVersion: MigrationV21.version,
           key: archiveKey,
+          keyPassphrase: keyPassphrase,
         );
 
         final encoder = ZipFileEncoder();
@@ -279,7 +303,8 @@ class BackupService {
         }
 
         // 4. Verify what actually landed on disk, not what we intended.
-        final archiveProblem = await validateArchive(target);
+        final archiveProblem =
+            await validateArchive(target, keyPassphrase: keyPassphrase);
 
         final file = File(target);
         final info = BackupInfo(
@@ -315,11 +340,13 @@ class BackupService {
   ///
   /// The caller is responsible for reloading [AppState] after a successful
   /// restore; [db] is already pointing at the restored file.
-  Future<RestoreResult> restoreBackup(String zipPath) async {
+  Future<RestoreResult> restoreBackup(String zipPath,
+      {String? keyPassphrase}) async {
     Directory? work;
     var closed = false;
     try {
-      final problem = await validateArchive(zipPath, compareWithLive: false);
+      final problem = await validateArchive(zipPath,
+          compareWithLive: false, keyPassphrase: keyPassphrase);
       if (problem != null) {
         return RestoreResult(restored: false, problem: problem);
       }
@@ -335,8 +362,21 @@ class BackupService {
             restored: false,
             problem: 'This backup was made by a newer app version.');
       }
-      // #049: an encrypted snapshot names the key that opens it.
-      final archiveKey = manifest['db_key'] as String?;
+      // #080: a key that travels with the archive is wrapped with a
+      // passphrase. `db_key` is still read for archives made by older builds.
+      var archiveKey = manifest['db_key'] as String?;
+      if (archiveKey == null && manifest['db_key_wrapped'] != null) {
+        if (keyPassphrase == null || keyPassphrase.trim().isEmpty) {
+          return const RestoreResult(
+              restored: false,
+              problem: 'This backup is protected by a passphrase.');
+        }
+        try {
+          archiveKey = BackupKeyWrap.unwrap(manifest, keyPassphrase);
+        } on FormatException catch (e) {
+          return RestoreResult(restored: false, problem: e.message);
+        }
+      }
 
       // A restore is destructive, so the current data gets its own verified
       // backup first. If that cannot be produced, nothing is replaced.
@@ -399,7 +439,8 @@ class BackupService {
             problem: archiveKey == null
                 ? 'This backup does not carry its database key. Restore it '
                     'on the phone that made it, or create a backup with '
-                    '“Include database key” to move to a new phone.'
+                    '“Include database key” and a passphrase to move to a new '
+                    'phone.'
                 : 'The backup database could not be opened.',
             safetyBackup: safety.info);
       } finally {
@@ -609,7 +650,7 @@ class BackupService {
   /// must match the live database). A restore validates an OLDER snapshot, so
   /// it passes false — the counts are expected to differ from today's.
   Future<String?> validateArchive(String zipPath,
-      {bool compareWithLive = true}) async {
+      {bool compareWithLive = true, String? keyPassphrase}) async {
     if (!await File(zipPath).exists()) {
       return 'The backup file does not exist.';
     }
@@ -634,8 +675,21 @@ class BackupService {
       if (bytes == null) return 'The archived database is empty.';
       final extracted = File(p.join(work.path, 'check.db'))
         ..writeAsBytesSync(bytes, flush: true);
-      // #049: the snapshot may be encrypted with the archive's own key.
-      final archiveKey = (await readManifest(zipPath))?['db_key'] as String?;
+      // #080: the key may be wrapped with a passphrase. Without the
+      // passphrase the archive is still structurally sound; the database can
+      // only be opened at restore time, after the shop types it.
+      final manifest = await readManifest(zipPath);
+      var archiveKey = manifest?['db_key'] as String?;
+      if (archiveKey == null && manifest?['db_key_wrapped'] != null) {
+        if (keyPassphrase == null || keyPassphrase.trim().isEmpty) {
+          return null;
+        }
+        try {
+          archiveKey = BackupKeyWrap.unwrap(manifest!, keyPassphrase);
+        } on FormatException catch (e) {
+          return e.message;
+        }
+      }
       return await _checkDatabase(
           extracted.path, compareWithLive ? await liveCounts() : const {},
           key: archiveKey);

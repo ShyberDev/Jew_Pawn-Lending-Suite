@@ -117,7 +117,7 @@ history lives in `CHANGELOG.md`.
 | **#077** | 🟨 | Jewellery | Advance-only customers | Credit Book appends advance parties with no invoice; tile reads **Advance ₹X held · no invoice**. Tests green. **Phone pass owed.** |
 | **#078** | 🟨 | Jewellery | Double delivery / over-return | Delivered orders cannot be delivered or reopened; returns cannot exceed the remaining weight. Tests green. **Phone pass owed.** |
 | **#079** | 🟨 | Jewellery | Worker order delivered twice | A second delivery is refused before any stock or payment write. Tests green. **Phone pass owed.** |
-| **#080** | 🟨 | Android | Platform backup / archive key / credentials | `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules` exclude everything; manifest test. Archive `db_key` is now **opt-in** via **Include database key** (off by default) and covered by `test/backup_manifest_test.dart`; tracked credentials moved to a gitignored local file. **Open:** shop passphrase/rotation decision; phone pass owed for the new switch. |
+| **#080** | 🟨 | Android | Platform backup / archive key / credentials | `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules` exclude everything; manifest test. Archive key is **opt-in** and **passphrase-wrapped** (PBKDF2-HMAC-SHA256 + HMAC-CTR; no clear-text `db_key`); restore prompts for the passphrase. Covered by `test/backup_manifest_test.dart` (6 cases); tracked credentials moved to a gitignored local file. **Open:** rotate the PIN/admin password; phone pass owed for the passphrase backup/restore. |
 | **#081** | ⬜ | Tooling | Firebase crash reports + test distribution | Crashlytics + App Distribution only; no Firestore/Storage for ledger data. Blocked on a Firebase project. Setup: `docs/SETUP_FIREBASE.md`. |
 
 ---

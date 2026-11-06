@@ -227,5 +227,5 @@ the last **published** build is **v1.4.4 / 2056**.
 | #077 | An advance-only customer visible in the Credit Book |
 | #078 | Create order → deliver → reopen/deliver refused; over-return refused |
 | #079 | Deliver a worker order twice; second call refused |
-| #080 | Create one backup with **Include database key** off and restore it on the same phone; toggle the switch on and confirm the warning, then restore again. Rotate the PIN and admin password |
+| #080 | Create a backup with **Include database key** on, enter a passphrase, restore it and confirm the passphrase prompt; try a wrong passphrase and confirm it is refused. Rotate the PIN and admin password |
 | #081 | Install a Crashlytics build, force one test crash, see it in the console |
