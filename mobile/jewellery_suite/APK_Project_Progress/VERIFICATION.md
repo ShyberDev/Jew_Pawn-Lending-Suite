@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-06):** `10.52.61.103:32935`, build **1.4.15 /
-versionCode 2067**, `SQLCipher encrypted, schema v21`. This is freebuff’s build;
+**Current state (2026-11-06):** `10.52.61.103:32935`, build **1.4.16 /
+versionCode 2068**, `SQLCipher encrypted, schema v21`. This is freebuff’s build;
 the last **published** build is **v1.4.4 / 2056**.
 
 **Template for a new entry**
@@ -24,6 +24,42 @@ the last **published** build is **v1.4.4 / 2056**.
 ```
 
 ---
+
+## 2026-11-06 — v1.4.16 (2068) — #080 passphrase-protected backup key
+
+- **Why a new build:** the installed v1.4.15 (2067) predated commit `c1c6d5c`;
+  its key switch still warned *“Anyone who has this file could then open it.”*
+  v1.4.16 / 2068 is the first install carrying the wrapped key. Installed in
+  place with data kept: `[db] open: SQLCipher encrypted, schema v21`.
+- **Create:** Backup & data → **Include database key** on (the subtitle now
+  reads *“The key is locked with a passphrase you choose, so the file alone
+  cannot open the ledger.”*) → **Create backup now** → **Protect the database
+  key** asked for the passphrase twice → saved. The card read **Latest:
+  jewellery_suite_2026-11-06_22-04-55.zip · 425 KB** and *Saved backups*
+  went 9 → 10.
+- **The archive is protected:** ⋮ → **Restore this backup** → **Restore**
+  opened **Backup passphrase** with **Unlock** before anything was replaced —
+  the archive carries `db_key_wrapped`, not a clear `db_key`.
+- **Wrong passphrase refused:** the red snackbar read **“Restore failed: That
+  passphrase does not open this backup.”** and the screen returned unchanged.
+- **Correct passphrase restored:** the safety copy
+  `jewellery_suite_2026-11-06_22-08-01.zip` was written first, then the
+  database was replaced (`22:08:04 [db] open: SQLCipher encrypted, schema
+  v21`). Afterwards the Jewellery dashboard read **₹1,18,220 sales · ₹60,000
+  collected · ₹58,720 outstanding · 2 open**, rates Gold 7,200/g · Silver
+  90/g, Orders **1 pending**, and Credit Book **₹58,720 due from 1 customer**
+  with the ₹500 late-fee row intact.
+- **Logcat:** no FATAL EXCEPTION and no Flutter exception during either
+  restore.
+- **Cleanup:** the passphrase archive was deleted (*Saved backups* back to
+  10; the keyless safety copy kept), display rotation restored, phone left on
+  Jewellery → Credit Book. The test passphrase is deliberately not recorded.
+- **Noticed, not this item:** tapping the home **Sync** action while offline
+  showed *“Sync failed: Not logged in”* even though the badge says
+  “2 change(s) waiting”. Worth a numbered row next round.
+- **Not covered:** restoring on a phone with a different keystore (the
+  cross-phone case the passphrase exists for), and the PIN/admin-password
+  rotation #080 still owes.
 
 ## 2026-11-06 — v1.4.15 (2067) — #074 receipt split, saved-rate chart, WIP
 

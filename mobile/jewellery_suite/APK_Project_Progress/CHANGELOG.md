@@ -6,6 +6,32 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #080 passphrase backup key phone-verified (v1.4.16 / 2068)
+
+- **A new build was needed:** the installed v1.4.15 (2067) predated commit
+  `c1c6d5c`, so its key switch still warned *“Anyone who has this file could
+  then open it.”* v1.4.16 / versionCode 2068 is the first install that carries
+  the wrapped key; `pubspec.yaml` is now `1.4.16+68`.
+- **Phone pass:** with **Include database key** on, **Create backup now** asked
+  for the passphrase twice and produced a verified 425 KB archive (9 → 10).
+  Restoring it asked for **Backup passphrase** before replacing anything — proof
+  the archive carries `db_key_wrapped` rather than a clear `db_key`. A wrong
+  passphrase failed with *“Restore failed: That passphrase does not open this
+  backup.”*; the right one wrote the safety copy
+  `jewellery_suite_2026-11-06_22-08-01.zip` and restored, leaving **₹1,18,220 /
+  ₹60,000 / ₹58,720** with the late-fee row, saved rates and the pending order
+  intact. Logcat showed no FATAL EXCEPTION.
+- **Checks:** `flutter analyze` → **No issues found**; full suite **518 passing,
+  exit 0**; APK `mobile/jewellery_suite_v1.4.16-arm64-v8a.apk`,
+  **45,727,292** bytes, SHA-256
+  `347ed3bbff45aa7af3ac8e4f4b73c391f82088a768a3fd1542a1d44ca93742d2`,
+  installed in place over 2067 with data kept. The passphrase archive was
+  deleted after the test.
+- **Still owed:** rotate the PIN/admin password tracked in public git, and try
+  a restore on a phone with a different keystore.
+- **Noticed:** the home **Sync** action answers *“Sync failed: Not logged in”*
+  while offline although the badge shows “2 change(s) waiting”.
+
 ### 2026-11-06 — #074 receipt split, saved-rate chart and WIP verified on the phone
 
 - Saved **Gold ₹7,200/g** and **Silver ₹90/g**, then made two credit sales to

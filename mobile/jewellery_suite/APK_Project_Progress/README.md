@@ -11,14 +11,14 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.15 / versionCode 2067** on `10.52.61.148:42895` |
+| Installed test build | **1.4.16 / versionCode 2068** on `10.52.61.103:32935` |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
 | Tests | **518 passing**; `flutter analyze` clean |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
-> The installed 1.4.15 is a **development** build. The last build verified against
+> The installed 1.4.16 is a **development** build. The last build verified against
 > the published release asset is v1.4.4.
 
 ---
@@ -42,12 +42,12 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Phone passes owed** — #075 (late-fee dialog), #077 (advance-only
+1. **Phone passes owed** — #075 (shared-expense split), #077 (advance-only
    customer), #078 (double delivery / over-return), #079 (worker double
-   delivery), then #080’s new **Include database key** switch. One at a time,
-   recorded in `VERIFICATION.md`.
+   delivery). One at a time, recorded in `VERIFICATION.md`. (#080’s
+   **Include database key** switch was passed on v1.4.16, 2026-11-06.)
 2. **#080 remaining** — rotate the PIN/admin password that were tracked in
-   public git; decide the shop passphrase for cross-phone archives.
+   public git; try a restore on a phone with a different keystore.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
    shared secret, replace the mock; the contract is already verified.
 4. **#072 Drive** — once the shop supplies the **Web client ID**, add
@@ -65,7 +65,7 @@ what was built, what was seen on the phone, and what is still owed.
 | **#072** Drive | Google Cloud **Web client ID** (Android client + release SHA-1 already documented) | shop |
 | **#081** Firebase | A Firebase project and `google-services.json` | shop |
 | **#042** HTTPS | A server with TLS before certificate pinning | later |
-| **#080** archive key | Phone pass for the passphrase-protected backup/restore; rotate the PIN/admin password | us |
+| **#080** archive key | Rotate the PIN/admin password; cross-phone restore try-out | us |
 
 Steps for each are in the linked setup guides. Do not paste secrets into a
 tracked file.
@@ -116,7 +116,7 @@ tracked file.
 ## The short version
 
 The app is feature-complete for the shop’s current workflow and runs offline. The
-remaining work is **verification** (five jewellery phone passes and the OTP mock),
+remaining work is **verification** (four jewellery phone passes and the OTP mock),
 **security debt** (archive key, credentials), and **three external integrations**
 (Drive, a real OTP gateway, Firebase) that are blocked on accounts only the shop
 can create.

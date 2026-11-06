@@ -10,8 +10,8 @@
 | Thing | Value |
 |---|---|
 | Test phone | Redmi Note 8 Pro (`infinity_begonia`), Android wireless debugging |
-| Address | **`10.52.61.148:42895`** — changes every session |
-| Installed build | **1.4.15 / versionCode 2067**, release-signed, arm64 |
+| Address | **`10.52.61.103:32935`** — changes every session |
+| Installed build | **1.4.16 / versionCode 2068**, release-signed, arm64 |
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
