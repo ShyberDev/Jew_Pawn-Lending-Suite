@@ -25,6 +25,29 @@ the last **published** build is **v1.4.4 / 2056**.
 
 ---
 
+## 2026-11-06 — v1.4.16 (2068) — #077 advance-only customer
+
+- **Setup:** Jewellery → **New Sale**, fresh customer **Advance Test**, 1.000 g
+  gold KDM, wastage 0, making ₹0 at the saved ₹7,200/g → **SAL-20261106-0003**
+  ₹7,200. The dashboard then read ₹1,25,420 sales · ₹65,920 outstanding ·
+  **3 open**, and Credit Book **₹65,920 due from 2 customers**.
+- **Overpayment:** Credit Book → Advance Test → **Receive payment** was
+  prefilled ₹7,200; typing **₹7,500** made the dialog read *“Receipt ₹7,500.
+  Each invoice takes at most its balance; anything above it stays as a customer
+  advance.”* After Save the header read **Billed ₹7,200 / Received ₹7,500 /
+  Outstanding ₹0**, with **Payment received · SAL-…-0003 −₹7,200** and a
+  separate **Advance received −₹300 · Customer advance** row in the ledger.
+- **Then the sale was deleted** (document sheet → **Delete document → OK**),
+  leaving no invoice and only the advance: header **Billed ₹0 / Received ₹300 /
+  Outstanding ₹0 · 0 open invoices · 0 sales**.
+- **The #077 case:** Credit Book listed
+  **Advance Test — “Advance ₹300 held · no invoice” · ₹300 · advance** (green),
+  with the strip reading **1 customer with dues · 2 in the book** and
+  **Received ₹60,300** — the advance is counted once, not as a due.
+- **Not covered:** the same state reached a day later (same code path) and a
+  real shop customer instead of a test one. The Advance Test customer is left
+  on the phone so the row can be re-checked.
+
 ## 2026-11-06 — v1.4.16 (2068) — #080 passphrase-protected backup key
 
 - **Why a new build:** the installed v1.4.15 (2067) predated commit `c1c6d5c`;

@@ -6,6 +6,17 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #077 advance-only customer phone-verified (v1.4.16)
+
+- Made a ₹7,200 sale to a test customer, received **₹7,500**, and watched the
+  extra **₹300** land as an *Advance received* ledger row instead of being
+  refused or inflating the payment. Deleting the sale afterwards left the
+  customer with no invoice — and the Credit Book tile then read **“Advance ₹300
+  held · no invoice” · ₹300 · advance**, which is exactly the hole #077 closed.
+- The strip counted the money once (**Received ₹60,300**, **1 customer with
+  dues · 2 in the book**), so the advance is neither hidden nor double-counted.
+- No code changed; the write-up is in `VERIFICATION.md`.
+
 ### 2026-11-06 — #080 passphrase backup key phone-verified (v1.4.16 / 2068)
 
 - **A new build was needed:** the installed v1.4.15 (2067) predated commit

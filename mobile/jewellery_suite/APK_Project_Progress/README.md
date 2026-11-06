@@ -42,10 +42,10 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Phone passes owed** — #075 (shared-expense split), #077 (advance-only
-   customer), #078 (double delivery / over-return), #079 (worker double
-   delivery). One at a time, recorded in `VERIFICATION.md`. (#080’s
-   **Include database key** switch was passed on v1.4.16, 2026-11-06.)
+1. **Phone passes owed** — #075 (shared-expense split), #078 (double delivery /
+   over-return), #079 (worker double delivery). One at a time, recorded in
+   `VERIFICATION.md`. (#077 and #080’s **Include database key** switch were
+   passed on v1.4.16, 2026-11-06.)
 2. **#080 remaining** — rotate the PIN/admin password that were tracked in
    public git; try a restore on a phone with a different keystore.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
@@ -65,7 +65,7 @@ what was built, what was seen on the phone, and what is still owed.
 | **#072** Drive | Google Cloud **Web client ID** (Android client + release SHA-1 already documented) | shop |
 | **#081** Firebase | A Firebase project and `google-services.json` | shop |
 | **#042** HTTPS | A server with TLS before certificate pinning | later |
-| **#080** archive key | Rotate the PIN/admin password; cross-phone restore try-out | us |
+| **#080** archive key | Rotate the PIN/admin password (deferred: the shop treats them as throwaway test values); cross-phone restore try-out | us |
 
 Steps for each are in the linked setup guides. Do not paste secrets into a
 tracked file.
@@ -116,7 +116,7 @@ tracked file.
 ## The short version
 
 The app is feature-complete for the shop’s current workflow and runs offline. The
-remaining work is **verification** (four jewellery phone passes and the OTP mock),
+remaining work is **verification** (three jewellery phone passes and the OTP mock),
 **security debt** (archive key, credentials), and **three external integrations**
 (Drive, a real OTP gateway, Firebase) that are blocked on accounts only the shop
 can create.
