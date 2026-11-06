@@ -6,6 +6,17 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #078 double delivery and over-return phone-verified (v1.4.16)
+
+- Delivered **ORD-20261106-0001** once (8.000 g gross, no stone, difference
+  0.000 g). Afterwards the order screen offered no **Mark Ready** and no
+  **DELIVER ORDER**, so the second delivery that used to double the stock and
+  the payment has no way to be started.
+- Typed an **11.000 g** return against a **10.000 g** sale: the form priced it
+  live, but **SAVE RETURN** refused with *“Return is more than the weight still
+  on this sale.”* and nothing was written.
+- No code changed; evidence is in `VERIFICATION.md`.
+
 ### 2026-11-06 — #077 advance-only customer phone-verified (v1.4.16)
 
 - Made a ₹7,200 sale to a test customer, received **₹7,500**, and watched the

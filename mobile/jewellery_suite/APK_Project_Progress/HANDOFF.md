@@ -45,7 +45,9 @@ passwords or PINs.
 **Security debt (#080):** these values were previously tracked in
 `Temp_Passwords_readme.md` in a **public** repository. The file has been removed
 from the current tree and moved to the local secrets file, but it remains in git
-history. **Rotate the admin password and the PIN before any public handover.**
+history. The shop has declared them **throwaway test values** (2026-11-06), so
+rotation is deferred, not cancelled: **rotate the admin password and the PIN
+before any public handover.**
 The keystore password lives in `android/key.properties` (gitignored) — back it up;
 losing it means Play cannot accept an update.
 

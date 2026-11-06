@@ -25,6 +25,27 @@ the last **published** build is **v1.4.4 / 2056**.
 
 ---
 
+## 2026-11-06 — v1.4.16 (2068) — #078 double delivery and over-return
+
+- **Delivered once:** Orders → **ORD-20261106-0001** → **DELIVER ORDER** with
+  the prefilled 8.000 g gross, 0 stone, no extra and no refund → the header
+  turned **Delivered** and a **Delivery** card read *Delivered on 06-11-26 /
+  gross weight 8.000 g / stone 0.000 g / net 8.000 g / difference 0.000 g*.
+- **No second delivery path on the screen:** with the order Delivered,
+  **Mark Ready**, **DELIVER ORDER** and **Receive payment** were all gone — the
+  controls cannot be tapped again, and the store refuses a repeat delivery and
+  a reopen in code (`test/jewellery_order_guards_test.dart`). The order list
+  moved it out of **Pending**.
+- **Over-return refused:** Credit Book → Ravi Kumar → **SAL-20261106-0001**
+  (10.000 g gold) → **Return against this sale** → the weight was typed as
+  **11.000 g** (the form priced it live at ₹72,864) → **SAVE RETURN** produced
+  the snackbar **“Return is more than the weight still on this sale.”** and
+  nothing was saved; the form stayed open so the number can be corrected.
+- **Logcat:** no FATAL EXCEPTION during the delivery or the refused return.
+- **Not covered:** a legitimate partial return followed by an over-return of
+  what is left, and a second delivery attempted from a stale screen (only the
+  store guard, with its tests, stands there).
+
 ## 2026-11-06 — v1.4.16 (2068) — #077 advance-only customer
 
 - **Setup:** Jewellery → **New Sale**, fresh customer **Advance Test**, 1.000 g
