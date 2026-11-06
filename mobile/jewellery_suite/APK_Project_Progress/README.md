@@ -42,9 +42,10 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Phone passes owed** — #075 (shared-expense split), #079 (worker double
-   delivery). One at a time, recorded in `VERIFICATION.md`. (#077, #078 and
-   #080’s **Include database key** switch were passed on v1.4.16, 2026-11-06.)
+1. **Phone pass owed** — #079 (worker double delivery), and it needs a hands-on
+   pass: the automation could not focus the *Worker name* field on New movement
+   (see `VERIFICATION.md`). (#075, #077, #078, #082 and #080’s **Include
+   database key** switch were passed on v1.4.16 / v1.4.17.)
 2. **#080 remaining** — rotate the PIN/admin password that were tracked in
    public git; try a restore on a phone with a different keystore.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
@@ -115,7 +116,7 @@ tracked file.
 ## The short version
 
 The app is feature-complete for the shop’s current workflow and runs offline. The
-remaining work is **verification** (two jewellery phone passes and the OTP mock),
+remaining work is **verification** (one jewellery phone pass and the OTP mock),
 **security debt** (archive key, credentials), and **three external integrations**
 (Drive, a real OTP gateway, Firebase) that are blocked on accounts only the shop
 can create.

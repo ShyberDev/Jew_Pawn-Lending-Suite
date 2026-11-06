@@ -25,6 +25,35 @@ the last **published** build is **v1.4.4 / 2056**.
 
 ---
 
+## 2026-11-06 — v1.4.17 (2069) — #075 shared expense split
+
+- Saved a purchase **PUR-20261106-0001** for a new supplier **Shared Test
+  Supplier** with two gold lines at the saved ₹7,200/g and one **Shared expense
+  ₹400**: 10.000 g @ 92% → 9.200 g × ₹7,200 = ₹66,240; 30.000 g @ 92% → 27.600 g
+  × ₹7,200 = ₹1,98,720.
+- The form preview read **Item 1 ₹66,240 · Item 2 ₹1,98,720 · Shared expense
+  ₹400 · Payable ₹2,65,360** — the payable is the two lines plus the shared
+  amount once.
+- The saved document showed the share already allocated per line:
+  **· Additional ₹100** on the 10 g line (₹66,340) and **· Additional ₹300** on
+  the 30 g line (₹1,99,020), i.e. ₹400 divided by net weight 9.2 : 27.6 = 1 : 3
+  and stored once on the document.
+- **Not covered:** editing a line's weight after the shared expense is typed
+  (the split recomputes on save; unit tests cover the maths).
+
+## 2026-11-06 — v1.4.17 (2069) — #079 worker pass blocked in this session
+
+- Attempted the worker-order double-delivery pass. The **Worker movement**
+  screen's *Worker name* field would not take an adb-injected tap on this
+  device: the text landed in **Metal weight** instead and **SAVE MOVEMENT**
+  answered **“Enter the worker name.”** three times. `TAB` and a held tap did
+  not move focus either, so no worker or work order could be created.
+- **Nothing was written:** Workers still read **0 workers · 0.000 g**, and the
+  form was discarded. This is a harness limitation, not an app defect — the
+  same screens accept taps when driven by hand.
+- **#079 stays 🟨:** it needs a hands-on pass (create a worker movement, a work
+  order, deliver once, then confirm there is no second Deliver).
+
 ## 2026-11-06 — v1.4.17 (2069) — #082 offline sync message
 
 - Built and installed over 2068 with data kept (`[db] open: SQLCipher

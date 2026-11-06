@@ -6,6 +6,20 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #075 shared-expense split phone-verified (v1.4.17)
+
+- One purchase, two gold lines (10.000 g and 30.000 g) and one **Shared expense
+  ₹400**. The preview read **Payable ₹2,65,360**, and the saved document carried
+  **Additional ₹100** on the 10 g line and **₹300** on the 30 g line — the net
+  weight ratio 9.2 : 27.6, with the amount stored once on the document.
+- With the fee dialog already exercised live in #076 (a ₹500 fee survived a
+  ₹1,000 receipt) and drafts confirmed onto stock in the same pass, #075's
+  three behaviours have now all been seen on the device.
+- No code changed; evidence is in `VERIFICATION.md`.
+- **#079 (worker double delivery) could not be attempted:** the Worker movement
+  screen would not take an injected tap into its *Worker name* field, so no
+  worker could be created; nothing was written and the item stays 🟨.
+
 ### 2026-11-06 — #082 offline Sync message (v1.4.17 / 2069)
 
 - **The bug:** this shop runs offline, where `AppState.api` is null. The home
