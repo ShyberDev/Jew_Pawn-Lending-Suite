@@ -42,15 +42,14 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **#065 mock send** — start the local mock (`docs/SETUP_OTP_GATEWAY.md`), save
-   `http://<laptop>:8765/otp` as the E-mail gateway, send a code, check the POST,
-   then **Remove gateway** and confirm the on-screen fallback.
-2. **Phone passes owed** — #074 (receipt split + rate chart), #075 (late-fee
+1. **Phone passes owed** — #074 (receipt split + rate chart), #075 (late-fee
    dialog), #077 (advance-only customer), #078 (double delivery / over-return),
-   #079 (worker double delivery). One at a time, recorded in `VERIFICATION.md`.
-3. **#080 remaining** — wrap the backup archive key with a shop passphrase before
-   any ZIP leaves the phone; rotate the PIN/admin password that were tracked in
-   public git.
+   #079 (worker double delivery), then #080’s new **Include database key**
+   switch. One at a time, recorded in `VERIFICATION.md`.
+2. **#080 remaining** — rotate the PIN/admin password that were tracked in
+   public git; decide the shop passphrase for cross-phone archives.
+3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
+   shared secret, replace the mock; the contract is already verified.
 4. **#072 Drive** — once the shop supplies the **Web client ID**, add
    `google_sign_in` + `googleapis` and upload/restore behind a settings switch.
 5. **#081 Firebase** — once the shop supplies `google-services.json`, add
