@@ -6,6 +6,13 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #080 archive key is passphrase-wrapped
+
+- The **Include database key** switch no longer writes `db_key` in clear text. When it is on, the shop is asked for a passphrase (6+ characters, typed twice); the SQLCipher key is wrapped with **PBKDF2-HMAC-SHA256** (120,000 iterations) + an **HMAC-SHA256 counter stream** and an HMAC tag, and stored as `db_key_wrapped`. Restoring an archive that carries one asks for the passphrase and refuses a wrong one with *“That passphrase does not open this backup.”*
+- Same-phone restores still need no passphrase: the live key never leaves the Android keystore. Legacy archives with a clear-text `db_key` still restore.
+- **Checks:** `test/backup_manifest_test.dart` now has 6 cases (no key by default, passphrase required, wrapped round-trip, wrong passphrase, damaged block, 64-character key); `flutter analyze` clean; full suite **518 passing, exit 0**.
+- **Still owed:** the phone pass for the passphrase backup/restore, and rotating the PIN/admin password that were tracked in public git.
+
 ### 2026-11-06 — #065 mock gateway send verified on the phone
 
 - Saved a local mock (`http://10.52.61.21:8765/otp`) as the E-mail gateway, then used **Forgot admin password → Send code**. The phone showed **Code sent**, and the mock received the full contract payload (`to`, `channel`, `purpose`, `code`, `message`) with a 6-digit code. The reset dialog was cancelled, so no secret changed.

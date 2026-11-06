@@ -15,7 +15,7 @@
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 514 passing, `flutter analyze` clean at the last check |
+| Tests / analyzer | 518 passing, `flutter analyze` clean at the last check |
 
 The address is not stable. Discover it with `adb mdns services`, then:
 

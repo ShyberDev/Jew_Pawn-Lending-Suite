@@ -9,6 +9,7 @@ import '../../../state/app_state.dart';
 import '../../../util/backup_files.dart';
 import '../../../ui/admin_guard.dart';
 import '../../../ui/palette.dart';
+import '../../../ui/secret_dialogs.dart';
 import '../../../ui/widgets.dart';
 
 /// More → Settings → Backup & data.
@@ -71,9 +72,20 @@ class _BackupScreenState extends State<BackupScreen> {
 
   Future<void> _create() async {
     if (_busy) return;
+    String? passphrase;
+    if (_withKey) {
+      passphrase = await askNewPasswordDialog(
+        context,
+        title: 'Protect the database key',
+        label: 'Backup passphrase',
+      );
+      if (passphrase == null || !mounted) return;
+    }
     setState(() => _busy = true);
-    final result = await _backups!
-        .createBackup(includePhotos: _withPhotos, includeKey: _withKey);
+    final result = await _backups!.createBackup(
+        includePhotos: _withPhotos,
+        includeKey: _withKey,
+        keyPassphrase: passphrase);
     await _reload();
     if (!mounted) return;
     setState(() => _busy = false);
@@ -240,8 +252,28 @@ class _BackupScreenState extends State<BackupScreen> {
       return;
     }
 
+    // #080: a backup made for another phone protects its key with a
+    // passphrase. Ask for it only when the archive actually carries one.
+    String? keyPassphrase;
+    final manifest = await _backups!.readManifest(info.path);
+    if (!mounted) return;
+    if (manifest != null && manifest['db_key_wrapped'] != null) {
+      keyPassphrase = await askPasswordDialog(
+        context,
+        title: 'Backup passphrase',
+        label: 'Passphrase',
+        confirmLabel: 'Unlock',
+      );
+      if (!mounted) return;
+      if (keyPassphrase == null || keyPassphrase.trim().isEmpty) {
+        _toast('Restore cancelled.');
+        return;
+      }
+    }
+
     setState(() => _busy = true);
-    final result = await _backups!.restoreBackup(info.path);
+    final result = await _backups!
+        .restoreBackup(info.path, keyPassphrase: keyPassphrase);
     if (!mounted) return;
     if (!result.restored) {
       setState(() => _busy = false);
@@ -384,8 +416,9 @@ class _BackupScreenState extends State<BackupScreen> {
                 title: const Text('Include database key',
                     style: TextStyle(fontSize: 13.5)),
                 subtitle: Text(
-                    'Only needed to restore on a new phone. Anyone who has this '
-                    'file could then open it.',
+                    'Only needed to restore on a new phone. The key is locked '
+                    'with a passphrase you choose, so the file alone cannot '
+                    'open the ledger.',
                     style: TextStyle(fontSize: 11, color: mutedOf(context))),
                 value: _withKey,
                 onChanged: (v) => setState(() => _withKey = v),
