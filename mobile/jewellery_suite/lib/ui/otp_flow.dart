@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../state/app_state.dart';
 import '../util/otp_gateway.dart';
+import 'admin_guard.dart';
 import 'palette.dart';
+import 'secret_dialogs.dart';
 
 /// One-time-code confirmation shared by every "Forgot password" entry point.
 ///
@@ -45,6 +47,9 @@ Future<bool> confirmWithOtp(
   final proceed = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
+      // The keypad covers half a phone screen; without this the Send code
+      // button scrolls out of reach and the reset looks broken.
+      scrollable: true,
       title: Text(title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -93,6 +98,39 @@ Future<bool> confirmWithOtp(
   return ok;
 }
 
+/// Confirms a lock-screen reset when the shop is locked out.
+///
+/// The lock screen cannot reach Password Settings, so a phone with no Gmail /
+/// mobile account had nowhere to get a one-time code from: "Forgot PIN?" ended
+/// in a dialog telling the shop to create an account they could not reach. With
+/// no account the admin password is asked instead — the same secret the delete
+/// and release prompts already use — so a locked phone is never a dead end.
+Future<bool> confirmLockReset(
+  BuildContext context,
+  AppState state, {
+  required String purpose,
+  required String title,
+  String? subtitle,
+}) async {
+  if (state.hasAccount) {
+    return confirmWithOtp(context, state,
+        purpose: purpose, title: title, subtitle: subtitle);
+  }
+  final typed = await askPasswordDialog(context,
+      title: title, label: 'Admin password');
+  if (typed == null || !context.mounted) return false;
+  if (!await verifyAdminPassword(state, typed)) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+            const SnackBar(content: Text('That admin password is wrong.')));
+    }
+    return false;
+  }
+  return true;
+}
+
 /// Shows the generated code (offline delivery) and asks the user to type it.
 /// Public so the login screen's OTP sign-in uses the same dialog.
 Future<String?> askOtpCodeDialog(
@@ -106,6 +144,8 @@ Future<String?> askOtpCodeDialog(
     return await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        // Six digits plus the code box overflows a phone once the keypad is up.
+        scrollable: true,
         title: const Text('Enter the 6-digit code'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

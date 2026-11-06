@@ -11,12 +11,12 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.19 / versionCode 2071** on `10.52.61.103:32935` |
+| Installed test build | **1.4.19 / versionCode 2071** on `10.52.61.103:32935` — **1.4.20 / 2072** is built (`mobile/jewellery_suite_v1.4.20-arm64-v8a.apk`) and waits for the phone to come back on adb |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
-| Tests | **524 passing**; `flutter analyze` clean |
-| Unlocking the app | **`PASSWORDS.md`** — the PIN and admin password, and a standing rule not to rotate them |
+| Tests | **526 passing**; `flutter analyze` clean |
+| Unlocking the app | **`PASSWORDS.md`** — standing defaults PIN `123456`, admin `Admin@123`, and a rule not to rotate them |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
 > The installed 1.4.17 is a **development** build. The last build verified against

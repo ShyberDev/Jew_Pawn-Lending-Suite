@@ -15,7 +15,8 @@
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 524 passing, `flutter analyze` clean at the last check |
+| Tests / analyzer | 526 passing, `flutter analyze` clean at the last check |
+| Built, not installed | **1.4.20 / 2072** (`mobile/jewellery_suite_v1.4.20-arm64-v8a.apk`) — carries the #084 lock-screen fix |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
 | Human vs agent work | **`Manual-Handle-by-Person-Possible.md`** — phone passes, installs and backups the shop does; features stay with the agent |
 

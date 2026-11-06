@@ -8,6 +8,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:jewellery_suite/data/local_db.dart';
 import 'package:jewellery_suite/state/app_state.dart';
+import 'package:jewellery_suite/ui/admin_guard.dart';
 import 'package:jewellery_suite/ui/app_lock_gate.dart';
 import 'package:jewellery_suite/util/app_lock.dart';
 
@@ -154,6 +155,49 @@ void main() {
         .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await settle(tester);
 
+    expect(find.text('Jewellery Suite is locked'), findsNothing);
+    expect(find.text('open screen'), findsOneWidget);
+  });
+
+  testWidgets('Forgot PIN names the PIN and asks the admin password with no account',
+      (tester) async {
+    await setAdminPassword(state, 'Admin@123');
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await tester.tap(find.text('Forgot PIN?'));
+    await settle(tester);
+
+    // This used to read "Forgot always" and, with no Gmail / mobile account,
+    // ended in "No account registered" — advice the lock screen cannot act on.
+    expect(find.text('Forgot PIN'), findsOneWidget);
+    expect(find.textContaining('No account registered'), findsNothing);
+    expect(find.text('Admin password'), findsOneWidget);
+  });
+
+  testWidgets('the admin password resets the PIN on a locked phone',
+      (tester) async {
+    await setAdminPassword(state, 'Admin@123');
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await tester.tap(find.text('Forgot PIN?'));
+    await settle(tester);
+    // The lock screen's own PIN field is behind the dialog, so target the
+    // dialog's field by its label rather than by position.
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Admin password'), 'Admin@123');
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+
+    expect(find.text('Set a new PIN'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'New PIN (4–6 digits)'), '135790');
+    await tester.enterText(find.widgetWithText(TextField, 'Repeat PIN'), '135790');
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+
+    // The reset must also open the shop — a new PIN on a still-locked screen
+    // would be the same dead end in a different suit.
     expect(find.text('Jewellery Suite is locked'), findsNothing);
     expect(find.text('open screen'), findsOneWidget);
   });

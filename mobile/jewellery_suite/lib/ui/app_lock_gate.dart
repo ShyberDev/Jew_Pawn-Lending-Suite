@@ -120,17 +120,19 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       );
     }
     if (_enabled && _locked) {
-      // A TextField needs an Overlay ancestor for its selection handles. This
-      // gate sits ABOVE the app's Navigator, so give the lock screen its own.
-      return Overlay(
-        initialEntries: [
-          OverlayEntry(
-            builder: (_) => _LockScreen(
-              onUnlocked: () => setState(() => _locked = false),
-              onBioPrompt: (active) => _bioPrompting = active,
-            ),
+      // This gate sits ABOVE the app's Navigator, so the lock screen needs its
+      // own: a TextField needs an Overlay for its selection handles (a Navigator
+      // brings one), and **Forgot PIN?** opens dialogs — with a bare Overlay
+      // there is no Navigator in the tree, `showDialog` threw "context does not
+      // include a Navigator", and the button silently did nothing.
+      return Navigator(
+        onGenerateRoute: (settings) => MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => _LockScreen(
+            onUnlocked: () => setState(() => _locked = false),
+            onBioPrompt: (active) => _bioPrompting = active,
           ),
-        ],
+        ),
       );
     }
     return widget.child;
@@ -239,12 +241,15 @@ class _LockScreenState extends State<_LockScreen> {
     final db = state.db;
     final mode = await AppLock.mode(db);
     if (!mounted) return;
-    final verified = await confirmWithOtp(
+    // "Forgot always" / "Forgot off" was what the mode string turned into; name
+    // the thing being reset instead. With no account the helper asks the admin
+    // password, because Password Settings is unreachable from here.
+    final verified = await confirmLockReset(
       context,
       state,
       purpose: 'pin_reset',
-      title: 'Forgot $mode'.replaceAll('Forgot daily', 'Forgot Daily MPIN'),
-      subtitle: 'Reset the screen lock with a one-time code.',
+      title: _daily ? 'Forgot Daily MPIN' : 'Forgot PIN',
+      subtitle: 'Reset the screen lock on this phone.',
     );
     if (!verified || !mounted) return;
     final pin = await askNewPinDialog(context,

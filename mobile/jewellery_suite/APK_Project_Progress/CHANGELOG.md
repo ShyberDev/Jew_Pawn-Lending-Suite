@@ -6,6 +6,29 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-07 — #084 “Forgot PIN?” was a dead button (v1.4.20)
+
+- **Reported by the shop:** the lock screen's **Forgot PIN?** did nothing.
+- **The bug:** `AppLockGate` builds the lock screen *above* `MaterialApp`'s
+  Navigator (that is how it covers pushed routes). It rendered it inside a bare
+  `Overlay`, which gives text fields their handles but has **no Navigator**, so
+  `showDialog` threw *“Navigator operation requested with a context that does not
+  include a Navigator”* and the tap vanished. Nothing was logged on screen.
+- **The fix:** the gate now hands the lock screen its own `Navigator`; a Navigator
+  contains an Overlay, so the PIN field keeps working and dialogs have somewhere
+  to open.
+- **Second defect, same button:** with no Gmail / mobile account the flow only
+  said *“No account registered → create it in Password Settings”*, which the lock
+  screen cannot reach — a lockout. It now asks the **admin password** in that
+  case, the same secret the delete / release prompts use.
+- **Copy:** the dialog title was `'Forgot $mode'`, so it read *“Forgot always”* or
+  *“Forgot daily”*. It now reads **Forgot PIN** / **Forgot Daily MPIN**.
+- **Layout:** both OTP dialogs are `scrollable`, so a 6-digit keypad can no longer
+  push **Send code** / **Verify** off a phone screen.
+- Tests: 2 new cases in `test/app_lock_gate_test.dart`, suite **526 passing**.
+- **Not yet seen on the phone** (adb dropped mid-session); the item is 🟨 until
+  the v1.4.20 APK is installed and the button is tapped.
+
 ### 2026-11-07 — #083 worker reserve follows delivery; delivered orders can be deleted (v1.4.18–1.4.19)
 
 - **The bug:** `workerPositions()` summed worker movements only. Delivery posts
