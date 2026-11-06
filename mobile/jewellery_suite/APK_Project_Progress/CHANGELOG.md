@@ -6,6 +6,20 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-06 — #074 receipt split, saved-rate chart and WIP verified on the phone
+
+- Saved **Gold ₹7,200/g** and **Silver ₹90/g**, then made two credit sales to
+  Ravi Kumar (`SAL-…-0001` ₹79,260; `SAL-…-0002` ₹38,960). The dashboard read
+  **₹1,18,220 due from 1 customer**.
+- **Receive payment** listed both invoices; entering ₹40,000 and ₹20,000 produced
+  one **₹60,000** receipt. After saving, the header read **Billed ₹1,18,220 /
+  Received ₹60,000 / Outstanding ₹58,220**, and each payment was attached to its
+  own invoice in the ledger.
+- Created `ORD-20261106-0001` (8 g gold, ₹62,480 pending) so the report’s WIP
+  rows had data: **WIP · gold 8.000 g**, and the **Saved gold rates** chart
+  drew **7,200 (11/06)**. Order pipeline showed **Pending 1**.
+- Evidence is in `VERIFICATION.md`.
+
 ### 2026-11-06 — #080 archive key is passphrase-wrapped
 
 - The **Include database key** switch no longer writes `db_key` in clear text. When it is on, the shop is asked for a passphrase (6+ characters, typed twice); the SQLCipher key is wrapped with **PBKDF2-HMAC-SHA256** (120,000 iterations) + an **HMAC-SHA256 counter stream** and an HMAC tag, and stored as `db_key_wrapped`. Restoring an archive that carries one asks for the passphrase and refuses a wrong one with *“That passphrase does not open this backup.”*

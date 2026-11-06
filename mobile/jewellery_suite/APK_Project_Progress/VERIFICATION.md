@@ -8,7 +8,7 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-06):** `10.52.61.148:42895`, build **1.4.15 /
+**Current state (2026-11-06):** `10.52.61.103:32935`, build **1.4.15 /
 versionCode 2067**, `SQLCipher encrypted, schema v21`. This is freebuff’s build;
 the last **published** build is **v1.4.4 / 2056**.
 
@@ -24,6 +24,32 @@ the last **published** build is **v1.4.4 / 2056**.
 ```
 
 ---
+
+## 2026-11-06 — v1.4.15 (2067) — #074 receipt split, saved-rate chart, WIP
+
+- **Rates:** saved **Gold 7,200/g** (92% → 6,624/g) and **Silver 90/g** on the
+  jewellery dashboard; both cards showed the saved values after reopening the
+  rate dialogs.
+- **Two credit sales to one customer:** `SAL-20261106-0001` ₹79,260 (10 g gold,
+  KDM, 8% wastage, ₹1,500 making) and `SAL-20261106-0002` ₹38,960 (5 g gold,
+  KDM, 6% wastage, ₹800 making). The dashboard then read *“₹1,18,220 due from
+  1 customer”*.
+- **Split receipt:** Credit Book → Ravi Kumar → **Receive payment** listed both
+  invoices prefilled with their balances (₹79,260 / ₹38,960). Entering
+  **₹40,000** and **₹20,000** made the dialog read *“Receipt ₹60,000. Each
+  invoice takes at most its balance; anything above it stays as a customer
+  advance.”* Saving changed the header to **Billed ₹1,18,220 / Received ₹60,000
+  / Outstanding ₹58,220**, and the ledger showed `-₹20,000` against
+  `SAL-…-0002` and `-₹40,000` against `SAL-…-0001`.
+- **WIP:** created `ORD-20261106-0001` for the same customer (8 g gold, KDM, 5%
+  wastage, ₹2,000 making, ₹62,480 pending) because WIP was zero with no open
+  orders.
+- **Reports:** the **Saved gold rates** chart drew one bar (**7,200, 11/06**);
+  Money card showed 2 invoices / ₹1,18,220 sales / ₹60,000 collections /
+  ₹58,220 dues; Stock position showed **WIP · gold 8.000 g** and WIP · silver
+  0.000 g; Order pipeline showed **Pending 1**.
+- **Not covered:** nothing outstanding for #074. (Test data remains on the
+  phone for the later passes.)
 
 ## 2026-11-06 — v1.4.15 (2067) — #065 mock gateway send + offline fallback
 
@@ -222,7 +248,6 @@ the last **published** build is **v1.4.4 / 2056**.
 
 | Item | What to drive on the phone |
 |---|---|
-| #074 | One receipt split across two invoices; the saved-rate chart and WIP rows |
 | #075 | A real sale with a **late fee**; the shared-expense split |
 | #077 | An advance-only customer visible in the Credit Book |
 | #078 | Create order → deliver → reopen/deliver refused; over-return refused |

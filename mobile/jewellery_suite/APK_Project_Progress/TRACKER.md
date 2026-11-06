@@ -111,7 +111,7 @@ history lives in `CHANGELOG.md`.
 | # | Status | Area | Item | Outcome |
 |---|---|---|---|---|
 | **#073** | ✅ | UI | Dark-mode ink debt | Every leftover fixed near-black label uses `inkOf(context)`; light mode unchanged. Phone-verified v1.4.5. |
-| **#074** | 🟨 | Jewellery | Workflow checklist | `receiveCustomerPayment` splits a receipt across invoices (manual or oldest-first), excess becomes an advance; saved-rate chart + WIP rows. Tests green. **Phone pass owed.** |
+| **#074** | ✅ DONE | Jewellery | Workflow checklist | **Phone 2026-11-06:** saved Gold ₹7,200/g + Silver ₹90/g; two credit sales to Ravi Kumar (₹79,260 + ₹38,960 = ₹1,18,220 due); **Receive payment** split ₹40,000 / ₹20,000 as one ₹60,000 receipt → outstanding ₹58,220; Reports saved-rate chart showed 7,200 (11/06) and WIP · gold 8.000 g after an open 8 g order. Evidence in `VERIFICATION.md`. |
 | **#075** | 🟨 | Jewellery | Drafts, shared expenses, late fees | Schema v21; draft purchase posts nothing until **Confirm purchase**; shared expense splits by net weight; late fee raises only the balance. **Phone pass owed** for the fee dialog. |
 | **#076** | ✅ | Jewellery | Late fee / draft money defects | Payments use `total + late_fee_total − paid`; drafts excluded from every aggregate; fee row keys on `debit > 0`. Phone-verified v1.4.9 / v1.4.10. |
 | **#077** | 🟨 | Jewellery | Advance-only customers | Credit Book appends advance parties with no invoice; tile reads **Advance ₹X held · no invoice**. Tests green. **Phone pass owed.** |
