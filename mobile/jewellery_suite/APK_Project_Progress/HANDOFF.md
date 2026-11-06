@@ -17,6 +17,7 @@
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
 | Tests / analyzer | 524 passing, `flutter analyze` clean at the last check |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
+| Human vs agent work | **`Manual-Handle-by-Person-Possible.md`** — phone passes, installs and backups the shop does; features stay with the agent |
 
 The address is not stable. Discover it with `adb mdns services`, then:
 

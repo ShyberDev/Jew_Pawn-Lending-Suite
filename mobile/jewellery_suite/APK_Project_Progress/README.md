@@ -32,6 +32,8 @@ what was built, what was seen on the phone, and what is still owed.
 | **`VERIFICATION.md`** | The dated phone evidence behind every ✅ |
 | **`CHANGELOG.md`** | The narrative history: what changed in each round and why |
 | **`HANDOFF.md`** | Phone address, secrets pointer, environment traps, working rules |
+| **`PASSWORDS.md`** | The PIN and admin password — read it to unlock, never rotate |
+| **`Manual-Handle-by-Person-Possible.md`** | What the shop can do without the agent: phone passes, installs, backups, git |
 | **`SPEC_JEWELLERY.md`** | The jewellery module’s agreed behaviour and screen map |
 | **`CALCULATIONS.md`** | C01–C18 worked calculations and the test that covers each |
 | **`docs/SETUP_GOOGLE_DRIVE_OAUTH.md`** | Creating the OAuth client for Drive backup (#072) |
