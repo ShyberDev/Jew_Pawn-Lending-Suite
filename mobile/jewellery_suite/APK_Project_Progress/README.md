@@ -42,10 +42,10 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Phone passes owed** — #074 (receipt split + rate chart), #075 (late-fee
-   dialog), #077 (advance-only customer), #078 (double delivery / over-return),
-   #079 (worker double delivery), then #080’s new **Include database key**
-   switch. One at a time, recorded in `VERIFICATION.md`.
+1. **Phone passes owed** — #075 (late-fee dialog), #077 (advance-only
+   customer), #078 (double delivery / over-return), #079 (worker double
+   delivery), then #080’s new **Include database key** switch. One at a time,
+   recorded in `VERIFICATION.md`.
 2. **#080 remaining** — rotate the PIN/admin password that were tracked in
    public git; decide the shop passphrase for cross-phone archives.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
