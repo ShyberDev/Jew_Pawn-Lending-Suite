@@ -16,9 +16,12 @@ in `TRACKER.md`; this file is the narrative.
   ₹1,000 receipt) and drafts confirmed onto stock in the same pass, #075's
   three behaviours have now all been seen on the device.
 - No code changed; evidence is in `VERIFICATION.md`.
-- **#079 (worker double delivery) could not be attempted:** the Worker movement
-  screen would not take an injected tap into its *Worker name* field, so no
-  worker could be created; nothing was written and the item stays 🟨.
+- **#079 (worker double delivery) passed in the same session** on the same
+  build: worker **Test Worker** was issued 5 g, a 5.000 g work order went
+  **Pending** → **delivered 5.000 g · Delivered**, and the delivered row is no
+  longer tappable, so a second delivery cannot start. Still open for the owner:
+  the worker's metal reserve keeps the issued 5.000 g after delivery (see
+  `VERIFICATION.md`).
 
 ### 2026-11-06 — #082 offline Sync message (v1.4.17 / 2069)
 

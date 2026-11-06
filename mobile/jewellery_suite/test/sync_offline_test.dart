@@ -8,6 +8,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:jewellery_suite/data/api_client.dart';
 import 'package:jewellery_suite/data/local_db.dart';
+import 'package:jewellery_suite/features/home/screens/home_screen.dart';
 import 'package:jewellery_suite/features/sync/screens/sync_screen.dart';
 import 'package:jewellery_suite/state/app_state.dart';
 
@@ -70,6 +71,33 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Sync now'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text(AppState.offlineSyncNotice), findsOneWidget);
+    expect(find.textContaining('Sync failed'), findsNothing);
+  });
+
+  testWidgets('the home Sync button says offline instead of failing',
+      (tester) async {
+    final state = AppState(local);
+    await tester.runAsync(() async {
+      await state.load();
+      await state.continueOffline();
+    });
+
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+      value: state,
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    // HomeScreen reads its dashboard from the database in initState, which needs
+    // the real clock to finish.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+
+    // The drawer carries the same icon; the header one comes first.
+    await tester.tap(find.byIcon(Icons.sync).first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

@@ -354,6 +354,7 @@ files:
 | Cashbook | `lib/state/app_state.dart` | Sale **IN**, purchase **OUT**, order advance **IN**, refund **OUT** |
 | Screens | `lib/features/jewellery/screens/` | Dashboard, forms, ledgers, reports |
 
-**Phone passes still owed:** #074 (receipt split + rate chart), #075 (late-fee
-dialog), #077 (advance-only customer), #078 (double delivery / over-return),
-#079 (worker double delivery). See `VERIFICATION.md`.
+**Phone passes:** none owed — #074, #075, #077, #078, #079 and #082 were all
+passed on v1.4.16 / v1.4.17 (2026-11-06). One open question from #079: a
+delivered worker order leaves the issued metal on the worker's reserve. See
+`VERIFICATION.md`.

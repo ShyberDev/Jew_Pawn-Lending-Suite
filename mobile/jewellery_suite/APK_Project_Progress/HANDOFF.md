@@ -15,7 +15,8 @@
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 518 passing, `flutter analyze` clean at the last check |
+| Tests / analyzer | 521 passing, `flutter analyze` clean at the last check |
+| Open question | A delivered worker order leaves the issued metal on the worker's reserve (#079 pass, `VERIFICATION.md`) |
 
 The address is not stable. Discover it with `adb mdns services`, then:
 
@@ -111,6 +112,12 @@ losing it means Play cannot accept an update.
   context.** The Reports export crashed on v1.2.7 while the suite stayed green.
 - **Visual state deleted during a cleanup needs a test in the same commit.** The
   pawn tile lost its cloud badge twice (#06C → #06J).
+- **`dumpsys input_method` lies about the keyboard on this phone.** It reports
+  `mInputShown=false` while the numeric keypad is covering the bottom half, and
+  drags that start inside that keypad never scroll the Flutter list. Check
+  `uiautomator dump` for `EditText … focused="true"` instead — believing the
+  other signal cost two sessions on #079 and almost produced a phantom bug
+  report.
 
 ---
 

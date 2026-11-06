@@ -41,18 +41,30 @@ the last **published** build is **v1.4.4 / 2056**.
 - **Not covered:** editing a line's weight after the shared expense is typed
   (the split recomputes on save; unit tests cover the maths).
 
-## 2026-11-06 — v1.4.17 (2069) — #079 worker pass blocked in this session
+## 2026-11-06 — v1.4.17 (2069) — #079 a worker order is delivered once
 
-- Attempted the worker-order double-delivery pass. The **Worker movement**
-  screen's *Worker name* field would not take an adb-injected tap on this
-  device: the text landed in **Metal weight** instead and **SAVE MOVEMENT**
-  answered **“Enter the worker name.”** three times. `TAB` and a held tap did
-  not move focus either, so no worker or work order could be created.
-- **Nothing was written:** Workers still read **0 workers · 0.000 g**, and the
-  form was discarded. This is a harness limitation, not an app defect — the
-  same screens accept taps when driven by hand.
-- **#079 stays 🟨:** it needs a hands-on pass (create a worker movement, a work
-  order, deliver once, then confirm there is no second Deliver).
+- Created the worker **Test Worker** with one **Shop gave · Gold 5** movement;
+  Workers read **5.000 g metal reserve · 1 movement**.
+- Saved a **Work order** for 5.000 g of gold (expected date left empty) — it
+  appeared on the worker as **5.000 g · 06-11-26 · Pending**.
+- Tapped it → **Deliver worker order** dialog, entered delivered weight
+  **5.000** → **Deliver**. The order came back as **5.000 g · 06-11-26 ·
+  delivered 5.000 g · Delivered**.
+- Tapping the delivered row again does nothing, and the only “Deliver” left on
+  screen is the word inside that row's own label — so a second delivery cannot
+  be started from the UI at all. The store guard that backs this up
+  (*“This order is already delivered.”*) is covered by unit tests.
+- **Observation for the owner, not changed:** after delivery the worker still
+  reads **5.000 g metal reserve**. `workerPositions()` sums worker movements
+  only, and delivery posts finished stock without a matching “worker gave”
+  movement, so a completed job leaves the issued metal sitting on the reserve.
+  Decide whether delivery should close that reserve or whether the shop settles
+  it by hand with a *Worker gave* movement.
+- Harness note, so nobody chases it again: the earlier “cannot focus the name
+  field” was a false alarm. The field did take focus; `dumpsys input_method`
+  reports `mInputShown=false` while the numeric keypad is up, and drags that
+  start inside that keypad never reach the list, which is why the form would not
+  scroll to its Save button.
 
 ## 2026-11-06 — v1.4.17 (2069) — #082 offline sync message
 

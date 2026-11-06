@@ -42,10 +42,11 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Phone pass owed** — #079 (worker double delivery), and it needs a hands-on
-   pass: the automation could not focus the *Worker name* field on New movement
-   (see `VERIFICATION.md`). (#075, #077, #078, #082 and #080’s **Include
-   database key** switch were passed on v1.4.16 / v1.4.17.)
+1. **No jewellery phone pass is owed** — #074, #075, #077, #078, #079, #082 and
+   #080’s **Include database key** switch were all passed on v1.4.16 / v1.4.17.
+   One question came out of the #079 pass and needs the shop's answer: a
+   delivered worker order leaves the issued metal on the worker's reserve
+   (`VERIFICATION.md`).
 2. **#080 remaining** — rotate the PIN/admin password that were tracked in
    public git; try a restore on a phone with a different keystore.
 3. **#065 real gateway** — once the shop supplies an SMS/e-mail gateway URL and
