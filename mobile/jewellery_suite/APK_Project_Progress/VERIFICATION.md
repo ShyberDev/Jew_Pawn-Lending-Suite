@@ -25,6 +25,14 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 ---
 
+## 2026-11-07 — v1.4.23 (2075) — #087 invoice share
+
+- Installed 1.4.23 in place over 1.4.22 (`adb install -r`, data kept) on `10.52.61.107:35461`; `dumpsys package` reported versionName 1.4.23 / versionCode 2075 before the app was opened. Unlocked with the current PIN.
+- Jewellery dashboard → **SAL-20261106-0001** → the sheet showed **Share invoice** below **Add late fee**. Tapping it opened Android’s share sheet (“Sharing text”) with the bill:
+  `Ravi Kumar · SAL-20261106-0001 / 06-11-26 · Sale · GOLD / --- / Gold chain · 10.000 g · 92.00% · ₹7,200/g / KDM · wastage 0.800 g · billing 10.800 g × ₹7,200 = ₹77,760 · making ₹1,500 / ₹79,260 / ---…`
+- Dismissing the share sheet returned to the same document with Balance still **₹39,760** — no ledger write.
+- **Not covered:** sending to a real contact (dismissal only proves no write); purchase and order bills were not shared on the phone, only covered by the unit tests.
+
 ## 2026-11-07 — v1.4.22 (2074) — #085 and #086 passed on the phone
 
 - **Setup:** installed 1.4.22 in place over 1.4.20 (`adb install -r`, data kept) on
@@ -520,6 +528,5 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 | Item | What to drive on the phone |
 |---|---|
-| #087 | Open any sale invoice → **Share invoice** → Android share sheet appears; dismiss it and confirm nothing changed |
 | #081 | Install a Crashlytics build, force one test crash, see it in the console |
 | #080 remaining | Cross-phone restore on a second device with a different keystore |

@@ -10,7 +10,7 @@ in `TRACKER.md`; this file is the narrative.
 
 - Added **Share invoice** to the jewellery document sheet. It builds a plain-text bill in a new pure helper (`lib/util/jewellery_bill_text.dart`) using the sheet's own `fmtDate`/`inr` figures — party, doc number, each item line with KDM/non-KDM/weight detail, Payable, Received/Paid, Late fee when present, Balance and the payments list — and hands it to Android's share sheet via `SharePlus`. Drafts offer no share button; dismissing the sheet writes nothing.
 - **Checks:** `test/jewellery_bill_text_test.dart` 3 cases (sale figures, Paid vs Received, late fee + payments); `flutter analyze` clean; full suite **532 passing**.
-- **Still owed:** the phone pass for the share button.
+- **Phone v1.4.23 / 2075:** **Share invoice** on `SAL-20261106-0001` opened the share sheet with the correct bill text; dismissing left Balance ₹39,760 unchanged. Evidence in `VERIFICATION.md`.
 
 ### 2026-11-07 — #086 dialogs used their text controller after disposing it (v1.4.22)
 
