@@ -237,6 +237,11 @@ class _LockScreenState extends State<_LockScreen> {
   }
 
   Future<void> _forgotPin() async {
+    // The PIN field autofocuses, so the keypad covers the lower half of the
+    // screen. On the v1.4.20 phone pass the dialog closed onto an open keypad
+    // that pushed **Forgot PIN?** off-screen — the shop had to scroll to find
+    // the button again. Drop the keypad for the whole reset.
+    _focus.unfocus();
     final state = context.read<AppState>();
     final db = state.db;
     final mode = await AppLock.mode(db);
@@ -251,7 +256,10 @@ class _LockScreenState extends State<_LockScreen> {
       title: _daily ? 'Forgot Daily MPIN' : 'Forgot PIN',
       subtitle: 'Reset the screen lock on this phone.',
     );
-    if (!verified || !mounted) return;
+    if (!mounted) return;
+    // Cancelling must not leave the keypad parked over the lock screen either.
+    _focus.unfocus();
+    if (!verified) return;
     final pin = await askNewPinDialog(context,
         title: _daily ? 'Set a new Daily MPIN' : 'Set a new PIN');
     if (pin == null) return;

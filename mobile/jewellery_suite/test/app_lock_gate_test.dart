@@ -202,6 +202,84 @@ void main() {
     expect(find.text('open screen'), findsOneWidget);
   });
 
+  testWidgets('a wrong admin password does not reset the PIN', (tester) async {
+    // The lock screen must not be talkable-into a reset: a wrong secret has to
+    // stop at the snackbar and leave the phone locked.
+    await setAdminPassword(state, 'Admin@123');
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await tester.tap(find.text('Forgot PIN?'));
+    await settle(tester);
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Admin password'), 'not-the-password');
+    await tester.tap(find.text('Continue'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.text('That admin password is wrong.'), findsOneWidget);
+    expect(find.text('Set a new PIN'), findsNothing);
+    expect(find.text('Jewellery Suite is locked'), findsOneWidget);
+  });
+
+  testWidgets('Forgot PIN with an account asks for the code and shows it offline',
+      (tester) async {
+    // With a Gmail / mobile account the lock screen sends a one-time code.
+    // v1.4.20 phone finding: tapping **Send code** closed the dialog and then
+    // nothing appeared at all, so the reset looked dead. This pins the step
+    // that must follow the send.
+    state.hasAccount = true;
+    state.accountIdentifier = 'shop@gmail.com';
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await tester.tap(find.text('Forgot PIN?'));
+    await settle(tester);
+    expect(find.text('Send a 6-digit code to'), findsOneWidget);
+    expect(find.text('shop@gmail.com'), findsOneWidget);
+
+    await tester.tap(find.text('Send code'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.text('Enter the 6-digit code'), findsOneWidget,
+        reason: 'the code box must appear after Send code');
+    expect(find.text('Offline code (valid 10 minutes)'), findsOneWidget);
+    // #085: the "Sending the code…" dialog must be gone, not left on top.
+    expect(find.text('Sending the code…'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('a wrong one-time code keeps the phone locked', (tester) async {
+    state.hasAccount = true;
+    state.accountIdentifier = 'shop@gmail.com';
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await tester.tap(find.text('Forgot PIN?'));
+    await settle(tester);
+    await tester.tap(find.text('Send code'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('Enter the 6-digit code'), findsOneWidget);
+
+    // 000000 is the issued code with a one-in-a-million chance; the point of the
+    // case is that a wrong code is refused instead of opening the shop.
+    await tester.enterText(find.widgetWithText(TextField, 'Code'), '000000');
+    await tester.tap(find.text('Verify'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.text('The code is wrong or has expired. Try again.'),
+        findsOneWidget);
+    expect(find.text('Set a new PIN'), findsNothing);
+    expect(find.text('Jewellery Suite is locked'), findsOneWidget);
+  });
+
   testWidgets('disabling the PIN in Settings disarms the gate', (tester) async {
     await tester.pumpWidget(app());
     await settle(tester);

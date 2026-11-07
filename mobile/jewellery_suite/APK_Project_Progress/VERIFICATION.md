@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-07):** `10.52.61.103:32935`, build **1.4.19 /
-versionCode 2071**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-07):** `10.52.61.127:34943`, build **1.4.20 /
+versionCode 2072**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
@@ -24,6 +24,88 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 ```
 
 ---
+
+## 2026-11-07 — suite only — #086 a dialog's controller outlived its route
+
+- **No phone column:** this one was found in the test suite, not on the device.
+  The #085 case ended with the framework throwing, while *closing* the code
+  dialog:
+  `The following assertion was thrown building RawGestureDetector(...): A
+  TextEditingController was used after being disposed. The relevant error-causing
+  widget was: TextField ... lib/ui/otp_flow.dart:248`.
+- **Cause:** `askOtpCodeDialog` (and `askPinDialog`, `askNewPinDialog`,
+  `askNewPasswordDialog`) created the controller beside the `showDialog` call and
+  disposed it in `finally`. `showDialog` returns when the route is popped, but the
+  route then animates out and rebuilds once more — on a disposed controller.
+  `_PasswordPrompt` in the same file had already been converted for exactly this
+  reason, with a comment saying so; the other four were missed.
+- **Fix (v1.4.22 / 2074):** all four now own their controller in a `State` and
+  dispose it with the route. Behaviour is unchanged from the outside — same
+  titles, labels, buttons and toast messages (a mismatched new PIN still closes
+  and toasts *“The PINs do not match.”*).
+- **Tests:** `test/app_lock_gate_test.dart` **10 passed** (2 new: a wrong admin
+  password does not reset the PIN; a wrong one-time code keeps the phone
+  locked), full suite **529 passed**, `flutter analyze` clean.
+- **Not seen on the phone:** the phone was still off the network, so this rides
+  on the same install as #085.
+
+## 2026-11-07 — v1.4.20 (2072) — #085 “Send code” left the reset dead
+
+- **Found on the same installed build**, right after #084 was passed: on the lock
+  screen, **Forgot PIN?** → **Send code** closed the dialog and then *nothing*
+  appeared — no code box, no error, no snackbar — for at least 15 s. Screenshots
+  at 2 s, 8 s and 15 s all showed the bare lock screen with the keypad back up, so
+  the reset could not be finished from the phone.
+- **Second finding, same screen:** the PIN field autofocuses, so the keypad
+  re-opened when the dialog closed and pushed **Forgot PIN?** below the fold; taps
+  aimed at the button landed on the keypad instead.
+- **Cancel was fine:** **Cancel** closed the dialog and returned to an unchanged
+  lock screen. An earlier “Cancel does nothing” reading was a mis-aimed tap on
+  the subtitle line, not a bug.
+- **Cause:** the send step awaited `LocalAccount.issueOtp` and `OtpGateway.send`
+  (a 12 s HTTP timeout, and this phone carried a gateway URL from the 2026-11-06
+  mock test) with nothing on screen, after the dialog had already closed. Any
+  throw in that step ended the whole reset silently.
+- **Fix (v1.4.21 / 2073):** a **“Sending the code…”** progress dialog covers the
+  exchange; a failed send issues a fresh code and falls back to the on-screen
+  offline code instead of ending the reset; the keypad is dropped while the reset
+  dialogs are open. New widget case *“Forgot PIN with an account asks for the code
+  and shows it offline”* covers the account branch the phone follows.
+- **Tests:** `flutter analyze` clean; `test/app_lock_gate_test.dart` **8 passed**
+  (was 7); full suite **527 passed**.
+- **Not seen on the phone:** the phone left the network mid-pass (`adb mdns
+  services` empty; `10.52.61.94` and `10.52.61.127` both *no route to host*), so
+  v1.4.21 was built but never installed. #085 stays 🟨 until **Send code** is
+  tapped on it.
+
+## 2026-11-07 — v1.4.20 (2072) — #084 “Forgot PIN?” opens its dialog
+
+- **Setup:** installed 1.4.20 in place over 1.4.19 (`adb install -r`, data kept),
+  address `10.52.61.127:34943`. `dumpsys package` reports versionCode 2072 /
+  versionName 1.4.20 before the app was opened.
+- **The lock screen came up as expected:** *“Jewellery Suite is locked”*,
+  *“Enter your PIN to open the shop.”*, the PIN box, **Unlock**, and
+  **Forgot PIN?** at the bottom — so the gate's own `Navigator` did not break the
+  screen that was already working.
+- **The button now does something.** Tapping **Forgot PIN?** opened a dialog
+  titled **Forgot PIN** with the subtitle *“Reset the screen lock on this phone.”*,
+  the line *“Send a 6-digit code to”* and **`benwolf449@gmail.com`** in bold,
+  and two buttons: **Cancel** · **Send code**. The two defects in #084 are
+  therefore both gone on the device: the tap no longer vanishes, and the title
+  is no longer *“Forgot always”*.
+- **No exception:** `adb logcat` (cleared immediately before the tap) held no
+  `Navigator operation requested with a context that does not include a
+  Navigator`, no Flutter error and no fatal exception.
+- **Logcat:** no FATAL EXCEPTION.
+- **Not covered:** the reset was deliberately **not** completed — finishing it
+  would rotate the screen-lock PIN, which `PASSWORDS.md` forbids. The
+  **admin-password** fallback (the branch for a phone with no Gmail / mobile
+  account) was also not exercised, because reaching it needs the account
+  removed; its behaviour rests on `test/app_lock_gate_test.dart`.
+- The shop's PIN on the phone is unchanged by this pass.
+- **Left as found:** Back from the lock screen returned to the device's Settings
+  screen the app had been opened over (the app process kept running); relaunching
+  showed **Jewellery Suite is locked** again with the same PIN box.
 
 ## 2026-11-07 — v1.4.18 / v1.4.19 (2070–2071) — #083 worker reserve and order delete
 

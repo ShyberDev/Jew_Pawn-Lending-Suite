@@ -1,10 +1,15 @@
 # Jewellery Suite — Known Issues & Unfinished Work
 
-Status of `develop` at **v1.0.24**. Last updated **2026-10-14**.
+Status of `Apk_Develop_Branch_01_11` at **v1.4.20 / 2072**. Last updated **2026-11-07**.
 
-This file is the single place to check "what is still wrong or missing".
-It is updated as items are fixed — an item is only removed when the fix is
-**built, tested and verified on a real device or emulator**.
+This file is the "what is still wrong or missing" view. The authoritative,
+one-row-per-item list is **`APK_Project_Progress/TRACKER.md`**; the dated phone
+evidence is **`APK_Project_Progress/VERIFICATION.md`**. Every item here carries
+its tracker number (`#0xx`) so the two files resolve each other.
+
+An item leaves the open sections only when the fix is **written, tested, and
+seen on the phone** — the same rule the tracker uses. 🟨 in the tracker means
+code done, phone pass owed; it does not belong here as a bug.
 
 ## How to use this file
 
@@ -16,8 +21,8 @@ It is updated as items are fixed — an item is only removed when the fix is
 | ⚪ **Low** | Nice to have |
 | 🔵 **Blocked** | Cannot start — needs a decision or an external dependency |
 
-**Status values:** `OPEN` · `WONTFIX` (deliberately not doing it) ·
-`DONE` (move to the Fixed section with the version).
+**Status values:** `OPEN` · `BLOCKED` · `WONTFIX` (deliberately not doing it) ·
+`DONE` (moved to the fixed section with the tracker number).
 
 Each item has a stable ID. Quote the ID in bug reports.
 
@@ -25,115 +30,45 @@ Each item has a stable ID. Quote the ID in bug reports.
 
 ## A. Open bugs
 
-### BUG-01 🔴 Reports "Overdue" shows the full balance, not what's due
-- **Where:** `lib/ui/reports_screen.dart:150`
-- **What:** `overdueAmt` adds the loan's entire outstanding balance.
-- **Should be:** **To Collect** — only the installments due on or before today,
-  plus arrears. This contradicts the locked rule *"To Collect = dues due today
-  plus arrears, never the full balance"*, which the rest of the app obeys.
-- **Impact:** a shopkeeper reads "Overdue accounts ₹X" in Reports and collects
-  against the wrong figure. Directly affects money.
-- **Repro:** give a member a 12-month loan, pay nothing. Reports → Khata →
-  Overdue accounts shows the whole principal + interest instead of one month.
-- **Status:** OPEN
-
-### BUG-02 🟠 Three-column money headers overflow and collide
-- **Where:** Customer Profile header, khata member-list header, Payment
-  schedule sheet
-- **What:** at long values the columns run together and numbers wrap mid-digit,
-  e.g. **`₹100,002,0₹0`**. The principal and interest figures touch.
-- **Cause:** the columns are not flexible, so a long rupee value overflows.
-- **Impact:** the primary money display becomes unreadable exactly when the
-  numbers are large. Triggers at roughly ₹50,00,000 and above, which real shops
-  will reach.
-- **Repro:** create a loan of ₹1,00,00,000 and open Customer Profile.
-- **Status:** OPEN
-
-### BUG-03 🟡 Screen title truncated to "Custo..."
-- **Where:** Customer Profile app bar
-- **What:** five action icons (Call, SMS, WhatsApp, Move, Edit) squeeze the
-  title until it reads "Custo...".
-- **Impact:** cosmetic; the screen is still identifiable.
-- **Status:** OPEN
-
-### BUG-04 🟡 "No Due Date" filter is mislabelled
-- **Where:** `lib/ui/khata_screen.dart:1151`
-- **What:** the filter chip reads "No Due Date" but it actually shows members
-  with **no reminder set** (`!reminderSet`). It has nothing to do with whether a
-  loan has a due date.
-- **Impact:** a shopkeeper will reasonably read it as "loans without a
-  schedule" and see unrelated members. Confusing rather than wrong.
-- **Note:** to be checked manually — decide whether to rename the chip or change
-  what it filters.
-- **Status:** OPEN
-
-### BUG-05 🟡 Rupee grouping is Western, not Indian
-- **Where:** `lib/util/format.dart` — `moneyWhole`
-- **What:** ₹8,333,500 is displayed where Indian convention is **₹83,33,500**.
-  The function's own doc comment claims "Indian digit grouping" but the code
-  groups in threes from the right.
-- **Impact:** inconsistent with how the shopkeeper writes amounts. Cosmetic, but
-  it is on every money figure in the app.
-- **Note:** **decision needed.** Changing it alters every screen at once.
-- **Status:** OPEN — awaiting decision
-
-### BUG-06 🟡 `flutter test` occasionally hangs
-- **Where:** `test/migration_v9_test.dart` `tearDownAll`
-- **What:** a full `flutter test` run intermittently hangs at that teardown.
-  Every test file passes when run on its own.
-- **Impact:** developer friction only. No effect on the shipped app.
-- **Status:** OPEN
-
 ### BUG-07 🟡 Dark mode is incomplete
-- **Where:** Settings → Dark mode (labelled "Beta" in the app)
-- **What:** the app itself warns some screens may not be fully dark.
+- **Where:** Settings → **Dark mode (Beta)** (`lib/features/settings/screens/settings_screen.dart:44`);
+  the debt is described in `lib/ui/palette.dart` — the shop screens were built
+  from a light palette.
+- **What:** the app itself labels the feature Beta because some screens still
+  assume light ink and surfaces.
+- **Progress:** #026 replaced the remaining fixed near-black inks with
+  `inkOf` / `mutedOf` / `surfaceOf`, and #073 finished the leftover label debt.
+  The label is still Beta because no full screen-by-screen sweep has been done.
+- **Impact:** cosmetic. Light mode is unaffected.
 - **Status:** OPEN
+
+### SEC-05 🟡 The app-switcher snapshot shows ledger figures
+- **What:** nothing sets `FLAG_SECURE` (or disables recents screenshots), so the
+  Android task switcher keeps a readable image of the last screen — customer
+  names, phone numbers and balances.
+- **Where:** no occurrence in `lib/` or `android/app/src/main`.
+- **Mitigation today:** the launch PIN / biometric gate (#037, #066) covers the
+  app itself, not the OS snapshot.
+- **Decision needed:** obscuring the figure on `paused` is cosmetic; `FLAG_SECURE`
+  is stronger but also blocks the shop from taking their own screenshots.
+- **Status:** OPEN — awaiting decision
 
 ---
 
 ## B. Play Store blockers
 
-### PLAY-01 🔴 Release APK is signed with the DEBUG keystore
-- **Where:** `android/app/build.gradle.kts`
-- **What:** `signingConfig = signingConfigs.getByName("debug")`.
-- **Impact:** Play Store will not accept it, and it is not a real signature.
-- **Progress:** keystore already generated at `~/jewellery_suite_keystore.jks`.
-- **⚠️ Back that file up now.** Once an app is published under a keystore,
-  losing it means the app can never be updated on Play.
-- **Status:** OPEN
-
-### PLAY-02 🔴 Signing config must fail loudly, not fall back
-- **What:** the proposed Gradle checks `if (key.properties exists)` and
-  otherwise **silently** uses debug signing — the build succeeds and produces an
-  unusable APK.
-- **Required:** missing `key.properties` should fail the build with a clear
-  message.
-- **Note:** the proposed document also puts `key.properties` in a path its own
-  Gradle does not read. See `docs/PLAY_STORE_REVIEW.md`.
-- **Status:** OPEN
-
-### PLAY-03 🟠 No camera permission declared
-- **Where:** `android/app/src/main/AndroidManifest.xml`
-- **What:** no `CAMERA`, no `READ_MEDIA_IMAGES`. The app captures customer and
-  pawn-item photos.
-- **Status:** OPEN
-
-### PLAY-04 🟡 `.gitignore` does not cover signing secrets
-- **What:** neither `key.properties` nor `*.jks` is ignored. Adding signing
-  without this would risk committing the keystore.
-- **Status:** OPEN
-
 ### PLAY-05 🔵 Sync must move to HTTPS
-- **What:** the app talks plain HTTP to a shop-LAN address
-  (`login_screen.dart` prompts `http://192.168.1.10:8000`).
-- **Chosen direction:** HTTPS. Recommended route is pinning a self-signed
-  certificate, so no CA has to be installed on each phone.
+- **What:** the server-sync path still talks plain HTTP to a shop-LAN address
+  typed by the shopkeeper.
+- **Chosen direction:** HTTPS with a pinned self-signed certificate, so no CA has
+  to be installed on each phone.
 - **Do not** use free DDNS + Let's Encrypt — it would expose the shop LAN.
-- **Note:** a blanket `network-security-config` limited to `localhost` and
-  `10.0.2.2` would **break** sync entirely, because the address is entered by the
-  user and changes with DHCP.
-- **See:** `docs/PLAY_STORE_REVIEW.md`
-- **Status:** OPEN
+- **Do not** ship a blanket `network-security-config` limited to `localhost` and
+  `10.0.2.2`: the sync address is user-entered and DHCP-assigned, so that would
+  silently break sync while every local feature kept working.
+- **Tracker:** #042 (deferred until a TLS server exists). See
+  `docs/PLAY_STORE_REVIEW.md`.
+- **Status:** BLOCKED
 
 ### PLAY-06 ⚪ Store listing and declarations
 - Screenshots, description, privacy policy URL, content rating, target age
@@ -142,120 +77,109 @@ Each item has a stable ID. Quote the ID in bug reports.
 - **Status:** OPEN
 
 ### PLAY-07 ⚪ Code shrinking never enabled
-- `isMinifyEnabled` / `isShrinkResources` are off. Enabling R8 shrinks the APK
-  but ML Kit + Flutter can fail **at runtime**. Must be enabled, then the app
-  fully exercised, before shipping.
+- `isMinifyEnabled` / `isShrinkResources` are absent from
+  `android/app/build.gradle.kts`. Enabling R8 shrinks the 45.7 MB arm64 APK but
+  ML Kit + Flutter can fail **at runtime**, so it has to be enabled and the app
+  fully exercised on the phone before shipping.
 - **Status:** OPEN
 
 ---
 
-## C. Security & privacy
+## C. Blocked on an external account
 
-### SEC-01 🔴 No authentication gate — app opens straight to Home
-- **Where:** `lib/main.dart:43` — `state.loggedIn = true`
-- **What:** the Login screen exists (`app.dart:60`) but is unreachable. Anyone
-  who opens the app lands directly on the dashboard with full access to all
-  customer names, phone numbers and loan figures.
-- **Impact:** anyone who picks up the phone sees every customer's financial
-  record. Mitigated only by the device lock screen.
-- **Status:** OPEN
+| Item | Tracker | Needs | Guide |
+|---|---|---|---|
+| Real OTP delivery | **#065** | An SMS / e-mail gateway URL + shared secret. The mock transport and the payload contract are already phone-verified (2026-11-06). | `docs/SETUP_OTP_GATEWAY.md` |
+| Google Drive backup + sync | **#072** | A Google Cloud **Web client ID** (the Android client and release SHA-1 are documented). Design and conflict rules are written. | `docs/SETUP_GOOGLE_DRIVE_OAUTH.md`, `docs/GOOGLE_DRIVE_SYNC.md` |
+| Firebase Crashlytics + App Distribution | **#081** | A Firebase project and its `google-services.json`. No Firestore / Storage for ledger data. | `docs/SETUP_FIREBASE.md` |
 
-### SEC-02 🔴 Android auto-backup is enabled
-- **Where:** manifest has no `android:allowBackup`
-- **What:** it defaults to **true**, so Android can copy the app's private
-  data — the SQLite database holding every customer's financial records — into
-  the user's Google backup.
-- **Required:** `android:allowBackup="false"`.
-- **Status:** OPEN
-
-### SEC-03 🟠 The `admin` password ships inside the APK
-- **Where:** `lib/ui/admin_guard.dart`
-- **What:** the default password is a constant in the app binary, so anyone who
-  has the APK can read it. It is an *accident guard*, not security, and the
-  code says so.
-- **Status:** OPEN (accepted limitation, documented)
-
-### SEC-04 🟠 No PIN / biometric lock at launch
-- **What:** nothing stops a second person opening the app. A "Biometric &
-  screen lock" entry exists in the drawer.
-- **Status:** OPEN
-
-### SEC-05 🟡 Ledger rows expose financial detail on screen
-- **Note:** worth considering whether the app should obscure figures when it
-  goes to the background (app switcher snapshot).
-- **Status:** OPEN
+`google_sign_in`, `googleapis` and the Firebase packages are deliberately **not**
+in `pubspec.yaml` yet — they land with the credentials, not before.
 
 ---
 
-## D. Not yet built
+## D. Not built
 
 | ID | Feature | Notes |
 |---|---|---|
-| FEAT-01 | **Login / Auth screen** | Built but unreachable — see SEC-01 |
-| FEAT-02 | Google Sign-In | Not started |
-| FEAT-03 | OTP login | Not started |
-| FEAT-04 | **Cashbook module** | Tile on Home is a `coming soon` stub |
-| FEAT-05 | **Jewellery items module** | Tile on Home is a `coming soon` stub |
-| FEAT-06 | Google Drive sync | Local zip backup only (Backup & data) |
-| FEAT-07 | Help & Support | Drawer tile is a `coming soon` stub |
-| FEAT-08 | Split into 4 separate apps | Original plan: Pawn / Khata / Cashbook / Jewellery launched independently |
+| FEAT-06 | Google Drive sync | Local zip backup works; Drive upload is #072 above |
+| FEAT-07 | Help & Support | Drawer tile still opens the "coming soon" sheet (`lib/features/home/screens/home_screen.dart:231`) |
+| FEAT-08 | Split into 4 separate apps | **WONTFIX** — one app for pawn + khata + cashbook + jewellery was the decision; this row is kept so old notes resolve |
 
 ---
 
-## E. Recently fixed — do not re-report
+## E. Fixed — do not re-report
+
+Every row below is code done, tested **and** seen on the phone; the dated
+evidence is in `APK_Project_Progress/VERIFICATION.md`.
+
+| ID | Fixed by | What it was |
+|---|---|---|
+| BUG-01 🔴 | #020 | Reports **Overdue** added the whole outstanding instead of what is due. Khata → Overdue now uses `dueNowForReports()` (due + arrears); 4 regression tests. |
+| BUG-02 🟠 | #021 | Three-column money headers collided (`₹100,002,0₹0`). Columns are flexible with `FittedBox` / ellipsis; widget tests at 320 dp and 2× text. |
+| BUG-03 🟡 | #022 | Customer Profile title truncated to "Custo...". Call / SMS / WhatsApp / Move / Edit moved into one ⋮ menu. |
+| BUG-04 🟡 | #023 | The "No Due Date" chip actually filtered on *no reminder set*. Renamed **No reminder**; the predicate was already correct. |
+| BUG-05 🟡 | #024 | Rupee grouping was Western (`₹8,333,500`). `moneyWhole` now emits true lakh/crore groups (`₹83,33,500`, `₹10,00,02,000`) and a test locks it. |
+| BUG-06 🟡 | #025 | `flutter test` hung in the migration teardown. Fixed, and `./tool/test.sh` points `TMPDIR` at `.dart_tool/tmp` so a full `/tmp` cannot hang a run. |
+| PLAY-01 🔴 | #027 | Release APK was signed with the **debug** keystore. A real upload keystore + `android/key.properties` are in place; `apksigner` on v1.4.20 reports `CN=Jewellery Suite, O=ShyberDev`. |
+| PLAY-02 🔴 | #028 | Missing signing config fell back to debug signing silently. `android/app/build.gradle.kts` now fails the build with "Release signing is not configured…" naming the missing properties. |
+| PLAY-03 🟠 | — | **Not a gap.** Photos come from `image_picker`, which launches the system camera; it needs neither `CAMERA` nor `READ_MEDIA_IMAGES`. The manifest declares only INTERNET, USE_BIOMETRIC, POST_NOTIFICATIONS and RECEIVE_BOOT_COMPLETED. |
+| PLAY-04 🟡 | #027 | `key.properties` and `**/*.jks` were unignored. `android/.gitignore` now covers both; `git check-ignore` confirms. |
+| SEC-01 🔴 | #037, #054, #057 | The app opened straight to Home. It now requires the shop account (Gmail or mobile + salted hash), stays signed in until Logout, and an existing local ledger works offline. |
+| SEC-02 🔴 | #080 | Android auto-backup was on, so the SQLCipher database could be copied to Google. `allowBackup="false"`, `fullBackupContent="false"` and `dataExtractionRules` exclude everything; covered by `test/backup_manifest_test.dart`. |
+| SEC-03 🟠 | #038 | The `admin` password shipped inside the APK as a constant. A forced first-run admin password (min 6 chars, `admin` refused, salted hash) replaced it. |
+| SEC-04 🟠 | #037, #066 | Nothing stopped a second person opening the app. Optional 4–6 digit PIN with a salted hash, startup + background gate, fingerprint/face via `local_auth` that fails closed. |
+| FEAT-01 | #037, #057 | Login / auth screen — built and reachable |
+| FEAT-03 | #057, #065 | OTP login — built; mock delivery phone-verified, real gateway is #065 above |
+| FEAT-04 | #005, #030, #031, #044, #045 | Cashbook — built, with source/mode filters, auto-entries and manual-row edit |
+| FEAT-05 | #043, #074–#079, #083 | Jewellery items module — built end to end |
+
+### Older fixes (pre-v1.0.25), IDs kept for old bug reports
 
 | ID | Fixed in | Issue |
 |---|---|---|
-| FIX-01 | v1.0.24 | Ledger showed the **typing** time, not the payment date. Back-dated entries displayed and sorted as today, so the running balance was in the wrong order. |
-| FIX-02 | v1.0.23 | Tapping **Refinance** left the "You Gave" dialog open with an amount box that was ignored; the refinance dialog only appeared after pressing Add. |
-| FIX-03 | v1.0.23 | Sample late fee was both seeded on the loan and charged again — counted twice. |
-| FIX-04 | v1.0.22 | `Sample_FullyPaid` was not fully paid (2 of 4 dues), so it still showed a red DUE chip. |
-| FIX-05 | v1.0.22 | A sample named "No Due Date" had a **blank frequency**, which the app silently read as Weekly — and showed "DUE 3 DAYS AGO". An impossible state in the real loan form. |
-| FIX-06 | v1.0.21 | Sample seeder wrote no v10 component columns, so every sample balance disagreed with the real engine. |
-| FIX-07 | v1.0.21 | Collection insert used a non-existent `customer_name` column, so seeded payments silently vanished. |
-| FIX-08 | v1.0.20 | Version was typed into three separate files; the app ran 1.0.19 while displaying 1.0.18. |
-| FIX-09 | v1.0.20 | Reports printed raw doubles: `₹8333500.0`, and **"Interest earned ₹-91668500"**. |
+| FIX-01 | v1.0.24 | Ledger showed the **typing** time, not the payment date. |
+| FIX-02 | v1.0.23 | **Refinance** left the "You Gave" dialog open with an ignored amount box. |
+| FIX-03 | v1.0.23 | Sample late fee was seeded and charged twice. |
+| FIX-04 | v1.0.22 | `Sample_FullyPaid` still showed a red DUE chip. |
+| FIX-05 | v1.0.22 | A sample with a blank frequency silently read as Weekly. |
+| FIX-06 | v1.0.21 | Sample seeder wrote no v10 component columns. |
+| FIX-07 | v1.0.21 | Collection insert used a non-existent `customer_name` column. |
+| FIX-08 | v1.0.20 | Version typed into three files; the app ran a different build than it displayed. |
+| FIX-09 | v1.0.20 | Reports printed raw doubles (`₹8333500.0`) and a negative interest total. |
 | FIX-10 | v1.0.19 | 31 places could crash if Back was pressed while saving. |
 
 ---
 
-## F. Manual verification checklist
+## F. One item owes a phone pass
 
-Run through this after each release. Tick only what you have actually seen.
+**#085** — on v1.4.20 the lock screen's **Forgot PIN?** → **Send code** closed the
+dialog and then showed nothing (no code box, no error) while the code was issued
+and the gateway POST ran; a failure in that step dropped the reset silently.
+v1.4.22 covers the exchange with a **“Sending the code…”** dialog and always ends
+on the six-digit code box, falling back to the on-screen code when the gateway
+fails. Built, not yet seen on the phone.
 
-- [ ] Home KPI figures match Khata Books figures
-- [ ] Each due chip shows the colour its name implies (red = today/late,
-      blue = future, green = nothing due)
-- [ ] To Collect is never the full balance
-- [ ] Collect a part payment → Principal falls, Investment falls, ledger balance correct
-- [ ] Interest-only loan → only interest is billed, principal untouched until interest is clear
-- [ ] Refinance → old loan marked REFINANCED, new loan = previous + fresh + new interest
-- [ ] Move to Loss → member and all loans move; Loss khata cannot be deleted
-- [ ] Unpaid / Unavailable markers add no money and change no balance
-- [ ] Ledger rows show the **payment** date, not today's date
-- [ ] Reports figures match the screens they summarise
-- [ ] A back-dated collection shows its own date and sorts correctly
-- [ ] Deleting asks for the password; cancelling deletes nothing
-- [ ] Sample data can be added and fully removed afterwards
-- [ ] Drawer, About screen and Settings all show the same version number
+**#086** — every shared PIN / password / one-time-code prompt disposed its
+`TextEditingController` in a `finally` while the dialog route was still animating
+out, throwing *“A TextEditingController was used after being disposed”* on close
+(a debug assertion; a red error frame in debug builds). The four remaining
+prompts now own their controller in a `State`, like `_PasswordPrompt` already
+did. Behaviour is unchanged. Built (**1.4.22 / 2074**), not yet seen on the
+phone.
+
+**#084** — the lock screen's **Forgot PIN?** was a dead button (the gate rendered
+the lock screen in a bare `Overlay`, so `showDialog` had no `Navigator`). Fixed
+in **v1.4.20 / 2072**, plus an admin-password fallback when no account exists and
+a **Forgot PIN** / **Forgot Daily MPIN** title. **Seen on the phone 2026-11-07:**
+the dialog opened with *“Reset the screen lock on this phone.”* and the code
+delivery line, no Navigator exception. The reset itself was not completed, so no
+credential was rotated.
 
 ---
 
-## G. Manual test data
+## G. How to verify after a fix
 
-`Menu → Settings → Add sample data` adds one member per visible condition,
-named after what it shows. Remove with `Backup & data → remove sample data`.
-
-| Sample | Shows |
-|---|---|
-| `Sample_DueToday` | red DUE TODAY |
-| `Sample_Overdue_4Days` | red, four days late |
-| `Sample_Overdue_Arrears` | several missed installments |
-| `Sample_Overdue_NoReminder` | overdue, no reminder set |
-| `Sample_Upcoming` | blue chip, due in the future |
-| `Sample_PartPaid` | one paid, next due ahead |
-| `Sample_LateFee` | a dated late-fee charge |
-| `Sample_FullyPaid` | settled, nothing due |
-| `Sample_InterestOnly` | interest-only with billed periods |
-| `Sample_Refinanced` | frozen old loan + new split loan |
-| `Sample_InLoss` | a member in the Loss Khata |
+The checklist lives in one place to stop it drifting: **`APK_Project_Progress/Manual-Handle-by-Person-Possible.md`**
+§A3 (run a phone pass) and §A4 (module spot-checks). Record the exact on-screen
+words in `VERIFICATION.md`; a green suite is not a phone pass.

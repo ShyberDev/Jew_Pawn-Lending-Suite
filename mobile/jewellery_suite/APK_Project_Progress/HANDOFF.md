@@ -5,18 +5,18 @@
 
 ---
 
-## 1. Current state (2026-11-06)
+## 1. Current state (2026-11-07)
 
 | Thing | Value |
 |---|---|
 | Test phone | Redmi Note 8 Pro (`infinity_begonia`), Android wireless debugging |
-| Address | **`10.52.61.103:32935`** — changes every session |
-| Installed build | **1.4.19 / versionCode 2071**, release-signed, arm64 |
+| Address | changes every session — last seen **`10.52.61.94:34943`** (2026-11-07 21:45), then the phone left the network |
+| Installed build | **1.4.20 / versionCode 2072**, release-signed, arm64 |
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
 | Tests / analyzer | 526 passing, `flutter analyze` clean at the last check |
-| Built, not installed | **1.4.20 / 2072** (`mobile/jewellery_suite_v1.4.20-arm64-v8a.apk`) — carries the #084 lock-screen fix |
+| Latest APK | `mobile/jewellery_suite_v1.4.22-arm64-v8a.apk` (**1.4.22 / 2074**) — built, **not installed**; carries #085 (send-code reset) and #086 (dialog controllers) |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
 | Human vs agent work | **`Manual-Handle-by-Person-Possible.md`** — phone passes, installs and backups the shop does; features stay with the agent |
 

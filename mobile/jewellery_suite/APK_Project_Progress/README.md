@@ -11,7 +11,7 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.19 / versionCode 2071** on `10.52.61.103:32935` — **1.4.20 / 2072** is built (`mobile/jewellery_suite_v1.4.20-arm64-v8a.apk`) and waits for the phone to come back on adb |
+| Installed test build | **1.4.20 / versionCode 2072** — #084 seen on it 2026-11-07. **1.4.22 / 2074** (`mobile/jewellery_suite_v1.4.22-arm64-v8a.apk`) is built and waits for the phone to come back on adb; it carries #085 and #086 |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
@@ -45,11 +45,12 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **No jewellery phone pass is owed** — #074, #075, #077, #078, #079, #082 and
-   #080’s **Include database key** switch were all passed on v1.4.16 / v1.4.17.
-   One question came out of the #079 pass and needs the shop's answer: a
-   delivered worker order leaves the issued metal on the worker's reserve
-   (`VERIFICATION.md`).
+1. **#085 and #086 owe one phone pass**, on the same install (1.4.22 / 2074).
+   #085: **Forgot PIN?** → **Send code** must show a **“Sending the code…”**
+   dialog and then the six-digit code box. #086: closing any prompt — a wrong
+   code, a wrong admin password, a cancelled PIN change — must leave no error,
+   and a wrong code must keep the phone locked. #084, #074–#083 and #080’s
+   **Include database key** switch are all seen on the phone.
 2. **#080 remaining** — try a restore on a phone with a different keystore. Do
    **not** rotate the PIN or admin password again: they are documented in
    `PASSWORDS.md` and rotating them is what wasted the shop's time.

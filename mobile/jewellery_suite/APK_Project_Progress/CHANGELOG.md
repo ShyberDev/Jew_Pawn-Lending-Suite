@@ -6,6 +6,40 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-07 — #086 dialogs used their text controller after disposing it (v1.4.22)
+
+- **Found by the new #085 test:** every shared prompt disposed its
+  `TextEditingController` in a `finally` as soon as `showDialog` returned. The
+  dialog route is still animating out and rebuilds its `TextField` at least once
+  more, so closing threw *“A TextEditingController was used after being
+  disposed”*.
+- **The fix:** `askPinDialog`, `askNewPinDialog`, `askNewPasswordDialog` and
+  `askOtpCodeDialog` now own their controllers in a `State` — the pattern
+  `_PasswordPrompt` in the same file already used. Public behaviour is unchanged:
+  same titles, labels, buttons and toast messages.
+- Tests: `test/app_lock_gate_test.dart` **10 passed**, full suite **529 passing**,
+  `flutter analyze` clean.
+- **Not yet seen on the phone** — same install as #085 (**1.4.22 / 2074**).
+
+### 2026-11-07 — #085 “Send code” closed the reset (v1.4.21)
+
+- **Found on the phone** while passing #084 on v1.4.20: the lock screen's
+  **Forgot PIN?** → **Send code** closed the dialog and left nothing on screen —
+  no code box, no error — for 15 s or more, so a shop that forgot its PIN could
+  not reset it.
+- **The bug:** the send step awaits the code issue and the gateway POST (12 s
+  timeout) with nothing on screen, and the dialog has already closed by then; an
+  error in that step ended the reset silently.
+- **The fix:** a **“Sending the code…”** progress dialog covers the exchange, and
+  a failed send issues a fresh code and shows the offline code instead of dropping
+  the reset. The lock screen also drops the keypad while the reset dialogs are
+  open, so **Forgot PIN?** stays reachable.
+- Tests: new case *“Forgot PIN with an account asks for the code and shows it
+  offline”* in `test/app_lock_gate_test.dart` (**8 in the file**), suite **527
+  passing**; `flutter analyze` clean.
+- **Not yet seen on the phone** — the phone left the network before v1.4.21 could
+  be installed, so the item is 🟨.
+
 ### 2026-11-07 — #084 “Forgot PIN?” was a dead button (v1.4.20)
 
 - **Reported by the shop:** the lock screen's **Forgot PIN?** did nothing.
@@ -26,8 +60,11 @@ in `TRACKER.md`; this file is the narrative.
 - **Layout:** both OTP dialogs are `scrollable`, so a 6-digit keypad can no longer
   push **Send code** / **Verify** off a phone screen.
 - Tests: 2 new cases in `test/app_lock_gate_test.dart`, suite **526 passing**.
-- **Not yet seen on the phone** (adb dropped mid-session); the item is 🟨 until
-  the v1.4.20 APK is installed and the button is tapped.
+- **Phone v1.4.20 / 2072, 2026-11-07:** **Forgot PIN?** opened a dialog titled
+  **Forgot PIN** — *“Reset the screen lock on this phone.”* — addressed to
+  `benwolf449@gmail.com` with **Cancel · Send code**; logcat held no Navigator
+  exception. The reset was not completed, so the PIN was not rotated, and the
+  admin-password fallback was not exercised. Evidence in `VERIFICATION.md`.
 
 ### 2026-11-07 — #083 worker reserve follows delivery; delivered orders can be deleted (v1.4.18–1.4.19)
 

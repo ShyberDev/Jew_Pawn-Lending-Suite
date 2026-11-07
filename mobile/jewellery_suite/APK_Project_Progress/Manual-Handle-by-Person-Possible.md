@@ -28,7 +28,7 @@ project has had.
 adb mdns services                  # find the wireless-debug port (it changes)
 adb connect <ip>:<port>
 adb devices                        # the phone must say "device", not "offline"
-adb -s <ip>:<port> install -r mobile/jewellery_suite_v1.4.19-arm64-v8a.apk
+adb -s <ip>:<port> install -r mobile/jewellery_suite_v1.4.20-arm64-v8a.apk
 ```
 
 Then open the app and check **Settings** (or the drawer) shows the version you
@@ -78,7 +78,7 @@ Anything you cannot explain in one sentence is worth reporting.
 Paste, do not paraphrase:
 
 ```text
-build: 1.4.19 / 2071
+build: 1.4.20 / 2072
 screen: Jewellery → Workers → Test Worker
 tapped: Deliver, weight 5.000
 expected: Delivered
@@ -145,7 +145,7 @@ flutter analyze                # must say "No issues found!"
 flutter build apk --release --target-platform android-arm64 --split-per-abi
 ```
 
-Bump the version first in `pubspec.yaml` (`version: 1.4.19+71` → `1.4.20+72`) so
+Bump the version first in `pubspec.yaml` (`version: 1.4.22+74` → `1.4.23+75`) so
 the phone can prove which build you tested.
 
 **Trap:** if tests hang with “The target device is full”, `/tmp` filled up — run
@@ -186,9 +186,15 @@ credentials, `push`, or delete documents without asking.
 | **#072 Drive backup** | A **Web client ID** from Google Cloud console | `docs/SETUP_GOOGLE_DRIVE_OAUTH.md` |
 | **#081 Firebase** | A Firebase project and its `google-services.json` | `docs/SETUP_FIREBASE.md` |
 
-Nothing in `TRACKER.md` is 🟨 right now — every jewellery item has been seen on
-the phone. Check the legend at the top of the tracker before assuming a pass is
-still owed.
+Two items are 🟨 and ride on the same install — **#085** and **#086**.
+**#085:** on v1.4.20 the lock screen's **Forgot PIN?** → **Send code** closed the
+dialog and left nothing on screen; v1.4.22 shows **“Sending the code…”** and
+always ends on the six-digit code box. **#086:** every shared prompt disposed its
+`TextEditingController` while it was still closing. Install 1.4.22 (A2), then:
+lock screen → **Forgot PIN?** → **Send code** → the code box appears; tap
+**Cancel** and nothing else breaks; repeat with a wrong code and confirm the
+phone stays locked with *“The code is wrong or has expired.”* Every other item in
+`TRACKER.md` is ✅ or blocked on one of the inputs above.
 
 ---
 
