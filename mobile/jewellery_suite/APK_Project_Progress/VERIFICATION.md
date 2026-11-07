@@ -520,5 +520,6 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 | Item | What to drive on the phone |
 |---|---|
+| #087 | Open any sale invoice → **Share invoice** → Android share sheet appears; dismiss it and confirm nothing changed |
 | #081 | Install a Crashlytics build, force one test crash, see it in the console |
 | #080 remaining | Cross-phone restore on a second device with a different keystore |

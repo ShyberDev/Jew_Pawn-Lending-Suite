@@ -15,7 +15,7 @@
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 529 passing, `flutter analyze` clean at the last check |
+| Tests / analyzer | 532 passing, `flutter analyze` clean at the last check |
 | Latest APK | `mobile/jewellery_suite_v1.4.22-arm64-v8a.apk` (**1.4.22 / 2074**) — installed, and #085 + #086 were passed on it 2026-11-07 |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
 | Human vs agent work | **`Manual-Handle-by-Person-Possible.md`** — phone passes, installs and backups the shop does; features stay with the agent |

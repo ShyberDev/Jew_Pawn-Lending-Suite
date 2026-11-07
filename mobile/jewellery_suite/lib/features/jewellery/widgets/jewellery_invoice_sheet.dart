@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../data/jewellery_store.dart';
 import '../../../state/app_state.dart';
 import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
+import '../../../util/jewellery_bill_text.dart';
 import '../../../util/jewellery_math.dart';
 import '../screens/jewellery_return_screen.dart';
 
@@ -175,6 +177,25 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
     } finally {
       amountCtl.dispose();
       noteCtl.dispose();
+    }
+  }
+
+  /// Hands the bill text to Android's share sheet (WhatsApp and the like).
+  /// Nothing is written to the ledger; dismissing the sheet changes nothing.
+  Future<void> _share() async {
+    final invoice = _invoice;
+    if (invoice == null) return;
+    try {
+      await SharePlus.instance.share(ShareParams(
+        subject: '${invoice['doc_no'] ?? ''}',
+        text: buildJewelleryBillText(
+          invoice: invoice,
+          items: _items,
+          payments: _payments,
+        ),
+      ));
+    } catch (_) {
+      _toast('The bill could not be shared.');
     }
   }
 
@@ -357,6 +378,16 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
                       ),
                       const SizedBox(height: 8),
                     ],
+                    if (!isDraft)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _share,
+                          icon: const Icon(Icons.share_outlined, size: 18),
+                          label: const Text('Share invoice'),
+                        ),
+                      ),
+                    if (!isDraft) const SizedBox(height: 8),
                     if (!isDraft)
                       Row(
                         children: [
