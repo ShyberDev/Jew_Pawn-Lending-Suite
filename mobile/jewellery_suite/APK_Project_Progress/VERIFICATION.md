@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-07):** `10.52.61.127:34943`, build **1.4.20 /
-versionCode 2072**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-07):** `10.52.61.107:35461`, build **1.4.22 /
+versionCode 2074**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
@@ -24,6 +24,40 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 ```
 
 ---
+
+## 2026-11-07 — v1.4.22 (2074) — #085 and #086 passed on the phone
+
+- **Setup:** installed 1.4.22 in place over 1.4.20 (`adb install -r`, data kept) on
+  `10.52.61.107:35461`; `dumpsys package` reported versionName 1.4.22 before the
+  app was opened.
+- **Lock screen as before:** *“Jewellery Suite is locked”*, *“Enter your PIN to
+  open the shop.”*, the PIN box, **Unlock** and **Forgot PIN?**.
+- **#085 — the code box appears.** **Forgot PIN?** → dialog **Forgot PIN**,
+  *“Reset the screen lock on this phone.”*, *“Send a 6-digit code to”*
+  **benwolf449@gmail.com**, **Cancel · Send code**. Tapping **Send code** raised
+  **Enter the 6-digit code** with **Offline code (valid 10 minutes) `996410`**,
+  the line *“No SMS / e-mail gateway is configured (or the send failed), so the
+  code appears here instead of going to benwolf449@gmail.com.”*, a **Code** field
+  and **Cancel · Verify** — about a second later, because with no gateway the send
+  fails immediately (the new **“Sending the code…”** dialog is momentary in that
+  case; it exists for the slow path up to the 12 s timeout).
+- **#085 — a wrong code is refused, with words on screen.** Typed `111111` and
+  submitted it with the keyboard's ✓ (`onSubmitted`): the dialog closed, the lock
+  screen returned and the snackbar **“The code is wrong or has expired. Try
+  again.”** appeared along the bottom, with the phone still **locked**. An earlier
+  run used the code `000357` and refused `000000` the same way.
+- **#085 — the keypad fix shows.** After the refusal the PIN field was unfocused
+  (grey border, not gold) and the keypad stayed down, so **Forgot PIN?** was still
+  on screen instead of scrolled away under the keypad.
+- **#086 — no controller error.** **Cancel** on both dialogs closed them cleanly
+  and returned to an unchanged lock screen; `adb logcat` (cleared before each
+  step) held no *“used after being disposed”*, no **Navigator** error and no FATAL
+  EXCEPTION across every open and close in the pass.
+- **Not covered:** the **admin-password** branch, because this phone has a Gmail
+  account; its behaviour rests on `test/app_lock_gate_test.dart`. The reset itself
+  was deliberately not completed — finishing it rotates the screen-lock PIN, which
+  `PASSWORDS.md` forbids. The shop's PIN is unchanged, and the app was left on the
+  lock screen.
 
 ## 2026-11-07 — suite only — #086 a dialog's controller outlived its route
 
@@ -46,8 +80,8 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 - **Tests:** `test/app_lock_gate_test.dart` **10 passed** (2 new: a wrong admin
   password does not reset the PIN; a wrong one-time code keeps the phone
   locked), full suite **529 passed**, `flutter analyze` clean.
-- **Not seen on the phone:** the phone was still off the network, so this rides
-  on the same install as #085.
+- **Seen on the phone:** passed together with #085 on 1.4.22 — see the v1.4.22
+  entry above.
 
 ## 2026-11-07 — v1.4.20 (2072) — #085 “Send code” left the reset dead
 
@@ -73,10 +107,9 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
   and shows it offline”* covers the account branch the phone follows.
 - **Tests:** `flutter analyze` clean; `test/app_lock_gate_test.dart` **8 passed**
   (was 7); full suite **527 passed**.
-- **Not seen on the phone:** the phone left the network mid-pass (`adb mdns
-  services` empty; `10.52.61.94` and `10.52.61.127` both *no route to host*), so
-  v1.4.21 was built but never installed. #085 stays 🟨 until **Send code** is
-  tapped on it.
+- **Later seen on the phone:** 1.4.21 was never installed (the phone left the
+  network), the fix shipped in 1.4.22 and was passed on it — see the v1.4.22 entry
+  above.
 
 ## 2026-11-07 — v1.4.20 (2072) — #084 “Forgot PIN?” opens its dialog
 
@@ -483,13 +516,9 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 ---
 
-## Passes still owed
+## Passes still owed (2026-11-07)
 
 | Item | What to drive on the phone |
 |---|---|
-| #075 | A real sale with a **late fee**; the shared-expense split |
-| #077 | An advance-only customer visible in the Credit Book |
-| #078 | Create order → deliver → reopen/deliver refused; over-return refused |
-| #079 | Deliver a worker order twice; second call refused |
-| #080 | Create a backup with **Include database key** on, enter a passphrase, restore it and confirm the passphrase prompt; try a wrong passphrase and confirm it is refused. Rotate the PIN and admin password |
 | #081 | Install a Crashlytics build, force one test crash, see it in the console |
+| #080 remaining | Cross-phone restore on a second device with a different keystore |

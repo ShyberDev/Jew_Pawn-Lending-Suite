@@ -11,11 +11,11 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.20 / versionCode 2072** — #084 seen on it 2026-11-07. **1.4.22 / 2074** (`mobile/jewellery_suite_v1.4.22-arm64-v8a.apk`) is built and waits for the phone to come back on adb; it carries #085 and #086 |
+| Installed test build | **1.4.22 / versionCode 2074** on `10.52.61.107:35461` — #085 and #086 seen on it 2026-11-07 |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
-| Tests | **526 passing**; `flutter analyze` clean |
+| Tests | **529 passing**; `flutter analyze` clean |
 | Unlocking the app | **`PASSWORDS.md`** — standing defaults PIN `123456`, admin `Admin@123`, and a rule not to rotate them |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
@@ -45,12 +45,9 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **#085 and #086 owe one phone pass**, on the same install (1.4.22 / 2074).
-   #085: **Forgot PIN?** → **Send code** must show a **“Sending the code…”**
-   dialog and then the six-digit code box. #086: closing any prompt — a wrong
-   code, a wrong admin password, a cancelled PIN change — must leave no error,
-   and a wrong code must keep the phone locked. #084, #074–#083 and #080’s
-   **Include database key** switch are all seen on the phone.
+1. **No phone pass is owed.** #085 (the reset's code box) and #086 (the dialog
+   controllers) were passed on 1.4.22 on 2026-11-07, and #084, #074–#083 and
+   #080’s **Include database key** switch were seen earlier.
 2. **#080 remaining** — try a restore on a phone with a different keystore. Do
    **not** rotate the PIN or admin password again: they are documented in
    `PASSWORDS.md` and rotating them is what wasted the shop's time.

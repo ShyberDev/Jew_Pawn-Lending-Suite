@@ -186,15 +186,11 @@ credentials, `push`, or delete documents without asking.
 | **#072 Drive backup** | A **Web client ID** from Google Cloud console | `docs/SETUP_GOOGLE_DRIVE_OAUTH.md` |
 | **#081 Firebase** | A Firebase project and its `google-services.json` | `docs/SETUP_FIREBASE.md` |
 
-Two items are 🟨 and ride on the same install — **#085** and **#086**.
-**#085:** on v1.4.20 the lock screen's **Forgot PIN?** → **Send code** closed the
-dialog and left nothing on screen; v1.4.22 shows **“Sending the code…”** and
-always ends on the six-digit code box. **#086:** every shared prompt disposed its
-`TextEditingController` while it was still closing. Install 1.4.22 (A2), then:
-lock screen → **Forgot PIN?** → **Send code** → the code box appears; tap
-**Cancel** and nothing else breaks; repeat with a wrong code and confirm the
-phone stays locked with *“The code is wrong or has expired.”* Every other item in
-`TRACKER.md` is ✅ or blocked on one of the inputs above.
+Nothing in `TRACKER.md` is 🟨 right now — **#085** and **#086** were passed on
+v1.4.22 (2026-11-07): **Forgot PIN?** → **Send code** raises the six-digit code
+box, a wrong code is refused with *“The code is wrong or has expired.”* and the
+phone stays locked. The open rows above are blocked on an input rather than on a
+pass; check the legend at the top of the tracker before assuming one is owed.
 
 ---
 
