@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-07):** `10.52.61.107:35461`, build **1.4.22 /
-versionCode 2074**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-07):** `10.52.61.107:35461`, build **1.4.23 /
+versionCode 2075**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**

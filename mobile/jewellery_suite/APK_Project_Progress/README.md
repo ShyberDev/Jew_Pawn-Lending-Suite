@@ -11,7 +11,7 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.22 / versionCode 2074** on `10.52.61.107:35461` — #085 and #086 seen on it 2026-11-07 |
+| Installed test build | **1.4.23 / versionCode 2075** on `10.52.61.107:35461` — #087 seen on it 2026-11-07 |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
