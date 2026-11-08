@@ -6,6 +6,13 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-08 — #088 WIP-overdue banner (code done, phone pass owed)
+
+- The jewellery dashboard now shows an amber **“N overdue orders · X g WIP”** banner above the Orders/Workers row when any Pending/Ready order’s promised date has passed; tap opens Orders. Hidden when zero overdue — the dashboard is otherwise unchanged.
+- Overdue uses the same rule as the Orders list (new pure helper `lib/util/overdue_orders.dart`); WIP comes from the existing `wipWeight()` store query Reports uses.
+- **Checks:** `test/overdue_orders_test.dart` 3 cases (pending yesterday overdue, today/future not, delivered/cancelled/date-less never); `flutter analyze` clean; full suite **538 passing**.
+- **Phone v1.4.25 / 2077:** dashboard showed **“1 overdue order · 12.520 g WIP / Promised date has passed”** after creating `ORD-20261108-0001` promised 07-11-26; tapping it opened Customer Orders. Evidence in `VERIFICATION.md`.
+
 ### 2026-11-08 — #089 late-fee dialog pre-fills from the invoice's history (code done, phone pass owed)
 
 - **Add late fee** now opens with the fee field already filled when the invoice has a previous fee (`late_fee_total` — the repeat-fee case), plus a hint line with the sale's age: *“Sale was N days ago (DD-MM-YY).”* or *“Sale made today.”* With no history the field stays blank but the age hint still shows. No per-day rate is invented — the shopkeeper edits the amount.

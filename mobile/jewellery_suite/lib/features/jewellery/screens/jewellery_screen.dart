@@ -7,6 +7,7 @@ import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
 import '../../../util/jewellery_math.dart';
+import '../../../util/overdue_orders.dart';
 import '../widgets/jewellery_invoice_sheet.dart';
 import 'jewellery_credit_book_screen.dart';
 import 'jewellery_invoice_screen.dart';
@@ -55,6 +56,8 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
   })? _oldMetal;
   List<JewelleryWorkerPosition> _workers = const [];
   Map<String, int> _orderCounts = const {};
+  int _overdueCount = 0;
+  Map<String, double> _wip = const {};
   List<Map<String, Object?>> _returns = const [];
   bool _loading = true;
 
@@ -112,6 +115,9 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
     final oldMetal = await store.oldMetalTotals();
     final workers = await store.workerPositions();
     final orderCounts = await store.orderStatusSummary();
+    final openOrders = await store.orders(status: 'Pending');
+    final readyOrders = await store.orders(status: 'Ready');
+    final wip = await store.wipWeight();
     final returns = await store.returns();
     if (!mounted) return;
     setState(() {
@@ -124,6 +130,9 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
       _oldMetal = oldMetal;
       _workers = workers;
       _orderCounts = orderCounts;
+      _overdueCount =
+          countOverdueOrders([...openOrders, ...readyOrders]);
+      _wip = wip;
       _returns = returns;
       _loading = false;
     });
@@ -228,6 +237,7 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
 
   int get _pendingOrders => _orderCounts['Pending'] ?? 0;
   int get _readyOrders => _orderCounts['Ready'] ?? 0;
+  double get _wipGrams => _wip.values.fold(0, (sum, g) => sum + g);
   double get _workerCash => _workers.fold(0, (sum, w) => sum + w.cashReserve);
   double get _workerGold => _workers.fold(0, (sum, w) => sum + w.goldReserve);
 
@@ -316,6 +326,31 @@ class _JewelleryScreenState extends State<JewelleryScreen> {
                     trailing: const Icon(Icons.chevron_right),
                   ),
                 ),
+                if (_overdueCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    color: kRed.withValues(alpha: .08),
+                    child: ListTile(
+                      onTap: () =>
+                          _openScreen(const JewelleryOrdersScreen()),
+                      leading: const Icon(Icons.schedule, color: kRed),
+                      title: Text(
+                        '$_overdueCount overdue order'
+                        '${_overdueCount == 1 ? '' : 's'} · '
+                        '${_wipGrams.toStringAsFixed(3)} g WIP',
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: kRed,
+                        ),
+                      ),
+                      subtitle: const Text('Promised date has passed',
+                          style: TextStyle(fontSize: 11)),
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   children: [

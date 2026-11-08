@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.24 /
-versionCode 2076**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.25 /
+versionCode 2077**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
@@ -24,6 +24,13 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 ```
 
 ---
+
+## 2026-11-08 — v1.4.25 (2077) — #088 WIP-overdue banner
+
+- Installed 1.4.25 in place over 1.4.24 (`adb install -r`, data kept) on `10.52.61.216:35835`; `dumpsys package` reported versionName 1.4.25 / versionCode 2077 before the app was opened.
+- The existing Pending orders had no promised date, so the banner correctly stayed hidden. Created **ORD-20261108-0001** (Overdue test, promised **07-11-26**, Pending, ₹18,144) — the Orders list flagged it **OVERDUE**.
+- Back on the dashboard the banner read **“1 overdue order · 12.520 g WIP / Promised date has passed”**. Tapping it opened Customer Orders with the OVERDUE row on screen.
+- **Not covered:** the hidden-when-zero state on this phone (covered by the unit tests and by the pre-creation check on the same dashboard).
 
 ## 2026-11-08 — v1.4.24 (2076) — #089 late-fee pre-fill
 
