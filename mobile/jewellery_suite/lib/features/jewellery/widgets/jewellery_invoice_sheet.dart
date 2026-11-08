@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,6 +11,7 @@ import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
 import '../../../util/jewellery_bill_text.dart';
 import '../../../util/late_fee_suggest.dart';
+import '../../../util/report_pdf.dart';
 import '../../../util/jewellery_math.dart';
 import '../screens/jewellery_return_screen.dart';
 
@@ -217,6 +220,35 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
     }
   }
 
+  /// Hands a one-page PDF of the bill to the share sheet, written to the
+  /// temp directory the Reports export uses. Shares the same rows as the
+  /// text bill; Tamil names render with the bundled fonts.
+  Future<void> _sharePdf() async {
+    final invoice = _invoice;
+    if (invoice == null) return;
+    try {
+      final at = DateTime.now();
+      final bytes = await jewelleryBillPdf(
+        invoice,
+        _items,
+        _payments,
+        at: at,
+      );
+      final name = jewelleryBillPdfFileName(
+          invoice['doc_no']?.toString() ?? 'bill', at);
+      final file = File('${Directory.systemTemp.path}/$name');
+      await file.writeAsBytes(bytes, flush: true);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/pdf')],
+        subject: '${invoice['doc_no'] ?? ''}',
+        text: 'Jewellery bill ${invoice['doc_no'] ?? ''}',
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      _toast('The bill PDF could not be shared.');
+    }
+  }
+
   /// Turns a draft into a real document. The stock movement happens in the
   /// store, once, guarded by the status so a double tap cannot receive twice.
   Future<void> _confirmDraft() async {
@@ -403,6 +435,17 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
                           onPressed: _share,
                           icon: const Icon(Icons.share_outlined, size: 18),
                           label: const Text('Share invoice'),
+                        ),
+                      ),
+                    if (!isDraft) const SizedBox(height: 8),
+                    if (!isDraft)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _sharePdf,
+                          icon: const Icon(Icons.picture_as_pdf_outlined,
+                              size: 18),
+                          label: const Text('Share PDF'),
                         ),
                       ),
                     if (!isDraft) const SizedBox(height: 8),

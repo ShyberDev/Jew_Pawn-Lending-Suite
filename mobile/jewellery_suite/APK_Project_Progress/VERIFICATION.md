@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.25 /
-versionCode 2077**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.26 /
+versionCode 2078**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
@@ -24,6 +24,13 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 ```
 
 ---
+
+## 2026-11-08 — v1.4.26 (2078) — #090 invoice PDF
+
+- Installed 1.4.26 in place over 1.4.25 (`adb install -r`, data kept) on `10.52.61.216:35835`; `dumpsys package` reported versionName 1.4.26 / versionCode 2078 before the app was opened.
+- Jewellery → `SAL-20261106-0001` → **Share PDF:** Android’s share sheet opened with the single file **`jewellery_suite_bill_SAL-20261106-0001_2026-11-08_21-42.pdf`**.
+- Dismissing the share sheet returned to the document unchanged: Balance still **₹39,760** — no ledger write.
+- **Not covered:** opening the PDF inside a viewer on the phone (the file content itself is proven by the unit tests: `%PDF-` header, 1000+ bytes, CSV parity, Tamil rendering).
 
 ## 2026-11-08 — v1.4.25 (2077) — #088 WIP-overdue banner
 

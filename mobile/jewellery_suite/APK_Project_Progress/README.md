@@ -11,11 +11,11 @@ what was built, what was seen on the phone, and what is still owed.
 
 | Thing | Value |
 |---|---|
-| Installed test build | **1.4.25 / versionCode 2077** on `10.52.61.216:35835` — #088 seen on it 2026-11-08 |
+| Installed test build | **1.4.26 / versionCode 2078** on `10.52.61.216:35835` — #090 seen on it 2026-11-08 |
 | Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
-| Tests | **538 passing**; `flutter analyze` clean |
+| Tests | **542 passing**; `flutter analyze` clean |
 | Unlocking the app | **`PASSWORDS.md`** — standing defaults PIN `123456`, admin `Admin@123`, and a rule not to rotate them |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 

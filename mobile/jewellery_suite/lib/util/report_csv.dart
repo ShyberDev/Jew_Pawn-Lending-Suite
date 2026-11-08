@@ -1,5 +1,8 @@
 import 'package:intl/intl.dart';
 
+import 'format.dart';
+import 'jewellery_math.dart';
+
 /// #041 (first slice) — CSV export of the Reports screens.
 ///
 /// Deliberately **text only**: no PDF/Excel package is available in this
@@ -137,3 +140,89 @@ List<List<Object?>> pawnReportRows(Map<String, Object?> r,
 /// The Pawn tab as CSV.
 String pawnReportCsv(Map<String, Object?> r, {required DateTime at}) =>
     csvText(pawnReportRows(r, at: at));
+
+/// The jewellery bill rows (#090): the party, each item line with its weight
+/// and billing detail, the totals and the payments — the same figures the
+/// plain-text bill (#087) carries. Shared by the CSV and the PDF export.
+/// Amounts stay plain numbers, per the module's CSV rule; the PDF prints the
+/// same rows.
+List<List<Object?>> jewelleryBillRows(
+  Map<String, Object?> invoice,
+  List<Map<String, Object?>> items,
+  List<Map<String, Object?>> payments, {
+  required DateTime at,
+}) {
+  final docType = invoice['doc_type']?.toString() ?? '';
+  final label =
+      docType == 'PURCHASE' ? 'Purchase' : (docType == 'ORDER' ? 'Order' : 'Sale');
+  final total = Num.toDouble(invoice['total'] ?? 0);
+  final paid = Num.toDouble(invoice['amount_paid'] ?? 0);
+  final outstanding = Num.toDouble(invoice['outstanding'] ?? 0);
+  final lateFees = Num.toDouble(invoice['late_fee_total'] ?? 0);
+  return <List<Object?>>[
+    ['Jewellery bill — $label'],
+    ['Generated', _when(at)],
+    [],
+    [
+      '${invoice['party_name'] ?? ''} · ${invoice['doc_no'] ?? ''}',
+      invoice['invoice_date']?.toString() ?? '',
+      label,
+      invoice['metal']?.toString() ?? '',
+    ],
+    [],
+    ['Item', 'Weight (g)', 'Purity %', 'Rate ₹/g', 'Line total (₹)'],
+    for (final it in items)
+      [
+        it['description']?.toString().trim().isEmpty == true
+            ? 'Item'
+            : it['description'].toString().trim(),
+        Num.toDouble(it['net_weight']).toStringAsFixed(3),
+        Num.toDouble(it['purity']).toStringAsFixed(2),
+        Num.toDouble(it['rate_per_gram']).toStringAsFixed(2),
+        _billLineTotal(it),
+      ],
+    [],
+    ['Payable', total],
+    [docType == 'PURCHASE' ? 'Paid' : 'Received', paid],
+    if (lateFees > 0) ['Late fee', lateFees],
+    ['Balance', outstanding],
+    if (payments.isNotEmpty) ...[
+      [],
+      ['Payments'],
+      for (final p in payments)
+        [
+          p['pay_date']?.toString() ?? '',
+          p['payment_mode']?.toString() ?? '',
+          Num.toDouble(p['amount'] ?? 0),
+        ],
+    ],
+  ];
+}
+
+/// The jewellery bill as CSV.
+String jewelleryBillCsv(
+  Map<String, Object?> invoice,
+  List<Map<String, Object?>> items,
+  List<Map<String, Object?>> payments, {
+  required DateTime at,
+}) =>
+    csvText(jewelleryBillRows(invoice, items, payments, at: at));
+
+double _billLineTotal(Map<String, Object?> it) => JewelleryMath.line(
+      weight: Num.toDouble(it['net_weight']),
+      purityPct: Num.toDouble(it['purity']),
+      pureRate: Num.toDouble(it['rate_per_gram']),
+      makingMode: MakingMode.values.firstWhere(
+        (m) => m.name == (it['making_mode']?.toString() ?? ''),
+        orElse: () => MakingMode.none,
+      ),
+      makingValue: Num.toDouble(it['making_value']),
+      additionalCost: Num.toDouble(it['additional_cost']),
+      discount: Num.toDouble(it['discount']),
+      billingBasis: BillingBasis.values.firstWhere(
+        (b) => b.name == (it['billing_basis']?.toString() ?? ''),
+        orElse: () => BillingBasis.raw,
+      ),
+      wastagePct: Num.toDouble(it['wastage_pct']),
+      makingCharge: Num.toDouble(it['making_charge']),
+    ).total;

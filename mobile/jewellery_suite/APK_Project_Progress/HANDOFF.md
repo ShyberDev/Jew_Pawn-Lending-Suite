@@ -11,12 +11,12 @@
 |---|---|
 | Test phone | Redmi Note 8 Pro (`infinity_begonia`), Android wireless debugging |
 | Address | **`10.52.61.107:35461`** — changes every session, find it with `adb mdns services` |
-| Installed build | **1.4.25 / versionCode 2077**, release-signed, arm64 |
+| Installed build | **1.4.26 / versionCode 2078**, release-signed, arm64 |
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
-| Tests / analyzer | 538 passing, `flutter analyze` clean at the last check |
-| Latest APK | `mobile/jewellery_suite_v1.4.25-arm64-v8a.apk` (**1.4.25 / 2077**) — installed, and #088 was passed on it 2026-11-08 |
+| Tests / analyzer | 542 passing, `flutter analyze` clean at the last check |
+| Latest APK | `mobile/jewellery_suite_v1.4.26-arm64-v8a.apk` (**1.4.26 / 2078**) — installed, and #090 was passed on it 2026-11-08 |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
 | Human vs agent work | **`Manual-Handle-by-Person-Possible.md`** — phone passes, installs and backups the shop does; features stay with the agent |
 

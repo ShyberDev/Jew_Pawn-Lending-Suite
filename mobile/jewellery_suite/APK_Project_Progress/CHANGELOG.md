@@ -6,6 +6,12 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-08 — #090 invoice PDF (code done, phone pass owed)
+
+- Added **Share PDF** to the document sheet: a one-page PDF bill built from rows shared with the CSV export (`jewelleryBillRows` in `report_csv.dart`), written with a timestamped file name (`jewellery_suite_bill_<doc>_<stamp>.pdf`) and handed to the share sheet as a file.
+- **Checks:** `test/jewellery_bill_pdf_test.dart` 4 cases (real PDF, file name, CSV parity, Tamil name); `flutter analyze` clean; full suite **542 passing**.
+- **Phone v1.4.26 / 2078:** **Share PDF** on `SAL-20261106-0001` shared `jewellery_suite_bill_SAL-20261106-0001_2026-11-08_21-42.pdf`; dismissing left Balance ₹39,760 unchanged. Evidence in `VERIFICATION.md`.
+
 ### 2026-11-08 — #088 WIP-overdue banner (code done, phone pass owed)
 
 - The jewellery dashboard now shows an amber **“N overdue orders · X g WIP”** banner above the Orders/Workers row when any Pending/Ready order’s promised date has passed; tap opens Orders. Hidden when zero overdue — the dashboard is otherwise unchanged.

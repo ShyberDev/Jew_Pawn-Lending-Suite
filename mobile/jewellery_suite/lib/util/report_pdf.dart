@@ -29,6 +29,11 @@ String khataReportPdfFileName(DateTime at) =>
 String pawnReportPdfFileName(DateTime at) =>
     'jewellery_suite_pawn_${_stamp(at)}.pdf';
 
+String jewelleryBillPdfFileName(String docNo, DateTime at) {
+  final safe = docNo.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+  return 'jewellery_suite_bill_${safe}_${_stamp(at)}.pdf';
+}
+
 /// Loaded once per process; the byte data is reused by every export.
 class _PdfFonts {
   static pw.Font? base;
@@ -75,6 +80,19 @@ Future<Uint8List> khataReportPdf(Map<String, Object?> r,
 
 Future<Uint8List> pawnReportPdf(Map<String, Object?> r, {required DateTime at}) =>
     _build('Jewellery Suite - Pawn report', pawnReportRows(r, at: at), at);
+
+/// #090 — one-page jewellery bill; rows shared with the CSV export.
+Future<Uint8List> jewelleryBillPdf(
+  Map<String, Object?> invoice,
+  List<Map<String, Object?>> items,
+  List<Map<String, Object?>> payments, {
+  required DateTime at,
+}) =>
+    _build(
+      'Jewellery Suite - Jewellery bill',
+      jewelleryBillRows(invoice, items, payments, at: at),
+      at,
+    );
 
 Future<Uint8List> _build(
     String title, List<List<Object?>> rows, DateTime at) async {
