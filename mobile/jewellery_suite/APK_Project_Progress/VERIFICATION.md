@@ -8,8 +8,8 @@ recorded here.
 The address changes every session — discover it with `adb mdns services`, then
 confirm with `adb shell echo alive` before installing.
 
-**Current state (2026-11-07):** `10.52.61.107:35461`, build **1.4.23 /
-versionCode 2075**, `SQLCipher encrypted, schema v21`. The last **published**
+**Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.24 /
+versionCode 2076**, `SQLCipher encrypted, schema v21`. The last **published**
 build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 **Template for a new entry**
@@ -24,6 +24,13 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 ```
 
 ---
+
+## 2026-11-08 — v1.4.24 (2076) — #089 late-fee pre-fill
+
+- Installed 1.4.24 in place over 1.4.23 (`adb install -r`, data kept) on `10.52.61.216:35835`; `dumpsys package` reported versionName 1.4.24 / versionCode 2076 before the app was opened.
+- Jewellery → `SAL-20261106-0001` (06-11-26, Late fee ₹500 already, Balance ₹39,760) → **Add late fee:** the dialog opened with **500** already in the Late-fee field and the hint **“Sale was 2 days ago (06-11-26).”** (sale date 06-11, today 08-11).
+- Dismissing the dialog returned to the document unchanged: Late fee still ₹500 / Balance still ₹39,760 — the pre-fill added no duplicate.
+- **Not covered:** a sale with no fee history opening blank (covered by the unit tests only).
 
 ## 2026-11-07 — v1.4.23 (2075) — #087 invoice share
 

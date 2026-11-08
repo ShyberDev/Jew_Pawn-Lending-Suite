@@ -8,6 +8,7 @@ import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
 import '../../../util/jewellery_bill_text.dart';
+import '../../../util/late_fee_suggest.dart';
 import '../../../util/jewellery_math.dart';
 import '../screens/jewellery_return_screen.dart';
 
@@ -125,11 +126,21 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
   /// A manual late fee (spec §7). It is filed as its own charge: the invoice's
   /// item total and recorded cost are untouched, the customer's balance rises
   /// and the ledger shows the fee as a separate debit. No cash moves.
+  ///
+  /// #089: the field pre-fills with the last fee charged on this invoice and a
+  /// hint shows the sale's age in days, instead of always opening blank. No
+  /// rate is invented — the shopkeeper edits the pre-filled amount.
   Future<void> _addLateFee() async {
     final invoice = _invoice;
     if (invoice == null) return;
+    final suggestion = suggestLateFee(
+      invoiceDate: parseIso(invoice['invoice_date']) ?? DateTime.now(),
+      lateFeeTotal:
+          (invoice['late_fee_total'] as num?)?.toDouble() ?? 0,
+    );
     final state = context.read<AppState>();
-    final amountCtl = TextEditingController();
+    final amountCtl = TextEditingController(
+        text: suggestion.fee == null ? '' : suggestion.fee!.toStringAsFixed(0));
     final noteCtl = TextEditingController();
     try {
       final amount = await showDialog<double>(
@@ -139,6 +150,13 @@ class _JewelleryInvoiceSheetState extends State<JewelleryInvoiceSheet> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                suggestion.daysSinceSale == 0
+                    ? 'Sale made today.'
+                    : 'Sale was ${suggestion.daysSinceSale} day${suggestion.daysSinceSale == 1 ? '' : 's'} ago (${fmtDate(invoice['invoice_date'])}).',
+                style: TextStyle(fontSize: 12, color: mutedOf(context)),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: amountCtl,
                 autofocus: true,

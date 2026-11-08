@@ -6,6 +6,12 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-08 — #089 late-fee dialog pre-fills from the invoice's history (code done, phone pass owed)
+
+- **Add late fee** now opens with the fee field already filled when the invoice has a previous fee (`late_fee_total` — the repeat-fee case), plus a hint line with the sale's age: *“Sale was N days ago (DD-MM-YY).”* or *“Sale made today.”* With no history the field stays blank but the age hint still shows. No per-day rate is invented — the shopkeeper edits the amount.
+- **Checks:** `test/late_fee_suggest_test.dart` 3 cases (previous fee suggested, blank when no history, same-day = 0 days); `flutter analyze` clean; full suite **535 passing**.
+- **Phone v1.4.24 / 2076:** **Add late fee** on `SAL-20261106-0001` opened with **500** filled and *“Sale was 2 days ago (06-11-26).”*; dismissing left Late fee ₹500 / Balance ₹39,760 unchanged. Evidence in `VERIFICATION.md`.
+
 ### 2026-11-07 — #087 invoice share (code done, phone pass owed)
 
 - Added **Share invoice** to the jewellery document sheet. It builds a plain-text bill in a new pure helper (`lib/util/jewellery_bill_text.dart`) using the sheet's own `fmtDate`/`inr` figures — party, doc number, each item line with KDM/non-KDM/weight detail, Payable, Received/Paid, Late fee when present, Balance and the payments list — and hands it to Android's share sheet via `SharePlus`. Drafts offer no share button; dismissing the sheet writes nothing.
