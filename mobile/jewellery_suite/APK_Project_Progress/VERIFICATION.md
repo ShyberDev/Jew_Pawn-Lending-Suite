@@ -25,6 +25,38 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 
 ---
 
+## 2026-11-09 — v1.4.26 (78) — #091 cloud sync — suite and emulator only, no phone
+
+- **Not a phone pass.** No device was attached during this session (`adb devices`
+  listed nothing), so `TRACKER.md` #091 stays 🟨 and nothing in this entry is
+  device evidence.
+- **Rules are deployed:** `firebase deploy --only firestore:rules --project
+  jewellery-suite--cloud` compiled `firestore.rules` and released it
+  (`✔  firestore: released rules firestore.rules to cloud.firestore`, exit 0).
+  The live rules allow `get` on the caller's own `shops/{uid}`, require
+  `uid == shopId` on `create`, pin `owner` on `update`, and use
+  `{sub}/{rest=**}` — the old `{sub=**}` also matched zero segments, which
+  permitted a shop document write without `updated_at`.
+- **Emulator rules suite:** `cd test/emulator && npm test` → **11 passed, 0
+  failed**, run twice including once after the deploy. Covers first-shop creation
+  for its own uid, another shop staying private for reads and writes, an
+  owner-transfer attempt refused, a write without `updated_at` refused, and a
+  signed-out reader refused. Demo project `demo-jewellery-suite` on the local
+  emulator only — no real project, no Spark reads or writes.
+- **Build:** `flutter build apk --release` → `app-release.apk`, **v1.4.26 /
+  versionCode 78**, 126.9 MB, sha256 `d695cb5b714c84c1…`, signed with the shop's
+  keystore (CN=Jewellery Suite, SHA-1 `c9272627ab0f6640…`); `assembleRelease`
+  482 s, exit 0. Not published.
+- **Suite:** `flutter analyze` clean; the three sync suites (`cloud_time_test`,
+  `cloud_sync_test`, `cloud_sync_db_test`) **22 passed**; full suite **569
+  passed**. Commit **`bb5e673`** was re-checked in a detached worktree of the
+  commit itself: analyze clean and the 22 sync tests green.
+- **Not covered — needs the phone:** signing in on a fresh install and seeing its
+  own shop created under the live rules; a second device pulling the same
+  movements; a jewellery screen repainting after a pull with scroll and open
+  sheets kept; and one real-project sync, which is not run against the Spark
+  quota without approval.
+
 ## 2026-11-08 — v1.4.26 (2078) — #090 invoice PDF
 
 - Installed 1.4.26 in place over 1.4.25 (`adb install -r`, data kept) on `10.52.61.216:35835`; `dumpsys package` reported versionName 1.4.26 / versionCode 2078 before the app was opened.
@@ -551,3 +583,4 @@ build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
 |---|---|
 | #081 | Install a Crashlytics build, force one test crash, see it in the console |
 | #080 remaining | Cross-phone restore on a second device with a different keystore |
+| #091 | Sign in on a fresh install and watch its own shop appear; a second device pulls; a jewellery screen repaints after a pull |
