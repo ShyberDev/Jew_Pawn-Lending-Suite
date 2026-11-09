@@ -32,3 +32,10 @@ local-apks/
 # Generated locally by the IDE / by `flutter create .` for a desktop target.
 devtools_options.yaml
 linux/
+
+# Credentials - must never be committed (purged from history Nov 2026)
+PASSWORDS.md
+**/PASSWORDS.md
+**/Temp_Passwords_readme.md
+versions.env
+**/versions.env

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../data/jewellery_store.dart';
 import '../../../state/app_state.dart';
+import '../../../ui/cloud_refresh.dart';
 import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
@@ -31,7 +32,11 @@ class JewelleryScreen extends StatefulWidget {
   State<JewelleryScreen> createState() => _JewelleryScreenState();
 }
 
-class _JewelleryScreenState extends State<JewelleryScreen> {
+class _JewelleryScreenState extends State<JewelleryScreen>
+    with CloudRefreshMixin<JewelleryScreen> {
+  @override
+  Future<void> reloadFromCloud() => _load();
+
   final _search = TextEditingController();
   List<Map<String, Object?>> _invoices = const [];
   Map<String, double> _stock = const {};

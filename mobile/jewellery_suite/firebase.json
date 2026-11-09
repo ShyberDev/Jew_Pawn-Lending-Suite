@@ -1,0 +1,34 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "jewellery-suite--cloud",
+          "appId": "1:1075854501747:android:b47726cc9cbfba996fc706",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "jewellery-suite--cloud",
+          "configurations": {
+            "android": "1:1075854501747:android:b47726cc9cbfba996fc706",
+            "web": "1:1075854501747:web:6590a2d35ac633416fc706"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}

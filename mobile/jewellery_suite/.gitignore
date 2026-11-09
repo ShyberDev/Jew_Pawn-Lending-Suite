@@ -50,3 +50,12 @@ app.*.map.json
 # Local-only project notes and staged APKs
 APK_Project_Progress/.secrets.local.md
 APK_Project_Progress/.tmp_apk/
+
+# Local pre-change backup, never committed.
+.cloud_fix_backup/
+
+# Firestore emulator test dependencies and logs (never committed).
+test/emulator/node_modules/
+firestore-debug.log
+ui-debug.log
+firebase-debug.log

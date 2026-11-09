@@ -40,6 +40,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   bool _biometric = false;
   bool _biometricAvailable = false;
   final _gatewayCtl = TextEditingController();
+  final _gatewaySecretCtl = TextEditingController();
   String _gatewayChannel = 'sms';
 
   @override
@@ -51,6 +52,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   @override
   void dispose() {
     _gatewayCtl.dispose();
+    _gatewaySecretCtl.dispose();
     super.dispose();
   }
 
@@ -70,6 +72,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
         mode == AppLock.off ? false : await Biometrics.available();
     final gatewayUrl = await OtpGateway.url(state.db);
     final channel = await OtpGateway.channel(state.db);
+    final gatewaySecret = await OtpGateway.secret(state.db);
     if (!mounted) return;
     setState(() {
       _toggles = toggles;
@@ -79,6 +82,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
       _biometric = biometric;
       _biometricAvailable = biometricAvailable;
       _gatewayCtl.text = gatewayUrl;
+      _gatewaySecretCtl.text = gatewaySecret;
       _gatewayChannel = channel;
       _loading = false;
     });
@@ -378,18 +382,27 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
   Future<void> _saveGateway() async {
     final state = context.read<AppState>();
     final url = _gatewayCtl.text.trim();
-    if (url.isNotEmpty && !url.startsWith('http')) {
-      _toast('The gateway URL must start with http or https.');
+    // A bare host (`shop.local/otp`) used to save fine and then fail on every
+    // send, so the shop thought codes were going out by SMS.
+    if (url.isNotEmpty && !OtpGateway.validUrl(url)) {
+      _toast('Enter the full gateway URL, e.g. https://your-gateway/send.');
       return;
     }
     if (url.isEmpty) {
       await OtpGateway.clear(state.db);
+      _gatewaySecretCtl.clear();
       _toast('One-time codes will be shown on this phone.');
       return;
     }
-    await OtpGateway.configure(state.db, url: url, channel: _gatewayChannel);
-    _toast(
-        'Codes will be sent by ${_gatewayChannel == 'email' ? 'e-mail' : 'SMS'}.');
+    await OtpGateway.configure(state.db,
+        url: url,
+        channel: _gatewayChannel,
+        secret: _gatewaySecretCtl.text);
+    final by = _gatewayChannel == 'email' ? 'e-mail' : 'SMS';
+    _toast(url.startsWith('https://')
+        ? 'Codes will be sent by $by.'
+        : 'Codes will be sent by $by over plain HTTP — switch to https:// '
+            'before the shop relies on it.');
   }
 
   @override
@@ -433,6 +446,13 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
               hint: 'https://your-sms-or-mail-gateway/send'),
         ),
         const SizedBox(height: 8),
+        TextField(
+          controller: _gatewaySecretCtl,
+          obscureText: true,
+          decoration: fieldDecoration('Shared secret',
+              hint: 'Sent as X-Gateway-Secret and in the JSON body'),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             for (final (value, label) in const [
@@ -462,6 +482,7 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
               onPressed: () async {
                 await OtpGateway.clear(context.read<AppState>().db);
                 _gatewayCtl.clear();
+                _gatewaySecretCtl.clear();
                 _toast('Gateway removed — codes are shown on this phone.');
               },
               icon: const Icon(Icons.link_off, size: 17),
@@ -470,8 +491,8 @@ class _PasswordSettingsScreenState extends State<PasswordSettingsScreen> {
           ],
         ),
         Text(
-          'The gateway receives POST JSON: to, channel, purpose, code, message. '
-          'Any 2xx reply counts as sent.',
+          'The gateway receives POST JSON: to, channel, purpose, code, message, '
+          'and secret when one is set. Any 2xx reply counts as sent.',
           style: TextStyle(fontSize: 10.5, color: mutedOf(context)),
         ),
       ],

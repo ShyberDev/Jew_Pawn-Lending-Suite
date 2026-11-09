@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../data/jewellery_store.dart';
 import '../../../state/app_state.dart';
+import '../../../ui/cloud_refresh.dart';
 import '../../../ui/palette.dart';
 import '../../../util/format.dart';
 
@@ -17,7 +18,11 @@ class JewelleryReportsScreen extends StatefulWidget {
   State<JewelleryReportsScreen> createState() => _JewelleryReportsScreenState();
 }
 
-class _JewelleryReportsScreenState extends State<JewelleryReportsScreen> {
+class _JewelleryReportsScreenState extends State<JewelleryReportsScreen>
+    with CloudRefreshMixin<JewelleryReportsScreen> {
+  @override
+  Future<void> reloadFromCloud() => _load();
+
   int _range = 1; // 0 day, 1 month, 2 all
   ({
     double sales,

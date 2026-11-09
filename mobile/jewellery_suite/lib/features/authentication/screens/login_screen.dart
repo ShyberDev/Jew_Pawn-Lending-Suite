@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +10,7 @@ import '../../../ui/otp_flow.dart';
 import '../../../ui/palette.dart';
 import '../../../ui/secret_dialogs.dart';
 import '../../../ui/widgets.dart';
+import 'firebase_sign_in_screen.dart';
 
 /// Sign in / create the shop's account.
 ///
@@ -123,9 +126,24 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     await _run((state) async {
       final to = _identifier.text.trim();
-      final code = await state.issueOtp('login');
-      final delivered = await OtpGateway.send(
-          db: state.db, to: to, code: code, purpose: 'login');
+      // #065: the gateway POST can take up to its 12 s timeout. Without this
+      // dialog **Send code** just went dead while it waited — the same defect
+      // #085 fixed on the lock-screen reset, which this path did not share.
+      final nav = Navigator.of(context);
+      unawaited(showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SendingCodeDialog(),
+      ));
+      var code = '';
+      var delivered = false;
+      try {
+        code = await state.issueOtp('login');
+        delivered = await OtpGateway.send(
+            db: state.db, to: to, code: code, purpose: 'login');
+      } finally {
+        if (mounted) nav.pop();
+      }
       if (!mounted) return;
       final entered = await askOtpCodeDialog(context,
           code: code, identifier: to, delivered: delivered);
@@ -222,6 +240,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                     const SizedBox(height: 14),
                     _serverSection(),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => const FirebaseSignInScreen())),
+                      icon: const Icon(Icons.cloud_done_outlined, size: 18),
+                      label: const Text('Cloud account (Firebase)'),
+                    ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: _busy

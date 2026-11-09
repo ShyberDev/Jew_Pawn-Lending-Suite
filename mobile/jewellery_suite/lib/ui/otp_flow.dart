@@ -87,7 +87,7 @@ Future<bool> confirmWithOtp(
   unawaited(showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const _SendingCodeDialog(),
+    builder: (_) => const SendingCodeDialog(),
   ));
 
   String code;
@@ -122,8 +122,11 @@ Future<bool> confirmWithOtp(
 }
 
 /// Shown while the code is issued and handed to the SMS / e-mail gateway.
-class _SendingCodeDialog extends StatelessWidget {
-  const _SendingCodeDialog();
+///
+/// Public so the login screen's **Send code** shows the same progress rather
+/// than leaving its button dead for the gateway's 12 s timeout.
+class SendingCodeDialog extends StatelessWidget {
+  const SendingCodeDialog({super.key});
 
   @override
   Widget build(BuildContext context) {

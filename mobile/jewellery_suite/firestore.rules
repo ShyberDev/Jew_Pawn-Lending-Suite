@@ -1,0 +1,83 @@
+rules_version = '2';
+
+// Jewellery Suite — cloud data is grouped per shop, and only signed-in members
+// of that shop can read or write it. Nothing is world-readable: the shop's
+// customer names, phone numbers and stock are private financial data.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function shop(shopId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
+    function isMember(shopId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && shop(shopId).members[request.auth.uid] == true;
+    }
+
+    function isOwner(shopId) {
+      return isMember(shopId) && shop(shopId).owner == request.auth.uid;
+    }
+
+    // A person may keep their own profile / preferences under their uid.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // One document per shop. The creator becomes owner and first member;
+    // only the owner may change the member list afterwards.
+    //
+    // Phase 1 shops are personal: the shop id *is* the owner's uid (see
+    // CloudSync.shopIdFor). Reading your own document is therefore safe even
+    // before it exists — nobody else can create a document at that id, because
+    // `create` requires the id to be the caller's own uid. Gating `get` on
+    // isMember() alone denied the very first sync (isMember needs the document
+    // to exist), so a new account could never create its shop.
+    match /shops/{shopId} {
+      allow get: if signedIn()
+        && (request.auth.uid == shopId || isMember(shopId));
+      // No listing: a shop is found by its known id, so one member can never
+      // enumerate every other shop on the project.
+      allow list: if false;
+      allow create: if signedIn()
+        && request.auth.uid == shopId
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.members[request.auth.uid] == true;
+      // Ownership is fixed at creation: an update may never hand the shop to
+      // somebody else, and a shared shop's members stay members.
+      allow update: if isOwner(shopId)
+        && request.resource.data.owner == resource.data.owner;
+      allow delete: if isOwner(shopId);
+    }
+
+    // Shop data: stock movements, staff/employee records, and later the
+    // invoice documents. Every read/write goes through isMember(), which needs
+    // `members[uid] == true`, so another shop's data is never reachable — the
+    // `shops/{shopId}` rule above does not leak into its sub-collections.
+    match /shops/{shopId}/{collection}/{docId} {
+      allow read: if isMember(shopId);
+      allow create, update: if isMember(shopId)
+        && request.resource.data.keys().hasAll(['updated_at']);
+      allow delete: if isOwner(shopId);
+    }
+
+    // Documents nested under a shop document. Deliberately `{sub}/{rest=**}`
+    // and not `{sub=**}`: a recursive wildcard also matches *zero* segments,
+    // so `{sub=**}` silently re-allowed the direct document path above without
+    // `updated_at` (the emulator test caught this).
+    match /shops/{shopId}/{collection}/{docId}/{sub}/{rest=**} {
+      allow read: if isMember(shopId);
+      allow write: if isMember(shopId);
+    }
+
+    // Everything else is closed by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

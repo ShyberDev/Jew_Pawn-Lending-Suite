@@ -1,0 +1,12 @@
+{
+  "name": "jewellery-suite-firestore-rules",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bash run-rules-test.sh"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.12.0"
+  }
+}

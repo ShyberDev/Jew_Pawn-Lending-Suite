@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../data/jewellery_store.dart';
 import '../../../state/app_state.dart';
+import '../../../ui/cloud_refresh.dart';
 import '../../../ui/palette.dart';
 import '../../../ui/widgets.dart';
 import '../../../util/format.dart';
@@ -19,7 +20,11 @@ class JewelleryWorkerScreen extends StatefulWidget {
   State<JewelleryWorkerScreen> createState() => _JewelleryWorkerScreenState();
 }
 
-class _JewelleryWorkerScreenState extends State<JewelleryWorkerScreen> {
+class _JewelleryWorkerScreenState extends State<JewelleryWorkerScreen>
+    with CloudRefreshMixin<JewelleryWorkerScreen> {
+  @override
+  Future<void> reloadFromCloud() => _load();
+
   List<Map<String, Object?>> _txns = const [];
   List<Map<String, Object?>> _orders = const [];
   JewelleryWorkerPosition? _position;

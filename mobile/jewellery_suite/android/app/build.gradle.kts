@@ -7,6 +7,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase: the google-services plugin reads android/app/google-services.json at
+// configuration time and fails the build when the file is missing. It is
+// applied only when that file is present (same guard idea as the keystore
+// check below), so a phone copy without Firebase still builds. See
+// docs/FIREBASE_SETUP.md for the command that writes the file.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // #027/#028: release builds are signed with the shop's own keystore, read from
 // android/key.properties. Both files are gitignored and must be backed up —
 // losing the keystore means Play cannot accept an update.

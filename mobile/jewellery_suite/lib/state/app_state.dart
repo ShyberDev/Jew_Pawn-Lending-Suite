@@ -72,6 +72,19 @@ class AppState extends ChangeNotifier {
 
   AppState(this.db);
 
+  /// Bumped whenever the Firebase mirror pulls rows from another phone.
+  ///
+  /// Open screens listen to this and re-run their own queries (see
+  /// `CloudRefreshMixin`), so a pulled movement appears without a full-screen
+  /// rebuild and without waiting for the next user action.
+  final ValueNotifier<int> cloudRevision = ValueNotifier<int>(0);
+
+  /// The Firebase mirror writes stock / worker rows straight into the database.
+  void notifyCloudChanged() {
+    cloudRevision.value = cloudRevision.value + 1;
+    notifyListeners();
+  }
+
   String get serverUrl => api?.baseUrl ?? '';
   String get user => _user ?? '';
   String? _user;

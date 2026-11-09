@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'features/authentication/cloud/cloud_sync.dart';
+import 'features/authentication/cloud/firebase_bootstrap.dart';
 import 'data/db_setup_stub.dart'
     if (dart.library.js_interop) 'data/db_setup_web.dart';
 import 'data/due_notifications.dart';
@@ -30,6 +32,10 @@ Future<void> main() async {
           ),
         ),
       );
+  // Cloud sign-in is optional. Without android/app/google-services.json the
+  // guarded bootstrap reports "not configured" and the shop opens offline
+  // exactly as before, so this can never block a sale.
+  await FirebaseBootstrap.start();
   try {
     await setupDatabase();
     // Read the version out of the installed APK before anything can display
@@ -61,6 +67,11 @@ Future<void> main() async {
     // #048: the daily automatic backup starts after the first frame, so it can
     // never delay opening the shop. runAutoBackupIfDue swallows its failures.
     unawaited(state.runAutoBackupIfDue());
+    // Firebase live sync (stock ledger + worker records). No-ops when the
+    // build has no google-services.json or nobody is signed in; every failure
+    // stays inside CloudSync so a sale is never blocked by the network.
+    CloudSync.instance.attach(db, onChanged: state.notifyCloudChanged);
+    unawaited(CloudSync.instance.start());
   } catch (e, st) {
     debugPrint('STARTUP FAIL: $e\n$st');
     runApp(MaterialApp(
