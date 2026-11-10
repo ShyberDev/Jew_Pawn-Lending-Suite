@@ -135,8 +135,7 @@ class _JewelleryScreenState extends State<JewelleryScreen>
       _oldMetal = oldMetal;
       _workers = workers;
       _orderCounts = orderCounts;
-      _overdueCount =
-          countOverdueOrders([...openOrders, ...readyOrders]);
+      _overdueCount = countOverdueOrders([...openOrders, ...readyOrders]);
       _wip = wip;
       _returns = returns;
       _loading = false;
@@ -265,6 +264,7 @@ class _JewelleryScreenState extends State<JewelleryScreen>
         title: const Text('Jewellery'),
         actions: [
           IconButton(
+              tooltip: 'Refresh',
               onPressed: _loading ? null : _load,
               icon: const Icon(Icons.refresh)),
         ],
@@ -272,12 +272,12 @@ class _JewelleryScreenState extends State<JewelleryScreen>
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
               children: [
-                _ratesCard(),
-                const SizedBox(height: 8),
-                _summaryCard(summary),
-                const SizedBox(height: 8),
+                _ratesStrip(),
+                const SizedBox(height: 12),
+                _todayCard(summary),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -297,141 +297,78 @@ class _JewelleryScreenState extends State<JewelleryScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: ListTile(
-                    onTap: _openCreditBook,
-                    leading: const Icon(Icons.menu_book_outlined),
-                    title: const Text('Customer Credit Book'),
-                    subtitle: Text(
-                      (_credit?.customers ?? 0) == 0
-                          ? 'No jewellery customer dues'
-                          : '${inr(_credit!.outstanding)} due from '
-                              '${_credit!.customers} customer'
-                              '${_credit!.customers == 1 ? '' : 's'}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: ListTile(
-                    onTap: _openSupplierBook,
-                    leading: const Icon(Icons.local_shipping_outlined),
-                    title: const Text('Supplier Payables'),
-                    subtitle: Text(
-                      (_supplier?.suppliers ?? 0) == 0
-                          ? 'No jewellery supplier dues'
-                          : '${inr(_supplier!.outstanding)} payable to '
-                              '${_supplier!.suppliers} supplier'
-                              '${_supplier!.suppliers == 1 ? '' : 's'}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                  ),
-                ),
                 if (_overdueCount > 0) ...[
-                  const SizedBox(height: 8),
-                  Card(
-                    margin: EdgeInsets.zero,
-                    color: kRed.withValues(alpha: .08),
-                    child: ListTile(
-                      onTap: () =>
-                          _openScreen(const JewelleryOrdersScreen()),
-                      leading: const Icon(Icons.schedule, color: kRed),
-                      title: Text(
-                        '$_overdueCount overdue order'
-                        '${_overdueCount == 1 ? '' : 's'} · '
-                        '${_wipGrams.toStringAsFixed(3)} g WIP',
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: kRed,
-                        ),
-                      ),
-                      subtitle: const Text('Promised date has passed',
-                          style: TextStyle(fontSize: 11)),
-                      trailing: const Icon(Icons.chevron_right),
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+                  _overdueBanner(),
                 ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _moduleTile(
-                        icon: Icons.receipt_long_outlined,
-                        title: 'Orders',
-                        subtitle: '$_pendingOrders pending · '
-                            '$_readyOrders ready',
-                        onTap: () => _openScreen(const JewelleryOrdersScreen()),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _moduleTile(
-                        icon: Icons.handyman_outlined,
-                        title: 'Workers',
-                        subtitle: '${_workers.length} worker'
-                            '${_workers.length == 1 ? '' : 's'} · '
-                            '${Num.round3(_workerGold).toStringAsFixed(3)} g',
-                        onTap: () =>
-                            _openScreen(const JewelleryWorkersScreen()),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _moduleTile(
-                        icon: Icons.recycling_outlined,
-                        title: 'Old Metal',
-                        subtitle:
-                            '${Num.round3(_oldMetal?.goldGrams ?? 0).toStringAsFixed(3)} g gold · '
-                            '${inr(_oldMetal?.acceptedValue ?? 0)}',
-                        onTap: () =>
-                            _openScreen(const JewelleryOldMetalScreen()),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _moduleTile(
-                        icon: Icons.assignment_return_outlined,
-                        title: 'Returns',
-                        subtitle:
-                            '${_returns.length} credit note${_returns.length == 1 ? '' : 's'}',
-                        onTap: () =>
-                            _openScreen(const JewelleryReturnsScreen()),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: ListTile(
-                    onTap: () => _openScreen(const JewelleryReportsScreen()),
-                    leading: const Icon(Icons.insights_outlined),
-                    title: const Text('Reports'),
-                    subtitle: Text(
-                      'Sales, stock, orders, workers and profit · '
-                      'cash with workers ${inr(_workerCash)}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                const SizedBox(height: 22),
+                _group('Workshop', [
+                  _navRow(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Orders',
+                    subtitle: 'Repairs and custom pieces',
+                    metric: _overdueCount > 0
+                        ? '$_overdueCount overdue'
+                        : _pendingOrders > 0
+                            ? '$_pendingOrders pending'
+                            : '$_readyOrders ready',
+                    metricColor: _overdueCount > 0 ? kRed : null,
+                    onTap: () => _openScreen(const JewelleryOrdersScreen()),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Text('SALES & PURCHASES',
-                    style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: 1.2,
-                        fontWeight: FontWeight.w700,
-                        color: mutedOf(context))),
+                  _navRow(
+                    icon: Icons.handyman_outlined,
+                    title: 'Workers',
+                    subtitle: 'Karigars · cash ${inr(_workerCash)}',
+                    metric: '${_workers.length} · '
+                        '${Num.round3(_workerGold).toStringAsFixed(3)} g',
+                    onTap: () => _openScreen(const JewelleryWorkersScreen()),
+                  ),
+                  _navRow(
+                    icon: Icons.recycling_outlined,
+                    title: 'Old metal',
+                    subtitle: 'Gold and silver bought from customers',
+                    metric:
+                        '${Num.round3(_oldMetal?.goldGrams ?? 0).toStringAsFixed(3)} g',
+                    onTap: () => _openScreen(const JewelleryOldMetalScreen()),
+                  ),
+                  _navRow(
+                    icon: Icons.assignment_return_outlined,
+                    title: 'Returns',
+                    subtitle: 'Credit notes for returned pieces',
+                    metric: '${_returns.length} note'
+                        '${_returns.length == 1 ? '' : 's'}',
+                    onTap: () => _openScreen(const JewelleryReturnsScreen()),
+                  ),
+                ]),
+                _group('Money', [
+                  _navRow(
+                    icon: Icons.menu_book_outlined,
+                    title: 'Customer credit',
+                    subtitle: 'Who owes the shop',
+                    metric: (_credit?.customers ?? 0) == 0
+                        ? 'None due'
+                        : inr(_credit!.outstanding),
+                    onTap: _openCreditBook,
+                  ),
+                  _navRow(
+                    icon: Icons.local_shipping_outlined,
+                    title: 'Supplier payables',
+                    subtitle: 'What the shop owes suppliers',
+                    metric: (_supplier?.suppliers ?? 0) == 0
+                        ? 'None due'
+                        : inr(_supplier!.outstanding),
+                    onTap: _openSupplierBook,
+                  ),
+                  _navRow(
+                    icon: Icons.insights_outlined,
+                    title: 'Reports',
+                    subtitle: 'Profit, stock, sales and worker balances',
+                    onTap: () => _openScreen(const JewelleryReportsScreen()),
+                  ),
+                ]),
+                _documentsHeader(visible),
+                const SizedBox(height: 10),
                 if (_invoices.isNotEmpty) ...[
-                  const SizedBox(height: 8),
                   TextField(
                     controller: _search,
                     decoration: fieldDecoration('Search doc no, party or notes')
@@ -440,6 +377,7 @@ class _JewelleryScreenState extends State<JewelleryScreen>
                       suffixIcon: _search.text.isEmpty
                           ? null
                           : IconButton(
+                              tooltip: 'Clear search',
                               icon: const Icon(Icons.clear, size: 18),
                               onPressed: () {
                                 _search.clear();
@@ -449,68 +387,40 @@ class _JewelleryScreenState extends State<JewelleryScreen>
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
-                      for (final entry in const [
-                        (0, 'All types'),
-                        (1, 'Sales'),
-                        (2, 'Purchases'),
-                      ])
-                        ChoiceChip(
-                          label: Text(entry.$2),
-                          selected: _docFilter == entry.$1,
-                          onSelected: (_) =>
-                              setState(() => _docFilter = entry.$1),
+                      Expanded(
+                        child: SegmentedButton<int>(
+                          showSelectedIcon: false,
+                          segments: const [
+                            ButtonSegment(value: 0, label: Text('All')),
+                            ButtonSegment(value: 1, label: Text('Sales')),
+                            ButtonSegment(value: 2, label: Text('Purchases')),
+                          ],
+                          selected: {_docFilter},
+                          onSelectionChanged: (selection) =>
+                              setState(() => _docFilter = selection.first),
                         ),
-                      for (final entry in const [
-                        ('all', 'All metals'),
-                        (JewelleryStore.gold, 'Gold'),
-                        (JewelleryStore.silver, 'Silver'),
-                      ])
-                        ChoiceChip(
-                          label: Text(entry.$2),
-                          selected: _metalFilter == entry.$1,
-                          onSelected: (_) =>
-                              setState(() => _metalFilter = entry.$1),
+                      ),
+                      const SizedBox(width: 8),
+                      Badge.count(
+                        count: _activeFilterCount,
+                        isLabelVisible: _activeFilterCount > 0,
+                        child: IconButton.filledTonal(
+                          tooltip: 'Filter by metal or payment status',
+                          onPressed: _openFilters,
+                          icon: const Icon(Icons.tune, size: 20),
                         ),
-                      for (final entry in const [
-                        (0, 'All status'),
-                        (1, 'Dues'),
-                        (2, 'Settled'),
-                      ])
-                        ChoiceChip(
-                          label: Text(entry.$2),
-                          selected: _statusFilter == entry.$1,
-                          onSelected: (_) =>
-                              setState(() => _statusFilter = entry.$1),
-                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${visible.length} of ${_invoices.length} document'
-                    '${_invoices.length == 1 ? '' : 's'}',
-                    style: TextStyle(fontSize: 11, color: mutedOf(context)),
-                  ),
+                  const SizedBox(height: 4),
                 ],
-                const SizedBox(height: 6),
                 if (_invoices.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                        child: Text('No jewellery documents yet.',
-                            style: TextStyle(color: mutedOf(context)))),
-                  )
+                  _documentsEmpty()
                 else if (visible.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                        child: Text('No documents match these filters.',
-                            style: TextStyle(color: mutedOf(context)))),
-                  )
+                  _noMatch()
                 else
                   for (final invoice in visible) _invoiceTile(invoice),
               ],
@@ -518,34 +428,168 @@ class _JewelleryScreenState extends State<JewelleryScreen>
     );
   }
 
-  Widget _moduleTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
+  int get _activeFilterCount =>
+      (_metalFilter == 'all' ? 0 : 1) + (_statusFilter == 0 ? 0 : 1);
+
+  void _clearFilters() => setState(() {
+        _docFilter = 0;
+        _metalFilter = 'all';
+        _statusFilter = 0;
+      });
+
+  /// Metal and payment-status filters live behind one control: nine chips on
+  /// the counter screen made every document list look like a form.
+  Future<void> _openFilters() async {
+    var metal = _metalFilter;
+    var status = _statusFilter;
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Filter documents',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: inkOf(sheet))),
+                const SizedBox(height: 14),
+                Text('Metal',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: mutedOf(sheet))),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final entry in const [
+                      ('all', 'All metals'),
+                      (JewelleryStore.gold, 'Gold'),
+                      (JewelleryStore.silver, 'Silver'),
+                    ])
+                      ChoiceChip(
+                        label: Text(entry.$2),
+                        selected: metal == entry.$1,
+                        onSelected: (_) => setSheet(() => metal = entry.$1),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text('Payment status',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: mutedOf(sheet))),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final entry in const [
+                      (0, 'All status'),
+                      (1, 'Dues'),
+                      (2, 'Settled'),
+                    ])
+                      ChoiceChip(
+                        label: Text(entry.$2),
+                        selected: status == entry.$1,
+                        onSelected: (_) => setSheet(() => status = entry.$1),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => setSheet(() {
+                        metal = 'all';
+                        status = 0;
+                      }),
+                      child: const Text('Clear'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(sheet, true),
+                      child: const Text('Show results'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (applied == true && mounted) {
+      setState(() {
+        _metalFilter = metal;
+        _statusFilter = status;
+      });
+    }
+  }
+
+  /// Today's rate is the one figure every document depends on, so it sits at
+  /// the top on its own and is edited in place.
+  Widget _ratesStrip() {
     return Card(
       margin: EdgeInsets.zero,
+      child: Row(
+        children: [
+          Expanded(
+            child: _rateItem(JewelleryStore.gold, 'Gold'),
+          ),
+          Container(width: 1, height: 56, color: lineOf(context)),
+          Expanded(
+            child: _rateItem(JewelleryStore.silver, 'Silver'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rateItem(String metal, String label) {
+    final rate = _rates[metal];
+    return Tooltip(
+      message: 'Edit today\'s $label rate',
       child: InkWell(
-        onTap: onTap,
+        onTap: () => _editRate(metal),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 22, color: kGoldDark),
-              const SizedBox(height: 8),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: inkOf(context))),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: mutedOf(context))),
+              Row(
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: mutedOf(context))),
+                  const SizedBox(width: 4),
+                  Icon(Icons.edit_outlined, size: 13, color: mutedOf(context)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                rate == null ? 'Not set' : '${moneyWhole(rate)}/g',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: rate == null ? kGoldDark : inkOf(context)),
+              ),
+              if (metal == JewelleryStore.gold && rate != null)
+                Text(
+                  '92% ${moneyWhole(JewelleryMath.rateForPurity(rate, 92))}/g',
+                  style: TextStyle(fontSize: 11, color: mutedOf(context)),
+                ),
             ],
           ),
         ),
@@ -553,61 +597,10 @@ class _JewelleryScreenState extends State<JewelleryScreen>
     );
   }
 
-  Widget _ratesCard() {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Today\'s saved rates',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            for (final metal in const [
-              JewelleryStore.gold,
-              JewelleryStore.silver
-            ])
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(_metalLabel(metal),
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: inkOf(context))),
-                    ),
-                    Text(
-                      _rates[metal] == null
-                          ? 'Not set'
-                          : '${moneyWhole(_rates[metal])}/g'
-                              '${metal == JewelleryStore.gold ? ' · 92% ${moneyWhole(JewelleryMath.rateForPurity(_rates[metal]!, 92))}/g' : ''}',
-                      style: TextStyle(fontSize: 12, color: mutedOf(context)),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      onPressed: () => _editRate(metal),
-                    ),
-                  ],
-                ),
-              ),
-            Text(
-              'A saved rate is history: older documents keep the rate they used.',
-              style: TextStyle(fontSize: 11, color: mutedOf(context)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _summaryCard(
+  /// Money and metal are different questions — what came in today, and what is
+  /// physically in the safe — so they get two labelled blocks, not eight
+  /// identical stat pairs.
+  Widget _todayCard(
       ({
         double salesToday,
         double purchasesToday,
@@ -619,36 +612,40 @@ class _JewelleryScreenState extends State<JewelleryScreen>
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _blockLabel('Money today'),
+            const SizedBox(height: 10),
             Row(
               children: [
-                _stat('Raw gold', _weight('${JewelleryStore.gold}_RAW')),
-                _stat('Raw silver', _weight('${JewelleryStore.silver}_RAW')),
+                _metric('Sales', inr(s?.salesToday ?? 0)),
+                _metric('Collected', inr(s?.collectedToday ?? 0)),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
-                _stat('Old gold', _weight('${JewelleryStore.gold}_OLD')),
-                _stat('Old silver', _weight('${JewelleryStore.silver}_OLD')),
-              ],
-            ),
-            const Divider(height: 18),
-            Row(
-              children: [
-                _stat("Today's sales", inr(s?.salesToday ?? 0)),
-                _stat('Collected today', inr(s?.collectedToday ?? 0)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _stat('Purchases today', inr(s?.purchasesToday ?? 0)),
-                _stat('Outstanding', inr(s?.outstanding ?? 0),
+                _metric('Purchases', inr(s?.purchasesToday ?? 0)),
+                _metric('Outstanding', inr(s?.outstanding ?? 0),
                     caption: '${s?.openInvoices ?? 0} open'),
+              ],
+            ),
+            const Divider(height: 26),
+            _blockLabel('Metal in hand'),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _metric('Raw gold', _weight('${JewelleryStore.gold}_RAW')),
+                _metric('Raw silver', _weight('${JewelleryStore.silver}_RAW')),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _metric('Old gold', _weight('${JewelleryStore.gold}_OLD')),
+                _metric('Old silver', _weight('${JewelleryStore.silver}_OLD')),
               ],
             ),
           ],
@@ -657,18 +654,205 @@ class _JewelleryScreenState extends State<JewelleryScreen>
     );
   }
 
-  Widget _stat(String label, String value, {String? caption}) {
+  Widget _blockLabel(String text) => Text(text,
+      style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .2,
+          color: mutedOf(context)));
+
+  Widget _metric(String label, String value, {String? caption}) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(value,
               style: TextStyle(
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: inkOf(context))),
           Text(caption == null ? label : '$label · $caption',
-              style: TextStyle(fontSize: 10.5, color: mutedOf(context))),
+              style: TextStyle(fontSize: 11, color: mutedOf(context))),
+        ],
+      ),
+    );
+  }
+
+  Widget _group(String title, List<Widget> rows) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Text(title,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: inkOf(context))),
+        ),
+        Card(
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                if (i > 0) Divider(height: 1, color: lineOf(context)),
+                rows[i],
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _navRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    String? metric,
+    Color? metricColor,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, size: 22, color: kGoldDark),
+      title: Text(title,
+          style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: inkOf(context))),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle,
+              style: TextStyle(fontSize: 11.5, color: mutedOf(context))),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (metric != null)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 104),
+              child: Text(
+                metric,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: metricColor ?? mutedOf(context)),
+              ),
+            ),
+          const SizedBox(width: 2),
+          Icon(Icons.chevron_right, size: 20, color: mutedOf(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _overdueBanner() {
+    return Material(
+      color: kRed.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _openScreen(const JewelleryOrdersScreen()),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          child: Row(
+            children: [
+              const Icon(Icons.schedule, color: kRed, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$_overdueCount overdue order'
+                      '${_overdueCount == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: kRed),
+                    ),
+                    Text(
+                      '${_wipGrams.toStringAsFixed(3)} g with workers · '
+                      'promised date passed',
+                      style: TextStyle(fontSize: 11, color: mutedOf(context)),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 20, color: kRed),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _documentsHeader(List<Map<String, Object?>> visible) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Text('Documents',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: inkOf(context))),
+        ),
+        Text(
+          _invoices.isEmpty
+              ? 'None yet'
+              : '${visible.length} of ${_invoices.length}',
+          style: TextStyle(fontSize: 11.5, color: mutedOf(context)),
+        ),
+      ],
+    );
+  }
+
+  Widget _documentsEmpty() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 34, color: mutedOf(context)),
+          const SizedBox(height: 10),
+          Text('No sales or purchases yet',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: inkOf(context))),
+          const SizedBox(height: 4),
+          Text('Record a sale to start the shop ledger.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: mutedOf(context))),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: () => _openForm(JewelleryStore.saleDoc),
+            icon: const Icon(Icons.sell_outlined, size: 18),
+            label: const Text('Record a sale'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noMatch() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        children: [
+          Text('No documents match these filters.',
+              style: TextStyle(fontSize: 12.5, color: mutedOf(context))),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: _clearFilters,
+            icon: const Icon(Icons.filter_alt_off_outlined, size: 17),
+            label: const Text('Clear filters'),
+          ),
         ],
       ),
     );
