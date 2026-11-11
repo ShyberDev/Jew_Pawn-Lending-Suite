@@ -1,6 +1,24 @@
 {
   "version": 1,
   "skills": {
+    "dart-fix-runtime-errors": {
+      "source": "flutter/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/dart-fix-runtime-errors/SKILL.md",
+      "computedHash": "7b13cb0df76693d8c798432a1f86325b093a35e9687f231a012763fcad54fb2c"
+    },
+    "dart-resolve-package-conflicts": {
+      "source": "flutter/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/dart-resolve-package-conflicts/SKILL.md",
+      "computedHash": "e25c789387152d9d0c437610caa5746e337a789bcb8e9c9887b0425b94b734ef"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "913b9d37d0d54047dd65222bb8c67b2bf04e3cb87dcad1729068d7a8b2c8c396"
+    },
     "firebase-auth-basics": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
@@ -13,17 +31,41 @@
       "skillPath": "skills/firebase-basics/SKILL.md",
       "computedHash": "56081b5b4f8ae55c32d5bc8dfb03b6b20127a805d36d51be966655f0f39af513"
     },
-    "firebase-crashlytics": {
-      "source": "firebase/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/firebase-crashlytics/SKILL.md",
-      "computedHash": "c36ad50c31d1ef4f81eb64907fcf5020a81d5f8b3f89abe02953d0f9d8a9fac6"
-    },
     "firebase-firestore": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-firestore/SKILL.md",
       "computedHash": "f12f1a41365344fc025eba3fd05c0a2d9d1a2c01359f95d8939ccd323f5125be"
+    },
+    "flutter-add-widget-preview": {
+      "source": "flutter/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/flutter-add-widget-preview/SKILL.md",
+      "computedHash": "5569e0b4a29ac21e1c663751a1d73364be2f63237a88d013733f655797a152bd"
+    },
+    "flutter-build-responsive-layout": {
+      "source": "flutter/agent-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/flutter-build-responsive-layout/SKILL.md",
+      "computedHash": "f762ea2ee83d4f1f35d9093b41d2520dd024ab80c9539d4860b9ae7f2a4dc6a0"
+    },
+    "flutter-navigation": {
+      "source": "madteacher/mad-agents-skills",
+      "sourceType": "github",
+      "skillPath": "flutter-navigation/SKILL.md",
+      "computedHash": "f48878d64e47df43bda69a12a9d75e7dbf40ecab5e1cd5eb87b00584913af127"
+    },
+    "flutter-testing": {
+      "source": "madteacher/mad-agents-skills",
+      "sourceType": "github",
+      "skillPath": "flutter-testing/SKILL.md",
+      "computedHash": "8cd65aa17b3f0934ef4dd7c8e205b38ce80ca2f79010d2b40dc2f153dad817dc"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "731d7fbd8800a9ad70a04c8834c25304370b4c3310866ff26bfd14e0c3b12975"
     }
   }
 }
