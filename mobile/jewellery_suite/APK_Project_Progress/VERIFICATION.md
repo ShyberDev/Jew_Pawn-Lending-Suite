@@ -10,7 +10,8 @@ confirm with `adb shell echo alive` before installing.
 
 **Current state (2026-11-08):** `10.52.61.216:35835`, build **1.4.26 /
 versionCode 2078**, `SQLCipher encrypted, schema v21`. The last **published**
-build is **v1.4.4 / 2056**. Phone credentials are in `PASSWORDS.md`.
+build is **v1.4.26 / 2078**, published 2026-11-11. Phone credentials are in
+`PASSWORDS.md`.
 
 **Template for a new entry**
 

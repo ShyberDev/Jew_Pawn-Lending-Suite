@@ -12,15 +12,16 @@ what was built, what was seen on the phone, and what is still owed.
 | Thing | Value |
 |---|---|
 | Installed test build | **1.4.26 / versionCode 2078** on `10.52.61.216:35835` — #090 seen on it 2026-11-08 |
-| Last published release | **v1.4.4 / versionCode 2056** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.4) (arm64, armeabi-v7a, x86_64) |
+| Last published release | **v1.4.26 / versionCode 2078** — [GitHub release](https://github.com/ShyberDev/Jew_Pawn-Lending-Suite/releases/tag/v1.4.26) (arm64, armeabi-v7a, x86_64), published 2026-11-11 |
 | Branch | `Apk_Develop_Branch_01_11` |
 | Database | `SQLCipher encrypted, schema v21` |
 | Tests | **569 passing**; `flutter analyze` clean |
 | Unlocking the app | **`PASSWORDS.md`** — standing defaults PIN `123456`, admin `Admin@123`, and a rule not to rotate them |
 | Phone ledger | shyam / A01, Gold chain 10.0 g, ₹10,000 at 3 %/month, due 02-02-27, outstanding ₹10,900 |
 
-> The installed 1.4.17 is a **development** build. The last build verified against
-> the published release asset is v1.4.4.
+> The installed 1.4.26 is a **development** build and is **not** the published
+> asset: v1.4.26 was published 2026-11-11 but has not been opened on a phone yet.
+> The last published asset installed and opened end-to-end was v1.4.4.
 
 ---
 

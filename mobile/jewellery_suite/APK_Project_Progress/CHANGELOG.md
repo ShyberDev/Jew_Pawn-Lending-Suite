@@ -6,6 +6,14 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-11 — v1.4.26 published; install blocked on the HyperOS phone
+
+- **Published:** GitHub release **v1.4.26** (tag `v1.4.26`, marked **Latest**, notes list every size and SHA-256) with the three split APKs: arm64-v8a **47,574,144** bytes `5b0809aa059590f979570f88e61bf82e09710166aa723e1735674c0c8e32da7c`, armeabi-v7a **40,248,266** `e8a5dcc81b0fc37a59461c3922e418cadf4bc64658a837e8b3ea49ce6ff5cdc3`, x86_64 **50,336,587** `eb5d1847a1653536c11c27ee197549b09ae85e94c6c125cb612632588d041554`. First published build since v1.4.4, and the first to carry #092 and the #091 scaffolding.
+- **Built from committed code:** `flutter build apk --release --split-per-abi` at `fa268ce`, 1.4.26 / versionCode 2078. `--target-platform android-arm64` was tried first and produced a 75.6 MB fat APK with versionCode 78, so the split build is the one that ships.
+- **Install blocked on the shop's Redmi Note 13 Pro** (`garnet`, Android 16 / HyperOS), reached over wireless debugging with `adb pair 192.0.0.2:41137` and then the phone's mDNS record. It carried **1.1.6 / versionCode 32** earlier in the session and no app package at install time. Four attempts (`adb install -r`, `--user 0`, `pm install` from `/data/local/tmp`, after opening Developer options) all returned `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`; HyperOS refused `settings put secure adb_install_need_confirm 0` with `SecurityException: … WRITE_SECURE_SETTINGS`.
+- **Nothing on the phone changed.** The APK is on it at `/data/local/tmp/js.apk`; the owed step is **Developer options → Install via USB**, then `adb install -r`. Evidence in `VERIFICATION.md`.
+- **#092 stays 🟨** — the published build has not been opened on a phone.
+
 ### 2026-11-10 — #092 jewellery core counter regrouped (code done, phone pass owed)
 
 - **The problem:** the hub gave today's rates, eight flat stat pairs, four icon tiles and three module cards the same visual weight, and hid the document list behind nine chips — a new user had nowhere to start.

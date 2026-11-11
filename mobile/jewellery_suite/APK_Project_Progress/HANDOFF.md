@@ -14,7 +14,7 @@
 | Installed build | **1.4.26 / versionCode 2078**, release-signed, arm64 |
 | Database | `SQLCipher encrypted, schema v21` |
 | Branch | `Apk_Develop_Branch_01_11` |
-| Last **published** release | **v1.4.4 / 2056** (GitHub release, three split APKs) |
+| Last **published** release | **v1.4.26 / 2078** (GitHub release, three split APKs, published 2026-11-11) |
 | Tests / analyzer | 542 passing, `flutter analyze` clean at the last check |
 | Latest APK | `mobile/jewellery_suite_v1.4.26-arm64-v8a.apk` (**1.4.26 / 2078**, rebuilt 2026-11-11 from the #092 counter restructure, 47,574,144 bytes, SHA-256 `5b0809aa…`) — #090 was passed on the **2026-11-08** build of this version; the rebuild is **not installed** (HyperOS refused the adb install, see `VERIFICATION.md`) |
 | Credentials | **`APK_Project_Progress/PASSWORDS.md`** — read it, never rotate |
