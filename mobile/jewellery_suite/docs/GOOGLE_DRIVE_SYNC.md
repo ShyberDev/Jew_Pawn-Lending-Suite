@@ -128,8 +128,10 @@ stored once and a restore on a new phone brings its pictures back.
    * package name: `com.shyberdev.jewellery_suite`
    * SHA-1 of the release keystore (and the debug keystore if you want it while
      developing): `keytool -list -v -keystore <keystore> -alias <alias>`
-5. Send me that client ID (and the matching SHA-1) — it is not a secret; it is
-   embedded in the app.
+5. Also create an **OAuth client ID → Web application**, and send that **Web
+   client ID**. On Android `google_sign_in` needs it as `serverClientId`; the
+   Android client (package + SHA-1) alone is not enough. Neither client ID is a
+   secret — both are embedded in the app.
 
 Until that exists, **Settings → Backup & data** keeps writing encrypted backups
 to the phone, and the share sheet can already send them to Drive by hand, which

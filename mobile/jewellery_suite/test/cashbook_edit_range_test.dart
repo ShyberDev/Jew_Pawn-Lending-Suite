@@ -154,4 +154,38 @@ void main() {
     expect(await OtpGateway.isConfigured(local), isFalse);
     expect(await OtpGateway.channel(local), 'sms');
   });
+
+  test('the gateway keeps a shared secret and refuses a malformed URL',
+      () async {
+    await OtpGateway.configure(local,
+        url: 'https://example.test/send',
+        channel: 'email',
+        secret: 'shop-secret-1');
+    expect(await OtpGateway.secret(local), 'shop-secret-1');
+
+    // Saving again with an empty secret is how the shop removes one.
+    await OtpGateway.configure(local,
+        url: 'https://example.test/send', channel: 'email', secret: '  ');
+    expect(await OtpGateway.secret(local), isEmpty);
+
+    // A bare host is not a usable endpoint: every send would fail silently.
+    expect(OtpGateway.validUrl('https://example.test/send'), isTrue);
+    expect(OtpGateway.validUrl('http://10.0.0.5:8765/otp'), isTrue);
+    expect(OtpGateway.validUrl('shop.local/otp'), isFalse);
+    expect(OtpGateway.validUrl(''), isFalse);
+
+    await OtpGateway.configure(local,
+        url: 'shop.local/otp', channel: 'sms', secret: 'shop-secret-1');
+    expect(
+        await OtpGateway.send(
+            db: local,
+            to: '9000000001',
+            code: '123456',
+            purpose: 'login'),
+        isFalse,
+        reason: 'a malformed URL must fall back to the on-phone code');
+
+    await OtpGateway.clear(local);
+    expect(await OtpGateway.secret(local), isEmpty);
+  });
 }

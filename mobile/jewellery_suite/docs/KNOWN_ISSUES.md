@@ -1,6 +1,6 @@
 # Jewellery Suite — Known Issues & Unfinished Work
 
-Status of `Apk_Develop_Branch_01_11` at **v1.4.20 / 2072**. Last updated **2026-11-07**.
+Status of `Apk_Develop_Branch_01_11` at **v1.4.26 / 2078**. Last updated **2026-11-08**.
 
 This file is the "what is still wrong or missing" view. The authoritative,
 one-row-per-item list is **`APK_Project_Progress/TRACKER.md`**; the dated phone
@@ -89,7 +89,7 @@ Each item has a stable ID. Quote the ID in bug reports.
 
 | Item | Tracker | Needs | Guide |
 |---|---|---|---|
-| Real OTP delivery | **#065** | An SMS / e-mail gateway URL + shared secret. The mock transport and the payload contract are already phone-verified (2026-11-06). | `docs/SETUP_OTP_GATEWAY.md` |
+| Real OTP delivery | **#065** | An SMS / e-mail gateway URL + shared secret. The mock transport and the payload contract are already phone-verified (2026-11-06); the app now stores and sends the shared secret (`X-Gateway-Secret` + `secret` in the body), so only the shop's URL and secret are missing. | `docs/SETUP_OTP_GATEWAY.md` |
 | Google Drive backup + sync | **#072** | A Google Cloud **Web client ID** (the Android client and release SHA-1 are documented). Design and conflict rules are written. | `docs/SETUP_GOOGLE_DRIVE_OAUTH.md`, `docs/GOOGLE_DRIVE_SYNC.md` |
 | Firebase Crashlytics + App Distribution | **#081** | A Firebase project and its `google-services.json`. No Firestore / Storage for ledger data. | `docs/SETUP_FIREBASE.md` |
 
@@ -151,22 +151,25 @@ evidence is in `APK_Project_Progress/VERIFICATION.md`.
 
 ---
 
-## F. One item owes a phone pass
+## F. Phone-pass status
 
 **#085** — on v1.4.20 the lock screen's **Forgot PIN?** → **Send code** closed the
 dialog and then showed nothing (no code box, no error) while the code was issued
 and the gateway POST ran; a failure in that step dropped the reset silently.
 v1.4.22 covers the exchange with a **“Sending the code…”** dialog and always ends
 on the six-digit code box, falling back to the on-screen code when the gateway
-fails. Built, not yet seen on the phone.
+fails. **Seen on the phone 2026-11-07** on v1.4.22 / 2074: the code box
+appeared with the offline code, a wrong code was refused, and the keypad stayed
+down. Nothing owed.
 
 **#086** — every shared PIN / password / one-time-code prompt disposed its
 `TextEditingController` in a `finally` while the dialog route was still animating
 out, throwing *“A TextEditingController was used after being disposed”* on close
 (a debug assertion; a red error frame in debug builds). The four remaining
 prompts now own their controller in a `State`, like `_PasswordPrompt` already
-did. Behaviour is unchanged. Built (**1.4.22 / 2074**), not yet seen on the
-phone.
+did. Behaviour is unchanged. **Seen on the phone 2026-11-07** on v1.4.22 / 2074:
+every prompt opened and closed cleanly, with no *“used after being disposed”* in
+logcat. Nothing owed.
 
 **#084** — the lock screen's **Forgot PIN?** was a dead button (the gate rendered
 the lock screen in a bare `Overlay`, so `showDialog` had no `Navigator`). Fixed

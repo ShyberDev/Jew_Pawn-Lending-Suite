@@ -16,13 +16,15 @@ showing the code on the phone, so a forgotten password can never lock the shop o
 ```http
 POST <gateway URL>
 Content-Type: application/json
+X-Gateway-Secret: <shared secret>   # only when one is configured
 
 {
   "to": "benwolf449@gmail.com",
   "channel": "email",
   "purpose": "admin_reset",
   "code": "123456",
-  "message": "Jewellery Suite code 123456 — valid 10 minutes. If you did not ask for it, ignore this message."
+  "message": "Jewellery Suite code 123456 — valid 10 minutes. If you did not ask for it, ignore this message.",
+  "secret": "<shared secret, only when one is configured>"
 }
 ```
 
@@ -33,11 +35,15 @@ Content-Type: application/json
 | `purpose` | `admin_reset`, `login`, … (free text from the caller) |
 | `code` | The 6-digit code; hashing, expiry and the attempt cap already live in `LocalAccount` |
 | `message` | Ready-to-send text, so a dumb gateway can forward it verbatim |
+| `secret` | The same shared secret as the `X-Gateway-Secret` header. Present only when one is configured; the Apps Script and Worker examples below check this field |
 
 - Timeout: **12 seconds** (`OtpGateway.send`).
 - Success: **any 2xx**.
 - Failure: non-2xx, timeout, DNS/TLS error → on-screen fallback.
-- **No auth header is sent today.** The URL itself is the only secret. See
+- **Auth:** when a shared secret is saved (*Password Settings → One-time code
+  delivery → Shared secret*) it is sent both as `X-Gateway-Secret` and as
+  `secret` in the body. The gateways below reject a call without it. A gateway
+  URL saved with no secret is protected by nothing but the URL itself — see
   *Security gaps* below.
 
 ---
@@ -57,8 +63,7 @@ function doPost(e) {
   try {
     const b = JSON.parse(e.postData.contents);
 
-    // The app does not send `secret` yet; once it does, uncomment this.
-    // if (b.secret !== SECRET) return out({ ok: false, error: 'unauthorized' });
+    if (b.secret !== SECRET) return out({ ok: false, error: 'unauthorized' });
 
     if (!ALLOWED.includes(b.to)) return out({ ok: false, error: 'recipient' });
     if (b.channel !== 'email') return out({ ok: false, error: 'email only' });
@@ -211,9 +216,12 @@ tail -1 /tmp/opencode/otp_requests.log
 
 ## Security gaps (must close before a real gateway)
 
-1. **No shared secret in the app.** Anyone who learns the gateway URL can send
-   mail/SMS through the shop's account. Add a `otp_gateway_secret` setting and an
-   `X-Gateway-Secret` header in `OtpGateway.send`, then require it in the gateway.
+1. ~~No shared secret in the app.~~ **Closed 2026-11-08:** `OtpGateway` stores
+   `otp_gateway_secret` and sends it as `X-Gateway-Secret` **and** as `secret`
+   in the JSON body, which is the field the Apps Script and Worker examples
+   above check. Set the same value in the gateway's own secrets. A gateway URL
+   saved with an empty secret still accepts calls from anyone who learns it, so
+   do not leave the field blank on a real gateway.
 2. **HTTP is allowed by the URL field.** Production must be `https://` only
    (#042). Cleartext puts the OTP on the Wi-Fi.
 3. **The URL and secret sit in the encrypted DB.** That is acceptable, but rotate
@@ -235,4 +243,5 @@ tail -1 /tmp/opencode/otp_requests.log
 - [ ] The code from the request resets the admin password
 - [ ] **Remove gateway** clears the field and restores the on-screen fallback
 - [ ] Airplane mode → **Send code** falls back on-screen without an error dialog
-- [ ] Real gateway: HTTPS URL + shared secret + rate limit
+- [ ] Real gateway: HTTPS URL + shared secret (both the app field and the
+      gateway's own secret) + rate limit

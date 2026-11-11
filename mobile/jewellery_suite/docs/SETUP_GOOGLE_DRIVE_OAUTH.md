@@ -27,7 +27,7 @@ shop is ready to test sign-in on two phones.
 | Release SHA-256 | `54:F9:83:32:23:D1:A8:52:78:A7:49:B8:9F:FA:61:3C:EC:C8:8E:14:7D:CA:25:FA:1C:F6:BA:D5:2A:B6:1C:09` |
 | Debug SHA-1 | `CE:85:4B:43:DD:C1:2F:88:CD:04:AB:92:92:E2:D1:1B:FB:A9:3E:49` |
 | Keystore | `android/app/upload-keystore.jks`, alias `upload` |
-| Current release | `v1.4.4` (versionCode 2056) |
+| Current release | `v1.4.26` (versionCode 2078) |
 | Scopes | `https://www.googleapis.com/auth/drive.appdata`, `email` |
 
 > The SHA-1 above is the **release** certificate. Google matches the Android
@@ -120,10 +120,13 @@ Settings needed: `drive_backup_url`, `drive_backup_secret`, and a switch
 **Also copy backups to Drive**. Reuse the existing `settings` table; no schema
 change.
 
-> **Do not enable this yet.** The backup manifest currently writes `db_key` next
-> to the database (#080 open item). Uploading that zip puts the database key in
-> the same Drive folder as the database. Fix #080 first: wrap the archive key with
-> a shop passphrase (PBKDF2/Argon2 → AES-GCM) and ask for it on restore.
+> **#080 is done** (v1.4.16): a backup only carries its database key when
+> **Include database key** was switched on, and then the key is wrapped with a
+> passphrase (PBKDF2-HMAC-SHA256 + HMAC) and asked for again on restore — never a
+> clear `db_key`. Uploading such an archive to Drive is safe. A backup made
+> *without* the key can only be restored on the phone that made it, so a Drive
+> copy the shop intends to keep must be created with the key and with a
+> passphrase the shop has written down.
 
 ### A3. Test
 
@@ -328,4 +331,4 @@ migration.
 - [ ] Upload writes one file into `appDataFolder` / the visible folder
 - [ ] List shows it newest-first; download restores it on a second phone
 - [ ] Sign-in survives an app restart without a new consent prompt
-- [ ] No `db_key` in the uploaded manifest (#080 fixed first)
+- [ ] Uploaded manifest carries `db_key_wrapped`, never a clear `db_key` (#080 done)
