@@ -6,6 +6,15 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-10 — #092 jewellery core counter regrouped (code done, phone pass owed)
+
+- **The problem:** the hub gave today's rates, eight flat stat pairs, four icon tiles and three module cards the same visual weight, and hid the document list behind nine chips — a new user had nowhere to start.
+- **The layout now:** the gold/silver rate card is the first thing on the screen and is edited in place (gold adds its 92% rate underneath); **Money today** (Sales, Collected, Purchases, Outstanding, Open invoices) and **Metal** are two labelled blocks instead of eight identical pairs; **Workshop** (Orders, Workers, Old metal, Returns) and **Money** (Customer credit, Supplier payables, Reports) are grouped navigation rows, each carrying its own live figure or status on the right.
+- **Documents:** an **All · Sales · Purchases** control replaces the type chips, and metal/payment status moved into one **Filter documents** sheet behind a tune button that badges the number of active filters (**Clear** / **Show results**).
+- **Deliberately unchanged:** every figure still comes from the same `JewelleryStore` queries, the #088 overdue banner is untouched, and the document predicates are the same — this is a layout and filter-control change, not new maths.
+- **Checks:** `flutter analyze` clean; full suite **569 passing**. No widget test covers this screen, so nothing beyond “it analyses clean and the existing suite still passes” is claimed.
+- **Not yet seen on the phone** — the installed build (1.4.26 / 2078) predates the change.
+
 ### 2026-11-08 — #090 invoice PDF (code done, phone pass owed)
 
 - Added **Share PDF** to the document sheet: a one-page PDF bill built from rows shared with the CSV export (`jewelleryBillRows` in `report_csv.dart`), written with a timestamped file name (`jewellery_suite_bill_<doc>_<stamp>.pdf`) and handed to the share sheet as a file.
