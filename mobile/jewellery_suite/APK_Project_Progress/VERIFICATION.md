@@ -26,6 +26,48 @@ build is **v1.4.26 / 2078**, published 2026-11-11. Phone credentials are in
 
 ---
 
+## 2026-11-11 — v1.4.26 (4078, x86_64 emulator) — #092 counter walked end to end
+
+- **Device:** `Jewellery_Suite_Test` AVD (x86_64, Android 16). **Not the shop's phone** —
+  this is emulator evidence, so `TRACKER.md` #092 stays 🟨 until the same screen is
+  seen on hardware.
+- **Install:** the AVD carried a debug-signed 1.0.23, which refused the release APK
+  (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalled and installed
+  `app-x86_64-release.apk` → **1.4.26 / versionCode 4078**. First launch opened
+  *Set your admin password*; set the standing default `Admin@123` from
+  `PASSWORDS.md` and continued through *Use without a server*. Logcat:
+  `[db] open: SQLCipher encrypted, schema v21`, no `FATAL` or `E/flutter` line in
+  the whole session.
+- **Rates strip:** *Gold* and *Silver* sit alone at the top with a pencil affordance.
+  Tapping the gold pencil opened **Gold rate** — *Pure-metal rate ₹/g*, **Cancel** /
+  **Save**; `7200` saved and the strip then read **7,200/g** with **92% 6,624/g**
+  underneath, silver still **Not set**.
+- **Money today / Metal in hand:** one card, two labelled blocks. After a
+  ₹72,000 sale it read **Sales ₹72,000 · Collected ₹0 · Purchases ₹0 ·
+  Outstanding ₹72,000 · 1 open**; the metal block listed **Raw gold / Raw silver /
+  Old gold / Old silver** in grams.
+- **Workshop group:** **Orders — 0 ready**, **Workers — 0 · 0.000 g**,
+  **Old metal — 0.000 g**, **Returns — 0 notes**, each with its subtitle and chevron.
+- **Money group:** **Customer credit — ₹72,000**, **Supplier payables — None due**,
+  **Reports**. The credit figure moved with the sale, so the row figures are live,
+  not static labels.
+- **Documents:** after one sale the header read **Documents · 1 of 1**, with the
+  search box, the **All · Sales · Purchases** segmented control (All selected) and
+  the tune button. One tile: **Ravix10 · SAL-20261111-0001 · ₹72,000 ·
+  11-11-26 · Sale · GOLD · Bal ₹72,000**.
+- **Filter documents sheet:** the tune button opened a bottom sheet titled
+  **Filter documents** with **Metal** (*All metals · Gold · Silver*) and
+  **Payment status** (*All status · Dues · Settled*), **Clear** and **Show results**.
+  Picking **Gold** + **Dues** and **Show results** closed the sheet and put a red
+  **2** badge on the tune button, with the list still showing the single sale.
+- **Not covered:** the **Purchases** segment and the no-match state were not
+  switched (only one sale existed), `Clear` was not pressed after the badge
+  appeared, and nothing here is a hardware observation. Test data left on the AVD
+  only: admin password `Admin@123`, gold rate ₹7,200/g, sale
+  `SAL-20261111-0001`.
+
+---
+
 ## 2026-11-11 — v1.4.26 (2078) — rebuild for the Redmi Note 13 Pro — build made, install refused
 
 - **Not a phone pass.** Nothing was opened, so no tracker item changes state.

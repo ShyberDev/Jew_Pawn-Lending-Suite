@@ -46,11 +46,13 @@ what was built, what was seen on the phone, and what is still owed.
 
 ## Next five actions
 
-1. **Two phone passes are owed.** **#092** (the regrouped jewellery counter) has
-   not been on a phone at all, and **#091** (cloud auth + live sync) needs its
-   Firestore console steps finished first. #085, #086 and #084 were passed on
-   v1.4.22 on 2026-11-07; #074–#083 and #080’s **Include database key** switch
-   were seen earlier.
+1. **Two phone passes are owed.** **#092** (the regrouped jewellery counter) was
+   walked end to end on the x86_64 emulator on 2026-11-11, but it has not been on
+   a phone: the shop's Redmi Note 13 Pro refuses the adb install until
+   **Developer options → Install via USB** is switched on. **#091** (cloud auth
+   + live sync) needs its Firestore console steps finished first. #085, #086 and
+   #084 were passed on v1.4.22 on 2026-11-07; #074–#083 and #080’s **Include
+   database key** switch were seen earlier.
 2. **#080 remaining** — try a restore on a phone with a different keystore. Do
    **not** rotate the PIN or admin password again: they are documented in
    `PASSWORDS.md` and rotating them is what wasted the shop's time.

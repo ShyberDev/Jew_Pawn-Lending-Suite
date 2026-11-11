@@ -6,6 +6,12 @@ in `TRACKER.md`; this file is the narrative.
 
 ---
 
+### 2026-11-11 — #092 counter walked on the emulator; phone pass still owed
+
+- **Why the emulator:** the shop's Redmi Note 13 Pro refused every `adb install` (`INSTALL_FAILED_USER_RESTRICTED`, needs **Install via USB**), so the build was driven on the `Jewellery_Suite_Test` AVD instead. Emulator evidence is not a phone pass, so **#092 stays 🟨**.
+- **What was seen (1.4.26 / 4078, x86_64):** rates strip on its own with the pencil → **Gold rate** dialog (*Pure-metal rate ₹/g*, Cancel / Save) and, after `7200`, **7,200/g** with **92% 6,624/g**; one card holding **Money today** (Sales / Collected / Purchases / Outstanding · open) and **Metal in hand** (raw and old, gold and silver); **Workshop** rows Orders · Workers · Old metal · Returns and **Money** rows Customer credit · Supplier payables · Reports, each with a live figure or status; after a ₹72,000 sale, **Documents · 1 of 1** with the search box, **All · Sales · Purchases** and the tune button; the **Filter documents** sheet with Metal / Payment status / Clear / Show results, which badged the tune button **2** for Gold + Dues.
+- **Not covered:** the Purchases segment, the no-match state and `Clear`. No `FATAL`/`E/flutter` line; `[db] open: SQLCipher encrypted, schema v21`. Details and the screen-by-screen wording are in `VERIFICATION.md`.
+
 ### 2026-11-11 — v1.4.26 published; install blocked on the HyperOS phone
 
 - **Published:** GitHub release **v1.4.26** (tag `v1.4.26`, marked **Latest**, notes list every size and SHA-256) with the three split APKs: arm64-v8a **47,574,144** bytes `5b0809aa059590f979570f88e61bf82e09710166aa723e1735674c0c8e32da7c`, armeabi-v7a **40,248,266** `e8a5dcc81b0fc37a59461c3922e418cadf4bc64658a837e8b3ea49ce6ff5cdc3`, x86_64 **50,336,587** `eb5d1847a1653536c11c27ee197549b09ae85e94c6c125cb612632588d041554`. First published build since v1.4.4, and the first to carry #092 and the #091 scaffolding.
